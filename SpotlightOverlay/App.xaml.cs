@@ -89,34 +89,53 @@ public partial class App : Application
         // Hook callbacks fire on a non-UI thread — dispatch to WPF dispatcher (async to avoid blocking hooks)
         Dispatcher.BeginInvoke(() =>
         {
+          try
+          {
             DebugLog.Write("[App] Inside Dispatcher.BeginInvoke for DragCompleted");
+
             var monitorBounds = MonitorHelper.GetMonitorBounds(e.DragStartPoint);
             var monitorTopLeft = new System.Windows.Point(monitorBounds.X, monitorBounds.Y);
-            DebugLog.Write($"[App] Monitor bounds: {monitorBounds}, topLeft: {monitorTopLeft}");
+            DebugLog.Write($"[App] Screen rect: {e.ScreenRect}, Monitor: {monitorBounds}");
 
             // Create overlay on first drag, reuse for subsequent drags (Req 3.1)
             if (_overlayWindow == null)
             {
-                DebugLog.Write($"[App] Creating new OverlayWindow, opacity={_settings.OverlayOpacity}");
                 _overlayWindow = new OverlayWindow(monitorBounds, _settings.OverlayOpacity);
                 _overlayWindow.Show();
                 _overlayWindow.SetClickThrough(true);
-                DebugLog.Write("[App] OverlayWindow shown with click-through");
+                DebugLog.Write($"[App] OverlayWindow shown: L={_overlayWindow.Left} T={_overlayWindow.Top} W={_overlayWindow.ActualWidth} H={_overlayWindow.ActualHeight}");
             }
 
-            // Translate screen coordinates to window-relative coordinates (Req 7.3)
-            var windowRect = MonitorHelper.ScreenToWindow(e.ScreenRect, monitorTopLeft);
-            DebugLog.Write($"[App] Window-relative rect: {windowRect}");
+            // DPI: hook gives physical pixels, WPF uses DIPs. Scale using actual window size.
+            double actualW = _overlayWindow.ActualWidth;
+            double actualH = _overlayWindow.ActualHeight;
+            double dpiScaleX = actualW > 0 ? monitorBounds.Width / actualW : 1.0;
+            double dpiScaleY = actualH > 0 ? monitorBounds.Height / actualH : 1.0;
+            DebugLog.Write($"[App] DPI scale: X={dpiScaleX}, Y={dpiScaleY}");
+
+            // Translate screen coordinates to window-relative DIP coordinates
+            var screenRect = e.ScreenRect;
+            var windowRect = new System.Windows.Rect(
+                (screenRect.X - monitorTopLeft.X) / dpiScaleX,
+                (screenRect.Y - monitorTopLeft.Y) / dpiScaleY,
+                screenRect.Width / dpiScaleX,
+                screenRect.Height / dpiScaleY);
+            DebugLog.Write($"[App] Window-relative rect (DIP): {windowRect}, Feather: {_settings.FeatherRadius}");
 
             // Add cutout and rebuild clip geometry (Req 4.1, 4.3)
             _renderer.AddCutout(windowRect);
-            var clipGeometry = _renderer.BuildClipGeometry(
-                new System.Windows.Size(monitorBounds.Width, monitorBounds.Height));
-            DebugLog.Write($"[App] Clip geometry built with {_renderer.CutoutCount} cutouts");
+            var overlaySize = new System.Windows.Size(_overlayWindow.ActualWidth, _overlayWindow.ActualHeight);
+            var clipGeometry = _renderer.BuildClipGeometry(overlaySize);
+            DebugLog.Write($"[App] Clip built: {_renderer.CutoutCount} cutouts");
             _overlayWindow.ApplyClipGeometry(clipGeometry);
-            DebugLog.Write("[App] Clip geometry applied");
+            DebugLog.Write("[App] Clip applied");
 
             _overlayWindow.SetClickThrough(true);
+          }
+          catch (Exception ex)
+          {
+            DebugLog.Write($"[App] ERROR in DragCompleted: {ex}");
+          }
         });
     }
 
