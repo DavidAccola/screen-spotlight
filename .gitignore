@@ -1,0 +1,9 @@
+bin/
+obj/
+*.user
+*.suo
+.vs/
+*.log
+stderr.log
+spotlight-debug.log
+test-spotlight.ps1
