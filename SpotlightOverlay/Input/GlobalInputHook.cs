@@ -204,6 +204,7 @@ public class GlobalInputHook : IDisposable
                     _isDragging = true;
                     _dragStartPoint = new System.Windows.Point(hookStruct.pt.x, hookStruct.pt.y);
                     SpotlightOverlay.DebugLog.Write($"[Hook] Drag started at ({hookStruct.pt.x}, {hookStruct.pt.y})");
+                    return (IntPtr)1; // Suppress — don't pass Ctrl+Click to other apps
                 }
             }
             else if (msg == WM_LBUTTONUP)
@@ -232,6 +233,8 @@ public class GlobalInputHook : IDisposable
                     {
                         SpotlightOverlay.DebugLog.Write($"[Hook] Drag too small, ignoring (w={width}, h={height})");
                     }
+
+                    return (IntPtr)1; // Suppress — don't pass button-up to other apps
                 }
             }
             else if (msg == WM_MOUSEMOVE)
@@ -251,6 +254,8 @@ public class GlobalInputHook : IDisposable
                         var rect = new System.Windows.Rect(x, y, width, height);
                         DragUpdated?.Invoke(this, new DragRectEventArgs(rect, _dragStartPoint));
                     }
+
+                    return CallNextHookEx(_mouseHookHandle, nCode, wParam, lParam); // Let mouse move pass through so cursor still tracks
                 }
             }
             else if (msg == WM_RBUTTONDOWN || msg == WM_RBUTTONUP)
