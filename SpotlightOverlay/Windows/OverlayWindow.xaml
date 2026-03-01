@@ -10,9 +10,9 @@
     <Grid x:Name="OverlayGrid">
         <Canvas x:Name="PreviewCanvas">
             <Border x:Name="DragPreview"
-                    BorderBrush="#00AAFF"
-                    BorderThickness="2"
-                    Background="#2200AAFF"
+                    BorderBrush="#60FFFFFF"
+                    BorderThickness="1"
+                    Background="#10FFFFFF"
                     Visibility="Collapsed" />
         </Canvas>
     </Grid>

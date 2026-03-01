@@ -9,6 +9,7 @@ inclusion: always
 - If the build enters a bad state (MainResourcesGeneration errors), fix it by deleting both `obj/` and `bin/` folders, then rebuild: `Remove-Item -Recurse -Force SpotlightOverlay\obj, SpotlightOverlay\bin; dotnet build SpotlightOverlay`
 - Always do a clean rebuild (`Remove-Item obj+bin`) after any XAML file changes to avoid stale BAML cache issues.
 - After editing code, always build and verify before telling the user to run.
+- ALWAYS kill SpotlightOverlay.exe before building: `taskkill /IM SpotlightOverlay.exe /F` — the exe locks DLLs and causes build failures if still running.
 
 ## Test Script
 - Use `test-spotlight.ps1` to do automated end-to-end testing (simulates Ctrl+Drag via SendInput, checks debug log).
