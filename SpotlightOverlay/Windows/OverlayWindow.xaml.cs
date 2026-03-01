@@ -90,10 +90,9 @@ public partial class OverlayWindow : Window
     }
 
     /// <summary>
-    /// Begins a 300ms fade-out animation on the window, then closes it and invokes the callback.
-    /// The callback is used by the caller (e.g., App.xaml.cs) to clear cutouts in the renderer.
+    /// Begins a 300ms fade-out animation on the window, then hides it and invokes the callback.
+    /// Does NOT close the window — keeps it alive for potential restore.
     /// </summary>
-    /// <param name="onComplete">Action invoked after the fade-out completes and the window is closed.</param>
     public void BeginFadeOut(Action onComplete)
     {
         var animation = new DoubleAnimation
@@ -103,18 +102,31 @@ public partial class OverlayWindow : Window
             Duration = new Duration(TimeSpan.FromMilliseconds(300))
         };
 
-        var storyboard = new Storyboard();
-        storyboard.Children.Add(animation);
-        Storyboard.SetTarget(animation, this);
-        Storyboard.SetTargetProperty(animation, new PropertyPath(OpacityProperty));
-
-        storyboard.Completed += (_, _) =>
+        animation.Completed += (_, _) =>
         {
-            Close();
+            Visibility = Visibility.Hidden;
             onComplete?.Invoke();
         };
 
-        storyboard.Begin();
+        BeginAnimation(OpacityProperty, animation);
+    }
+
+    /// <summary>
+    /// Restores the overlay from hidden state with a fade-in animation.
+    /// </summary>
+    public void BeginFadeIn(int durationMs = 500)
+    {
+        Opacity = 0;
+        Visibility = Visibility.Visible;
+
+        var animation = new DoubleAnimation
+        {
+            From = 0.0,
+            To = 1.0,
+            Duration = new Duration(TimeSpan.FromMilliseconds(durationMs))
+        };
+
+        BeginAnimation(OpacityProperty, animation);
     }
 
     #region Drag Preview

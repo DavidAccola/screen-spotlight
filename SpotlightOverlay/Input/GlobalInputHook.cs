@@ -98,7 +98,12 @@ public class GlobalInputHook : IDisposable
     public event EventHandler? CtrlReleased;
 
     /// <summary>
-    /// Raised when the Escape key is pressed to dismiss the overlay.
+    /// Raised when the Ctrl+Esc key combo is pressed to restore a dismissed overlay.
+    /// </summary>
+    public event EventHandler? RestoreRequested;
+
+    /// <summary>
+    /// Raised when the Escape key is pressed (without Ctrl) to dismiss the overlay.
     /// </summary>
     public event EventHandler? DismissRequested;
 
@@ -108,6 +113,12 @@ public class GlobalInputHook : IDisposable
     /// When false, all input events are ignored (hooks remain installed but inactive).
     /// </summary>
     public bool IsEnabled { get; set; }
+
+    /// <summary>
+    /// When true, Ctrl+Esc will fire RestoreRequested and suppress the Start menu.
+    /// Set by the application layer when the overlay is in dismissed state.
+    /// </summary>
+    public bool CanRestore { get; set; }
 
     /// <summary>
     /// Optional callback for reporting hook installation errors.
@@ -300,7 +311,22 @@ public class GlobalInputHook : IDisposable
             {
                 if (hookStruct.vkCode == VK_ESCAPE)
                 {
-                    DismissRequested?.Invoke(this, EventArgs.Empty);
+                    short ctrlState = GetAsyncKeyState(VK_CONTROL);
+                    bool ctrlHeld = (ctrlState & 0x8000) != 0;
+
+                    if (ctrlHeld && CanRestore)
+                    {
+                        // Ctrl+Esc while dismissed → restore overlay, suppress Start menu
+                        SpotlightOverlay.DebugLog.Write("[Hook] Ctrl+Esc detected, emitting RestoreRequested (suppressing)");
+                        RestoreRequested?.Invoke(this, EventArgs.Empty);
+                        return (IntPtr)1; // Suppress to prevent Start menu
+                    }
+                    else if (!ctrlHeld)
+                    {
+                        // Plain Esc → dismiss overlay
+                        SpotlightOverlay.DebugLog.Write("[Hook] Esc detected, emitting DismissRequested");
+                        DismissRequested?.Invoke(this, EventArgs.Empty);
+                    }
                 }
             }
             else if (msg == WM_KEYUP)

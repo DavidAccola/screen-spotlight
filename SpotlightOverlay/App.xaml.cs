@@ -18,10 +18,22 @@ public partial class App : Application
     private TrayIconService _trayIcon = null!;
     private OverlayWindow? _overlayWindow;
     private readonly List<System.Windows.Rect> _pendingCutouts = new();
+    private bool _isDismissed; // true when overlay is hidden but cutouts are preserved
 
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+
+        // Global exception handlers for debugging silent crashes
+        AppDomain.CurrentDomain.UnhandledException += (s, args) =>
+        {
+            DebugLog.Write($"[App] UNHANDLED EXCEPTION: {args.ExceptionObject}");
+        };
+        DispatcherUnhandledException += (s, args) =>
+        {
+            DebugLog.Write($"[App] DISPATCHER EXCEPTION: {args.Exception}");
+            args.Handled = true;
+        };
 
         // Initialize services
         _settings = new SettingsService();
@@ -53,6 +65,7 @@ public partial class App : Application
         _inputHook.DragCancelled += OnDragCancelled;
         _inputHook.CtrlReleased += OnCtrlReleased;
         _inputHook.DismissRequested += OnDismissRequested;
+        _inputHook.RestoreRequested += OnRestoreRequested;
     }
 
     /// <summary>
@@ -96,18 +109,39 @@ public partial class App : Application
     /// <summary>
     /// Handles live drag updates: shows a preview rectangle on the overlay as the user drags.
     /// </summary>
+    /// <summary>
+    /// Converts a screen-coordinate rect (physical pixels from the hook) to
+    /// window-relative DIP coordinates using WPF's built-in PointFromScreen.
+    /// </summary>
+    private System.Windows.Rect ScreenRectToWindowDip(System.Windows.Rect screenRect)
+    {
+        var topLeft = _overlayWindow!.PointFromScreen(new System.Windows.Point(screenRect.X, screenRect.Y));
+        var bottomRight = _overlayWindow.PointFromScreen(new System.Windows.Point(screenRect.Right, screenRect.Bottom));
+        return new System.Windows.Rect(topLeft, bottomRight);
+    }
+
     private void OnDragUpdated(object? sender, DragRectEventArgs e)
     {
         Dispatcher.BeginInvoke(() =>
         {
             try
             {
-                var monitorBounds = MonitorHelper.GetMonitorBounds(e.DragStartPoint);
-                var monitorTopLeft = new System.Windows.Point(monitorBounds.X, monitorBounds.Y);
+                // If dismissed and starting a new drag, truly clear everything and start fresh
+                if (_isDismissed && _overlayWindow != null)
+                {
+                    DebugLog.Write("[App] New drag while dismissed — clearing old cutouts");
+                    _overlayWindow.Close();
+                    _overlayWindow = null;
+                    _renderer.ClearCutouts();
+                    _pendingCutouts.Clear();
+                    _isDismissed = false;
+                    _inputHook.CanRestore = false;
+                }
 
                 // Create overlay on first move if it doesn't exist yet
                 if (_overlayWindow == null)
                 {
+                    var monitorBounds = MonitorHelper.GetMonitorBounds(e.DragStartPoint);
                     var win = new OverlayWindow(monitorBounds, _settings.OverlayOpacity);
                     try
                     {
@@ -122,18 +156,7 @@ public partial class App : Application
                     _overlayWindow = win;
                 }
 
-                double actualW = _overlayWindow.ActualWidth;
-                double actualH = _overlayWindow.ActualHeight;
-                double dpiScaleX = actualW > 0 ? monitorBounds.Width / actualW : 1.0;
-                double dpiScaleY = actualH > 0 ? monitorBounds.Height / actualH : 1.0;
-
-                var screenRect = e.ScreenRect;
-                var windowRect = new System.Windows.Rect(
-                    (screenRect.X - monitorTopLeft.X) / dpiScaleX,
-                    (screenRect.Y - monitorTopLeft.Y) / dpiScaleY,
-                    screenRect.Width / dpiScaleX,
-                    screenRect.Height / dpiScaleY);
-
+                var windowRect = ScreenRectToWindowDip(e.ScreenRect);
                 _overlayWindow.ShowDragPreview(windowRect);
             }
             catch (Exception ex)
@@ -159,20 +182,7 @@ public partial class App : Application
           {
             if (_overlayWindow == null) return;
 
-            var monitorBounds = MonitorHelper.GetMonitorBounds(e.DragStartPoint);
-            var monitorTopLeft = new System.Windows.Point(monitorBounds.X, monitorBounds.Y);
-
-            double actualW = _overlayWindow.ActualWidth;
-            double actualH = _overlayWindow.ActualHeight;
-            double dpiScaleX = actualW > 0 ? monitorBounds.Width / actualW : 1.0;
-            double dpiScaleY = actualH > 0 ? monitorBounds.Height / actualH : 1.0;
-
-            var screenRect = e.ScreenRect;
-            var windowRect = new System.Windows.Rect(
-                (screenRect.X - monitorTopLeft.X) / dpiScaleX,
-                (screenRect.Y - monitorTopLeft.Y) / dpiScaleY,
-                screenRect.Width / dpiScaleX,
-                screenRect.Height / dpiScaleY);
+            var windowRect = ScreenRectToWindowDip(e.ScreenRect);
 
             DebugLog.Write($"[App] Queuing pending cutout: {windowRect}");
             _pendingCutouts.Add(windowRect);
@@ -234,25 +244,39 @@ public partial class App : Application
     private void OnDismissRequested(object? sender, EventArgs e)
     {
         DebugLog.Write("[App] OnDismissRequested received");
-        // Hook callbacks fire on a non-UI thread — dispatch to WPF dispatcher (async to avoid blocking hooks)
         Dispatcher.BeginInvoke(() =>
         {
-            if (_overlayWindow == null)
+            if (_overlayWindow == null || _isDismissed)
             {
-                DebugLog.Write("[App] No overlay window to dismiss");
+                DebugLog.Write("[App] No overlay to dismiss or already dismissed");
                 return;
             }
 
-            DebugLog.Write("[App] Beginning fade-out");
-            var window = _overlayWindow;
-            _overlayWindow = null;
-
-            window.BeginFadeOut(() =>
+            DebugLog.Write("[App] Dismissing overlay");
+            _isDismissed = true;
+            _inputHook.CanRestore = true;
+            _overlayWindow.BeginFadeOut(() =>
             {
-                _renderer.ClearCutouts();
-                _pendingCutouts.Clear();
-                DebugLog.Write("[App] Fade-out complete, cutouts cleared");
+                DebugLog.Write("[App] Fade-out complete, overlay hidden (cutouts preserved)");
             });
+        });
+    }
+
+    private void OnRestoreRequested(object? sender, EventArgs e)
+    {
+        DebugLog.Write("[App] OnRestoreRequested received");
+        Dispatcher.BeginInvoke(() =>
+        {
+            if (_overlayWindow == null || !_isDismissed)
+            {
+                DebugLog.Write("[App] Nothing to restore");
+                return;
+            }
+
+            DebugLog.Write("[App] Restoring overlay");
+            _isDismissed = false;
+            _inputHook.CanRestore = false;
+            _overlayWindow.BeginFadeIn();
         });
     }
     /// <summary>
