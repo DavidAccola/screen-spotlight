@@ -23,23 +23,44 @@ public partial class OverlayWindow : Window
     {
         InitializeComponent();
 
-        // Position and size the window to cover the full monitor bounds (Req 3.3, 7.2)
         Left = monitorBounds.Left;
         Top = monitorBounds.Top;
         Width = monitorBounds.Width;
         Height = monitorBounds.Height;
 
-        // Store opacity for fade-out animation reference
         _overlayOpacity = overlayOpacity;
 
-        // Set the semi-transparent dark background (Req 3.4)
-        // Black regions in OpacityMask = show this background (dark overlay)
-        // White regions in OpacityMask = hide this background (reveal desktop)
-        OverlayGrid.Background = new SolidColorBrush(
-            System.Windows.Media.Color.FromArgb((byte)(overlayOpacity * 255), 0, 0, 0));
+        // Start with transparent background — will be faded in on first cutout
+        _overlayBrush = new SolidColorBrush(
+            System.Windows.Media.Color.FromArgb(0, 0, 0, 0));
+        OverlayGrid.Background = _overlayBrush;
     }
 
     private double _overlayOpacity;
+    private SolidColorBrush _overlayBrush;
+    private bool _hasFadedIn;
+
+    /// <summary>
+    /// Animates the overlay background from transparent to the target opacity over the given duration.
+    /// Only runs once (first cutout). Returns true if this was the first fade-in, false if already faded in.
+    /// </summary>
+    public bool FadeInBackground(int durationMs = 500)
+    {
+        if (_hasFadedIn) return false;
+        _hasFadedIn = true;
+
+        var targetColor = System.Windows.Media.Color.FromArgb((byte)(_overlayOpacity * 255), 0, 0, 0);
+        var animation = new ColorAnimation
+        {
+            From = System.Windows.Media.Color.FromArgb(0, 0, 0, 0),
+            To = targetColor,
+            Duration = new Duration(TimeSpan.FromMilliseconds(durationMs)),
+            EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut }
+        };
+
+        _overlayBrush.BeginAnimation(SolidColorBrush.ColorProperty, animation);
+        return true;
+    }
 
     /// <summary>
     /// Applies a clip geometry to the overlay grid, cutting out transparent holes
@@ -118,7 +139,71 @@ public partial class OverlayWindow : Window
         DragPreview.Visibility = Visibility.Collapsed;
     }
 
+    /// <summary>
+    /// Finalizes the current drag preview as a static outline box on the canvas.
+    /// The preview border is cloned and kept visible while the active preview is hidden.
+    /// </summary>
+    public void FinalizeDragPreview(Rect rect)
+    {
+        var box = new System.Windows.Shapes.Rectangle
+        {
+            Width = rect.Width,
+            Height = rect.Height,
+            Stroke = new SolidColorBrush(System.Windows.Media.Color.FromArgb(0x40, 0xFF, 0xFF, 0xFF)),
+            StrokeThickness = 1,
+            IsHitTestVisible = false
+        };
+        System.Windows.Controls.Canvas.SetLeft(box, rect.X);
+        System.Windows.Controls.Canvas.SetTop(box, rect.Y);
+        PreviewCanvas.Children.Add(box);
+        DragPreview.Visibility = Visibility.Collapsed;
+    }
+
+    /// <summary>
+    /// Removes all finalized preview boxes from the canvas.
+    /// </summary>
+    public void ClearFinalizedPreviews()
+    {
+        // Remove everything except the DragPreview border
+        for (int i = PreviewCanvas.Children.Count - 1; i >= 0; i--)
+        {
+            if (PreviewCanvas.Children[i] != DragPreview)
+                PreviewCanvas.Children.RemoveAt(i);
+        }
+    }
+
     #endregion
+
+    /// <summary>
+    /// Animates a fade-in effect for a newly added cutout. Places a temporary dark
+    /// rectangle over the cutout area and fades it out, revealing the transparent hole.
+    /// </summary>
+    public void AnimateCutoutFadeIn(Rect cutoutRect)
+    {
+        var patch = new System.Windows.Shapes.Rectangle
+        {
+            Width = cutoutRect.Width,
+            Height = cutoutRect.Height,
+            Fill = new SolidColorBrush(
+                System.Windows.Media.Color.FromArgb((byte)(_overlayOpacity * 255), 0, 0, 0)),
+            IsHitTestVisible = false
+        };
+
+        System.Windows.Controls.Canvas.SetLeft(patch, cutoutRect.X);
+        System.Windows.Controls.Canvas.SetTop(patch, cutoutRect.Y);
+        FadeCanvas.Children.Add(patch);
+
+        var fadeOut = new DoubleAnimation
+        {
+            From = 1.0,
+            To = 0.0,
+            Duration = new Duration(TimeSpan.FromMilliseconds(500)),
+            EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut }
+        };
+
+        fadeOut.Completed += (_, _) => FadeCanvas.Children.Remove(patch);
+        patch.BeginAnimation(OpacityProperty, fadeOut);
+    }
 
     #region Click-Through P/Invoke (Req 3.5, 3.6)
 

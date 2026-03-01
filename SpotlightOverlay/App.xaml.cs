@@ -17,6 +17,7 @@ public partial class App : Application
     private GlobalInputHook _inputHook = null!;
     private TrayIconService _trayIcon = null!;
     private OverlayWindow? _overlayWindow;
+    private readonly List<System.Windows.Rect> _pendingCutouts = new();
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -50,6 +51,7 @@ public partial class App : Application
         _inputHook.DragCompleted += OnDragCompleted;
         _inputHook.DragUpdated += OnDragUpdated;
         _inputHook.DragCancelled += OnDragCancelled;
+        _inputHook.CtrlReleased += OnCtrlReleased;
         _inputHook.DismissRequested += OnDismissRequested;
     }
 
@@ -144,74 +146,87 @@ public partial class App : Application
     /// <summary>
     /// Handles a completed drag gesture: identifies the target monitor, creates or reuses
     /// the overlay window, translates coordinates, adds a cutout, and applies the mask
-    /// (Req 2.3, 3.1, 7.1, 7.3).
+    /// <summary>
+    /// Handles a completed drag gesture: queues the cutout rect and finalizes the preview box.
+    /// The actual cutout is applied when Ctrl is released (OnCtrlReleased).
     /// </summary>
     private void OnDragCompleted(object? sender, DragRectEventArgs e)
     {
         DebugLog.Write($"[App] OnDragCompleted received: ScreenRect={e.ScreenRect}, DragStart={e.DragStartPoint}");
-        // Hook callbacks fire on a non-UI thread — dispatch to WPF dispatcher (async to avoid blocking hooks)
         Dispatcher.BeginInvoke(() =>
         {
           try
           {
-            DebugLog.Write("[App] Inside Dispatcher.BeginInvoke for DragCompleted");
+            if (_overlayWindow == null) return;
 
             var monitorBounds = MonitorHelper.GetMonitorBounds(e.DragStartPoint);
             var monitorTopLeft = new System.Windows.Point(monitorBounds.X, monitorBounds.Y);
-            DebugLog.Write($"[App] Screen rect: {e.ScreenRect}, Monitor: {monitorBounds}");
 
-            // Create overlay on first drag, reuse for subsequent drags (Req 3.1)
-            if (_overlayWindow == null)
-            {
-                var win = new OverlayWindow(monitorBounds, _settings.OverlayOpacity);
-                try
-                {
-                    win.Show();
-                }
-                catch (System.ComponentModel.Win32Exception w32ex)
-                {
-                    DebugLog.Write($"[App] Window.Show() failed: {w32ex.Message}, retrying...");
-                    System.Threading.Thread.Sleep(200);
-                    win = new OverlayWindow(monitorBounds, _settings.OverlayOpacity);
-                    win.Show();
-                }
-                win.SetClickThrough(true);
-                _overlayWindow = win;
-                DebugLog.Write($"[App] OverlayWindow shown: L={_overlayWindow.Left} T={_overlayWindow.Top} W={_overlayWindow.ActualWidth} H={_overlayWindow.ActualHeight}");
-            }
-
-            // Hide the drag preview now that the drag is complete
-            _overlayWindow.HideDragPreview();
-
-            // DPI: hook gives physical pixels, WPF uses DIPs. Scale using actual window size.
             double actualW = _overlayWindow.ActualWidth;
             double actualH = _overlayWindow.ActualHeight;
             double dpiScaleX = actualW > 0 ? monitorBounds.Width / actualW : 1.0;
             double dpiScaleY = actualH > 0 ? monitorBounds.Height / actualH : 1.0;
-            DebugLog.Write($"[App] DPI scale: X={dpiScaleX}, Y={dpiScaleY}");
 
-            // Translate screen coordinates to window-relative DIP coordinates
             var screenRect = e.ScreenRect;
             var windowRect = new System.Windows.Rect(
                 (screenRect.X - monitorTopLeft.X) / dpiScaleX,
                 (screenRect.Y - monitorTopLeft.Y) / dpiScaleY,
                 screenRect.Width / dpiScaleX,
                 screenRect.Height / dpiScaleY);
-            DebugLog.Write($"[App] Window-relative rect (DIP): {windowRect}, Feather: {_settings.FeatherRadius}");
 
-            // Add cutout and rebuild clip geometry (Req 4.1, 4.3)
-            _renderer.AddCutout(windowRect);
-            var overlaySize = new System.Windows.Size(_overlayWindow.ActualWidth, _overlayWindow.ActualHeight);
-            var clipGeometry = _renderer.BuildClipGeometry(overlaySize);
-            DebugLog.Write($"[App] Clip built: {_renderer.CutoutCount} cutouts");
-            _overlayWindow.ApplyClipGeometry(clipGeometry);
-            DebugLog.Write("[App] Clip applied");
-
-            _overlayWindow.SetClickThrough(true);
+            DebugLog.Write($"[App] Queuing pending cutout: {windowRect}");
+            _pendingCutouts.Add(windowRect);
+            _overlayWindow.FinalizeDragPreview(windowRect);
           }
           catch (Exception ex)
           {
             DebugLog.Write($"[App] ERROR in DragCompleted: {ex}");
+          }
+        });
+    }
+
+    /// <summary>
+    /// Handles Ctrl key release: applies all pending cutouts at once with fade-in.
+    /// </summary>
+    private void OnCtrlReleased(object? sender, EventArgs e)
+    {
+        DebugLog.Write($"[App] OnCtrlReleased, pending cutouts: {_pendingCutouts.Count}");
+        Dispatcher.BeginInvoke(() =>
+        {
+          try
+          {
+            if (_overlayWindow == null || _pendingCutouts.Count == 0) return;
+
+            // Apply all pending cutouts
+            foreach (var rect in _pendingCutouts)
+            {
+                _renderer.AddCutout(rect);
+            }
+
+            var overlaySize = new System.Windows.Size(_overlayWindow.ActualWidth, _overlayWindow.ActualHeight);
+            var clipGeometry = _renderer.BuildClipGeometry(overlaySize);
+            _overlayWindow.ApplyClipGeometry(clipGeometry);
+
+            // Fade in background on first batch, animate individual cutouts on subsequent batches
+            bool isFirstBatch = _overlayWindow.FadeInBackground();
+            if (!isFirstBatch)
+            {
+                foreach (var rect in _pendingCutouts)
+                {
+                    _overlayWindow.AnimateCutoutFadeIn(rect);
+                }
+            }
+
+            // Clear finalized preview boxes and pending list
+            _overlayWindow.ClearFinalizedPreviews();
+            _pendingCutouts.Clear();
+
+            _overlayWindow.SetClickThrough(true);
+            DebugLog.Write($"[App] Applied {_renderer.CutoutCount} total cutouts");
+          }
+          catch (Exception ex)
+          {
+            DebugLog.Write($"[App] ERROR in CtrlReleased: {ex}");
           }
         });
     }
@@ -235,6 +250,7 @@ public partial class App : Application
             window.BeginFadeOut(() =>
             {
                 _renderer.ClearCutouts();
+                _pendingCutouts.Clear();
                 DebugLog.Write("[App] Fade-out complete, cutouts cleared");
             });
         });

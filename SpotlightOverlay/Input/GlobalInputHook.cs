@@ -39,9 +39,12 @@ public class GlobalInputHook : IDisposable
     private const int WM_RBUTTONDOWN = 0x0204;
     private const int WM_RBUTTONUP = 0x0205;
     private const int VK_CONTROL = 0x11;
+    private const int VK_LCONTROL = 0xA2;
+    private const int VK_RCONTROL = 0xA3;
     private const int VK_ESCAPE = 0x1B;
 
     private const int WM_KEYDOWN = 0x0100;
+    private const int WM_KEYUP = 0x0101;
 
     [StructLayout(LayoutKind.Sequential)]
     private struct KBDLLHOOKSTRUCT
@@ -90,6 +93,11 @@ public class GlobalInputHook : IDisposable
     public event EventHandler? DragCancelled;
 
     /// <summary>
+    /// Raised when the Ctrl key is released after one or more drag gestures.
+    /// </summary>
+    public event EventHandler? CtrlReleased;
+
+    /// <summary>
     /// Raised when the Escape key is pressed to dismiss the overlay.
     /// </summary>
     public event EventHandler? DismissRequested;
@@ -117,6 +125,7 @@ public class GlobalInputHook : IDisposable
     // Drag tracking state
     private bool _isDragging;
     private System.Windows.Point _dragStartPoint;
+    private bool _hasPendingDrags; // true if any drags completed while Ctrl was held
 
     private bool _disposed;
 
@@ -228,6 +237,7 @@ public class GlobalInputHook : IDisposable
                         var rect = new System.Windows.Rect(x, y, width, height);
                         SpotlightOverlay.DebugLog.Write($"[Hook] Emitting DragCompleted: {rect}");
                         DragCompleted?.Invoke(this, new DragRectEventArgs(rect, _dragStartPoint));
+                        _hasPendingDrags = true;
                     }
                     else
                     {
@@ -284,13 +294,22 @@ public class GlobalInputHook : IDisposable
         if (nCode >= 0 && IsEnabled)
         {
             int msg = wParam.ToInt32();
+            var hookStruct = Marshal.PtrToStructure<KBDLLHOOKSTRUCT>(lParam);
 
             if (msg == WM_KEYDOWN)
             {
-                var hookStruct = Marshal.PtrToStructure<KBDLLHOOKSTRUCT>(lParam);
                 if (hookStruct.vkCode == VK_ESCAPE)
                 {
                     DismissRequested?.Invoke(this, EventArgs.Empty);
+                }
+            }
+            else if (msg == WM_KEYUP)
+            {
+                if ((hookStruct.vkCode == VK_CONTROL || hookStruct.vkCode == VK_LCONTROL || hookStruct.vkCode == VK_RCONTROL) && _hasPendingDrags)
+                {
+                    _hasPendingDrags = false;
+                    SpotlightOverlay.DebugLog.Write("[Hook] Ctrl released with pending drags, emitting CtrlReleased");
+                    CtrlReleased?.Invoke(this, EventArgs.Empty);
                 }
             }
         }
