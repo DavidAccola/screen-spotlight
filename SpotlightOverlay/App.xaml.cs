@@ -100,9 +100,20 @@ public partial class App : Application
             // Create overlay on first drag, reuse for subsequent drags (Req 3.1)
             if (_overlayWindow == null)
             {
-                _overlayWindow = new OverlayWindow(monitorBounds, _settings.OverlayOpacity);
-                _overlayWindow.Show();
-                _overlayWindow.SetClickThrough(true);
+                var win = new OverlayWindow(monitorBounds, _settings.OverlayOpacity);
+                try
+                {
+                    win.Show();
+                }
+                catch (System.ComponentModel.Win32Exception w32ex)
+                {
+                    DebugLog.Write($"[App] Window.Show() failed: {w32ex.Message}, retrying...");
+                    System.Threading.Thread.Sleep(200);
+                    win = new OverlayWindow(monitorBounds, _settings.OverlayOpacity);
+                    win.Show();
+                }
+                win.SetClickThrough(true);
+                _overlayWindow = win;
                 DebugLog.Write($"[App] OverlayWindow shown: L={_overlayWindow.Left} T={_overlayWindow.Top} W={_overlayWindow.ActualWidth} H={_overlayWindow.ActualHeight}");
             }
 

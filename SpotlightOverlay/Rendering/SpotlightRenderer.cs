@@ -38,14 +38,7 @@ public class SpotlightRenderer
 
         foreach (var cutout in _cutouts)
         {
-            int featherRadius = _settings.FeatherRadius;
-            var expandedRect = new Rect(
-                cutout.X - featherRadius,
-                cutout.Y - featherRadius,
-                cutout.Width + 2 * featherRadius,
-                cutout.Height + 2 * featherRadius);
-
-            var cutoutRect = new RectangleGeometry(expandedRect);
+            var cutoutRect = new RectangleGeometry(cutout);
             result = new CombinedGeometry(GeometryCombineMode.Exclude, result, cutoutRect);
         }
 

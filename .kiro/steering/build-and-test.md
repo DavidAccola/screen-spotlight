@@ -14,6 +14,7 @@ inclusion: always
 - Use `test-spotlight.ps1` to do automated end-to-end testing (simulates Ctrl+Drag via SendInput, checks debug log).
 - The test script builds, launches the app, simulates input, reads the log, and kills the process.
 - Debug logs write to `SpotlightOverlay\bin\Debug\net8.0-windows\win-x64\spotlight-debug.log`.
+- LIMITATION: WPF Window.Show() throws "Not enough memory resources" (0xc0000142) when launched from Start-Process in PowerShell scripts. The automated test verifies hook/input pipeline but cannot test window rendering. Window rendering must be tested manually via `dotnet run --project SpotlightOverlay`.
 
 ## WPF + DPI
 - Low-level hooks report coordinates in physical screen pixels.
