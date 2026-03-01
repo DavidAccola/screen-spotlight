@@ -78,7 +78,14 @@ Build a Windows desktop application using C# and WPF (.NET 8) that runs in the s
     - _Requirements: 3.1, 3.2, 3.3, 3.4, 7.2_
 
   - [x] 6.2 Implement click-through toggle via P/Invoke
-    - Add P/Invoke declarations for `GetWindowLong`, `SetWindowLong` with `GWL_EXSTYLE`, `WS_EX_TRANSPARENT`, `WS_EX_LAYERED`
+    - Add P/Invoke declarations for `GetWindowLohe system tray and provides a live spotlight overlay during presentations. Implementation proceeds bottom-up: project scaffolding → data models and settings → renderer → overlay window → global input hooks → tray icon → app wiring → packaging. Property-based tests use FsCheck.Xunit.
+
+## Tasks
+
+- [x] 1. Set up project structure and core data models
+  - [x] 1.1 Create the solution and WPF application project
+    - Create `SpotlightOverlay.sln` and `SpotlightOverlay.csproj` targeting `net8.0-windows` with `<UseWPF>true</UseWPF>` and `<UseWindowsForms>true</UseWindowsForms>`
+    - Add NuGet references: `System.Text.ng`, `SetWindowLong` with `GWL_EXSTYLE`, `WS_EX_TRANSPARENT`, `WS_EX_LAYERED`
     - Implement `SetClickThrough(bool enabled)` to toggle WS_EX_TRANSPARENT on the overlay window handle
     - _Requirements: 3.5, 3.6_
 

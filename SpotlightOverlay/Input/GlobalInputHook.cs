@@ -35,6 +35,7 @@ public class GlobalInputHook : IDisposable
 
     private const int WM_LBUTTONDOWN = 0x0201;
     private const int WM_LBUTTONUP = 0x0202;
+    private const int WM_MOUSEMOVE = 0x0200;
     private const int WM_RBUTTONDOWN = 0x0204;
     private const int WM_RBUTTONUP = 0x0205;
     private const int VK_CONTROL = 0x11;
@@ -77,6 +78,16 @@ public class GlobalInputHook : IDisposable
     /// Raised when a Ctrl+Click+Drag gesture completes with the resulting rectangle.
     /// </summary>
     public event EventHandler<DragRectEventArgs>? DragCompleted;
+
+    /// <summary>
+    /// Raised during a Ctrl+Click+Drag gesture with the current rectangle as the user moves the mouse.
+    /// </summary>
+    public event EventHandler<DragRectEventArgs>? DragUpdated;
+
+    /// <summary>
+    /// Raised when a drag gesture is cancelled (e.g., right-click during drag).
+    /// </summary>
+    public event EventHandler? DragCancelled;
 
     /// <summary>
     /// Raised when the Escape key is pressed to dismiss the overlay.
@@ -223,10 +234,32 @@ public class GlobalInputHook : IDisposable
                     }
                 }
             }
+            else if (msg == WM_MOUSEMOVE)
+            {
+                if (_isDragging)
+                {
+                    var hookStruct = Marshal.PtrToStructure<MSLLHOOKSTRUCT>(lParam);
+                    var currentPoint = new System.Windows.Point(hookStruct.pt.x, hookStruct.pt.y);
+
+                    double x = Math.Min(_dragStartPoint.X, currentPoint.X);
+                    double y = Math.Min(_dragStartPoint.Y, currentPoint.Y);
+                    double width = Math.Abs(currentPoint.X - _dragStartPoint.X);
+                    double height = Math.Abs(currentPoint.Y - _dragStartPoint.Y);
+
+                    if (width > 1 && height > 1)
+                    {
+                        var rect = new System.Windows.Rect(x, y, width, height);
+                        DragUpdated?.Invoke(this, new DragRectEventArgs(rect, _dragStartPoint));
+                    }
+                }
+            }
             else if (msg == WM_RBUTTONDOWN || msg == WM_RBUTTONUP)
             {
                 if (_isDragging)
+                {
                     SpotlightOverlay.DebugLog.Write("[Hook] Right-click detected, cancelling drag");
+                    DragCancelled?.Invoke(this, EventArgs.Empty);
+                }
                 _isDragging = false;
             }
         }

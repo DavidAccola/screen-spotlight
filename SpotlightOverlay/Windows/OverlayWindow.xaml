@@ -7,5 +7,13 @@
         Topmost="True"
         ShowInTaskbar="False"
         ResizeMode="NoResize">
-    <Grid x:Name="OverlayGrid" />
+    <Grid x:Name="OverlayGrid">
+        <Canvas x:Name="PreviewCanvas">
+            <Border x:Name="DragPreview"
+                    BorderBrush="#00AAFF"
+                    BorderThickness="2"
+                    Background="#2200AAFF"
+                    Visibility="Collapsed" />
+        </Canvas>
+    </Grid>
 </Window>

@@ -96,6 +96,30 @@ public partial class OverlayWindow : Window
         storyboard.Begin();
     }
 
+    #region Drag Preview
+
+    /// <summary>
+    /// Shows a live preview rectangle at the given position and size (in DIP coordinates).
+    /// </summary>
+    public void ShowDragPreview(Rect rect)
+    {
+        System.Windows.Controls.Canvas.SetLeft(DragPreview, rect.X);
+        System.Windows.Controls.Canvas.SetTop(DragPreview, rect.Y);
+        DragPreview.Width = rect.Width;
+        DragPreview.Height = rect.Height;
+        DragPreview.Visibility = Visibility.Visible;
+    }
+
+    /// <summary>
+    /// Hides the live drag preview rectangle.
+    /// </summary>
+    public void HideDragPreview()
+    {
+        DragPreview.Visibility = Visibility.Collapsed;
+    }
+
+    #endregion
+
     #region Click-Through P/Invoke (Req 3.5, 3.6)
 
     private const int GWL_EXSTYLE = -20;

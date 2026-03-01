@@ -48,6 +48,8 @@ public partial class App : Application
 
         // Wire input hook events
         _inputHook.DragCompleted += OnDragCompleted;
+        _inputHook.DragUpdated += OnDragUpdated;
+        _inputHook.DragCancelled += OnDragCancelled;
         _inputHook.DismissRequested += OnDismissRequested;
     }
 
@@ -76,6 +78,67 @@ public partial class App : Application
         _inputHook.Dispose();
         _trayIcon.Dispose();
         Shutdown();
+    }
+
+    /// <summary>
+    /// Handles drag cancellation (e.g., right-click during drag) — hides the preview.
+    /// </summary>
+    private void OnDragCancelled(object? sender, EventArgs e)
+    {
+        Dispatcher.BeginInvoke(() =>
+        {
+            _overlayWindow?.HideDragPreview();
+        });
+    }
+
+    /// <summary>
+    /// Handles live drag updates: shows a preview rectangle on the overlay as the user drags.
+    /// </summary>
+    private void OnDragUpdated(object? sender, DragRectEventArgs e)
+    {
+        Dispatcher.BeginInvoke(() =>
+        {
+            try
+            {
+                var monitorBounds = MonitorHelper.GetMonitorBounds(e.DragStartPoint);
+                var monitorTopLeft = new System.Windows.Point(monitorBounds.X, monitorBounds.Y);
+
+                // Create overlay on first move if it doesn't exist yet
+                if (_overlayWindow == null)
+                {
+                    var win = new OverlayWindow(monitorBounds, _settings.OverlayOpacity);
+                    try
+                    {
+                        win.Show();
+                    }
+                    catch (System.ComponentModel.Win32Exception w32ex)
+                    {
+                        DebugLog.Write($"[App] Window.Show() failed during preview: {w32ex.Message}");
+                        return;
+                    }
+                    win.SetClickThrough(true);
+                    _overlayWindow = win;
+                }
+
+                double actualW = _overlayWindow.ActualWidth;
+                double actualH = _overlayWindow.ActualHeight;
+                double dpiScaleX = actualW > 0 ? monitorBounds.Width / actualW : 1.0;
+                double dpiScaleY = actualH > 0 ? monitorBounds.Height / actualH : 1.0;
+
+                var screenRect = e.ScreenRect;
+                var windowRect = new System.Windows.Rect(
+                    (screenRect.X - monitorTopLeft.X) / dpiScaleX,
+                    (screenRect.Y - monitorTopLeft.Y) / dpiScaleY,
+                    screenRect.Width / dpiScaleX,
+                    screenRect.Height / dpiScaleY);
+
+                _overlayWindow.ShowDragPreview(windowRect);
+            }
+            catch (Exception ex)
+            {
+                DebugLog.Write($"[App] ERROR in DragUpdated: {ex}");
+            }
+        });
     }
 
     /// <summary>
@@ -116,6 +179,9 @@ public partial class App : Application
                 _overlayWindow = win;
                 DebugLog.Write($"[App] OverlayWindow shown: L={_overlayWindow.Left} T={_overlayWindow.Top} W={_overlayWindow.ActualWidth} H={_overlayWindow.ActualHeight}");
             }
+
+            // Hide the drag preview now that the drag is complete
+            _overlayWindow.HideDragPreview();
 
             // DPI: hook gives physical pixels, WPF uses DIPs. Scale using actual window size.
             double actualW = _overlayWindow.ActualWidth;
