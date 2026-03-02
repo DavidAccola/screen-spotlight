@@ -2,7 +2,17 @@ namespace SpotlightOverlay.Models;
 
 /// <summary>
 /// Immutable settings record for the Spotlight Overlay application.
-/// OverlayOpacity: [0.0, 1.0], default 0.5
-/// FeatherRadius: [0, ∞), default 30
 /// </summary>
-public record AppSettings(double OverlayOpacity, int FeatherRadius);
+public record AppSettings(double OverlayOpacity, int FeatherRadius, PreviewStyle PreviewStyle, DragStyle DragStyle);
+
+public enum PreviewStyle
+{
+    Outline = 0,
+    Crosshair = 1
+}
+
+public enum DragStyle
+{
+    HoldDrag = 0,
+    ClickClick = 1
+}

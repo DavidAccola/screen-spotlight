@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
+using System.Windows.Media.Effects;
 
 namespace SpotlightOverlay.Windows;
 
@@ -13,13 +14,7 @@ namespace SpotlightOverlay.Windows;
 /// </summary>
 public partial class OverlayWindow : Window
 {
-    /// <summary>
-    /// Creates an OverlayWindow positioned and sized to cover the specified monitor bounds
-    /// with the given overlay opacity.
-    /// </summary>
-    /// <param name="monitorBounds">The full bounds of the target monitor in screen coordinates.</param>
-    /// <param name="overlayOpacity">The opacity for the semi-transparent dark background (0.0–1.0).</param>
-    public OverlayWindow(Rect monitorBounds, double overlayOpacity)
+    public OverlayWindow(Rect monitorBounds, double overlayOpacity, int featherRadius = 15)
     {
         InitializeComponent();
 
@@ -29,20 +24,31 @@ public partial class OverlayWindow : Window
         Height = monitorBounds.Height;
 
         _overlayOpacity = overlayOpacity;
+        _featherRadius = featherRadius;
 
         // Start with transparent background — will be faded in on first cutout
         _overlayBrush = new SolidColorBrush(
             System.Windows.Media.Color.FromArgb(0, 0, 0, 0));
-        OverlayGrid.Background = _overlayBrush;
+        OverlayBorder.Background = _overlayBrush;
+        InitNamedElements();
+
+        // Start fully transparent to avoid flash during window creation
+        Opacity = 0;
+        Loaded += (_, _) =>
+        {
+            SetClickThrough(true);
+            Opacity = 1;
+        };
     }
 
     private double _overlayOpacity;
+    private int _featherRadius;
     private SolidColorBrush _overlayBrush;
     private bool _hasFadedIn;
 
     /// <summary>
-    /// Animates the overlay background from transparent to the target opacity over the given duration.
-    /// Only runs once (first cutout). Returns true if this was the first fade-in, false if already faded in.
+    /// Animates the overlay background from transparent to the target opacity.
+    /// Only runs once (first cutout batch). Returns true if first fade-in.
     /// </summary>
     public bool FadeInBackground(int durationMs = 500)
     {
@@ -63,13 +69,21 @@ public partial class OverlayWindow : Window
     }
 
     /// <summary>
-    /// Applies a clip geometry to the overlay grid, cutting out transparent holes
-    /// where spotlight cutouts should reveal the desktop underneath.
-    /// Uses CombinedGeometry.Exclude approach — the standard WPF technique.
+    /// Applies a clip geometry to the overlay border. The BlurEffect on the border
+    /// automatically feathers the clip edges via GPU — no bitmap rendering needed.
     /// </summary>
     public void ApplyClipGeometry(Geometry clipGeometry)
     {
-        OverlayGrid.Clip = clipGeometry;
+        OverlayBorder.Clip = clipGeometry;
+    }
+
+    /// <summary>
+    /// Applies a feathered opacity mask (kept for compatibility).
+    /// </summary>
+    public void ApplyFeatheredMask(System.Windows.Media.Brush mask)
+    {
+        OverlayBorder.Clip = null;
+        OverlayBorder.OpacityMask = mask;
     }
 
     /// <summary>
@@ -77,7 +91,7 @@ public partial class OverlayWindow : Window
     /// </summary>
     public void ApplyOpacityMask(DrawingGroup mask)
     {
-        OverlayGrid.OpacityMask = new DrawingBrush(mask)
+        OverlayBorder.OpacityMask = new DrawingBrush(mask)
         {
             Stretch = Stretch.None,
             AlignmentX = AlignmentX.Left,
@@ -89,10 +103,6 @@ public partial class OverlayWindow : Window
         };
     }
 
-    /// <summary>
-    /// Begins a 300ms fade-out animation on the window, then hides it and invokes the callback.
-    /// Does NOT close the window — keeps it alive for potential restore.
-    /// </summary>
     public void BeginFadeOut(Action onComplete)
     {
         var animation = new DoubleAnimation
@@ -111,9 +121,6 @@ public partial class OverlayWindow : Window
         BeginAnimation(OpacityProperty, animation);
     }
 
-    /// <summary>
-    /// Restores the overlay from hidden state with a fade-in animation.
-    /// </summary>
     public void BeginFadeIn(int durationMs = 500)
     {
         Opacity = 0;
@@ -131,65 +138,168 @@ public partial class OverlayWindow : Window
 
     #region Drag Preview
 
-    /// <summary>
-    /// Shows a live preview rectangle at the given position and size (in DIP coordinates).
-    /// </summary>
-    public void ShowDragPreview(Rect rect)
+    private const double CornerSize = 8;
+
+    public void ShowDragPreview(Rect rect, Models.PreviewStyle style)
     {
-        System.Windows.Controls.Canvas.SetLeft(DragPreview, rect.X);
-        System.Windows.Controls.Canvas.SetTop(DragPreview, rect.Y);
-        DragPreview.Width = rect.Width;
-        DragPreview.Height = rect.Height;
-        DragPreview.Visibility = Visibility.Visible;
+        if (style == Models.PreviewStyle.Crosshair)
+        {
+            DragPreview.Visibility = Visibility.Collapsed;
+            ShowCornerBrackets(rect);
+        }
+        else
+        {
+            HideCornerBrackets();
+            System.Windows.Controls.Canvas.SetLeft(DragPreview, rect.X);
+            System.Windows.Controls.Canvas.SetTop(DragPreview, rect.Y);
+            DragPreview.Width = rect.Width;
+            DragPreview.Height = rect.Height;
+            DragPreview.Visibility = Visibility.Visible;
+        }
     }
 
     /// <summary>
-    /// Hides the live drag preview rectangle.
+    /// Shows L-shaped corner brackets at all four corners of the rect,
+    /// each pointing inward (└ ┘ ┌ ┐). Arms are clamped so they never
+    /// exceed half the rect dimension — prevents overlap on small rects.
     /// </summary>
+    private void ShowCornerBrackets(Rect rect)
+    {
+        double len = Math.Min(CornerSize, Math.Min(rect.Width / 2, rect.Height / 2));
+
+        // Shadow lines (drawn first, behind foreground)
+        SetLine(TL_Hs, rect.Left, rect.Top, rect.Left + len, rect.Top);
+        SetLine(TL_Vs, rect.Left, rect.Top, rect.Left, rect.Top + len);
+        SetLine(TR_Hs, rect.Right - len, rect.Top, rect.Right, rect.Top);
+        SetLine(TR_Vs, rect.Right, rect.Top, rect.Right, rect.Top + len);
+        SetLine(BL_Hs, rect.Left, rect.Bottom, rect.Left + len, rect.Bottom);
+        SetLine(BL_Vs, rect.Left, rect.Bottom - len, rect.Left, rect.Bottom);
+        SetLine(BR_Hs, rect.Right - len, rect.Bottom, rect.Right, rect.Bottom);
+        SetLine(BR_Vs, rect.Right, rect.Bottom - len, rect.Right, rect.Bottom);
+
+        // Foreground lines
+        SetLine(TL_H, rect.Left, rect.Top, rect.Left + len, rect.Top);
+        SetLine(TL_V, rect.Left, rect.Top, rect.Left, rect.Top + len);
+        SetLine(TR_H, rect.Right - len, rect.Top, rect.Right, rect.Top);
+        SetLine(TR_V, rect.Right, rect.Top, rect.Right, rect.Top + len);
+        SetLine(BL_H, rect.Left, rect.Bottom, rect.Left + len, rect.Bottom);
+        SetLine(BL_V, rect.Left, rect.Bottom - len, rect.Left, rect.Bottom);
+        SetLine(BR_H, rect.Right - len, rect.Bottom, rect.Right, rect.Bottom);
+        SetLine(BR_V, rect.Right, rect.Bottom - len, rect.Right, rect.Bottom);
+    }
+
+    private static void SetLine(System.Windows.Shapes.Line line, double x1, double y1, double x2, double y2)
+    {
+        line.X1 = x1; line.Y1 = y1;
+        line.X2 = x2; line.Y2 = y2;
+        line.Visibility = Visibility.Visible;
+    }
+
+    private void HideCornerBrackets()
+    {
+        TL_H.Visibility = Visibility.Collapsed; TL_V.Visibility = Visibility.Collapsed;
+        TR_H.Visibility = Visibility.Collapsed; TR_V.Visibility = Visibility.Collapsed;
+        BL_H.Visibility = Visibility.Collapsed; BL_V.Visibility = Visibility.Collapsed;
+        BR_H.Visibility = Visibility.Collapsed; BR_V.Visibility = Visibility.Collapsed;
+        TL_Hs.Visibility = Visibility.Collapsed; TL_Vs.Visibility = Visibility.Collapsed;
+        TR_Hs.Visibility = Visibility.Collapsed; TR_Vs.Visibility = Visibility.Collapsed;
+        BL_Hs.Visibility = Visibility.Collapsed; BL_Vs.Visibility = Visibility.Collapsed;
+        BR_Hs.Visibility = Visibility.Collapsed; BR_Vs.Visibility = Visibility.Collapsed;
+    }
+
     public void HideDragPreview()
     {
         DragPreview.Visibility = Visibility.Collapsed;
+        HideCornerBrackets();
     }
 
-    /// <summary>
-    /// Finalizes the current drag preview as a static outline box on the canvas.
-    /// The preview border is cloned and kept visible while the active preview is hidden.
-    /// </summary>
-    public void FinalizeDragPreview(Rect rect)
+    public void FinalizeDragPreview(Rect rect, Models.PreviewStyle style)
     {
-        var box = new System.Windows.Shapes.Rectangle
+        if (style == Models.PreviewStyle.Crosshair)
         {
-            Width = rect.Width,
-            Height = rect.Height,
-            Stroke = new SolidColorBrush(System.Windows.Media.Color.FromArgb(0x40, 0xFF, 0xFF, 0xFF)),
-            StrokeThickness = 1,
-            IsHitTestVisible = false
-        };
-        System.Windows.Controls.Canvas.SetLeft(box, rect.X);
-        System.Windows.Controls.Canvas.SetTop(box, rect.Y);
-        PreviewCanvas.Children.Add(box);
-        DragPreview.Visibility = Visibility.Collapsed;
+            AddStaticCornerBrackets(rect);
+            HideCornerBrackets();
+        }
+        else
+        {
+            var box = new System.Windows.Shapes.Rectangle
+            {
+                Width = rect.Width,
+                Height = rect.Height,
+                Stroke = new SolidColorBrush(System.Windows.Media.Color.FromArgb(0x40, 0xFF, 0xFF, 0xFF)),
+                StrokeThickness = 1,
+                IsHitTestVisible = false
+            };
+            System.Windows.Controls.Canvas.SetLeft(box, rect.X);
+            System.Windows.Controls.Canvas.SetTop(box, rect.Y);
+            PreviewCanvas.Children.Add(box);
+            DragPreview.Visibility = Visibility.Collapsed;
+        }
     }
 
-    /// <summary>
-    /// Removes all finalized preview boxes from the canvas.
-    /// </summary>
+    private void AddStaticCornerBrackets(Rect rect)
+    {
+        double len = Math.Min(CornerSize, Math.Min(rect.Width / 2, rect.Height / 2));
+        var shadow = new SolidColorBrush(System.Windows.Media.Color.FromArgb(0x80, 0, 0, 0));
+        var fg = new SolidColorBrush(System.Windows.Media.Color.FromArgb(0xCC, 0xFF, 0xFF, 0xFF));
+
+        // Shadow
+        AddStaticLine(shadow, 3, rect.Left, rect.Top, rect.Left + len, rect.Top);
+        AddStaticLine(shadow, 3, rect.Left, rect.Top, rect.Left, rect.Top + len);
+        AddStaticLine(shadow, 3, rect.Right - len, rect.Top, rect.Right, rect.Top);
+        AddStaticLine(shadow, 3, rect.Right, rect.Top, rect.Right, rect.Top + len);
+        AddStaticLine(shadow, 3, rect.Left, rect.Bottom, rect.Left + len, rect.Bottom);
+        AddStaticLine(shadow, 3, rect.Left, rect.Bottom - len, rect.Left, rect.Bottom);
+        AddStaticLine(shadow, 3, rect.Right - len, rect.Bottom, rect.Right, rect.Bottom);
+        AddStaticLine(shadow, 3, rect.Right, rect.Bottom - len, rect.Right, rect.Bottom);
+
+        // Foreground
+        AddStaticLine(fg, 1.5, rect.Left, rect.Top, rect.Left + len, rect.Top);
+        AddStaticLine(fg, 1.5, rect.Left, rect.Top, rect.Left, rect.Top + len);
+        AddStaticLine(fg, 1.5, rect.Right - len, rect.Top, rect.Right, rect.Top);
+        AddStaticLine(fg, 1.5, rect.Right, rect.Top, rect.Right, rect.Top + len);
+        AddStaticLine(fg, 1.5, rect.Left, rect.Bottom, rect.Left + len, rect.Bottom);
+        AddStaticLine(fg, 1.5, rect.Left, rect.Bottom - len, rect.Left, rect.Bottom);
+        AddStaticLine(fg, 1.5, rect.Right - len, rect.Bottom, rect.Right, rect.Bottom);
+        AddStaticLine(fg, 1.5, rect.Right, rect.Bottom - len, rect.Right, rect.Bottom);
+    }
+
+    private void AddStaticLine(SolidColorBrush brush, double thickness, double x1, double y1, double x2, double y2)
+    {
+        var line = new System.Windows.Shapes.Line
+        {
+            X1 = x1, Y1 = y1, X2 = x2, Y2 = y2,
+            Stroke = brush, StrokeThickness = thickness, IsHitTestVisible = false
+        };
+        PreviewCanvas.Children.Add(line);
+    }
+
+    private readonly HashSet<System.Windows.UIElement> _namedElements = new();
+
+    private void InitNamedElements()
+    {
+        _namedElements.Add(DragPreview);
+        _namedElements.Add(TL_H); _namedElements.Add(TL_V);
+        _namedElements.Add(TR_H); _namedElements.Add(TR_V);
+        _namedElements.Add(BL_H); _namedElements.Add(BL_V);
+        _namedElements.Add(BR_H); _namedElements.Add(BR_V);
+        _namedElements.Add(TL_Hs); _namedElements.Add(TL_Vs);
+        _namedElements.Add(TR_Hs); _namedElements.Add(TR_Vs);
+        _namedElements.Add(BL_Hs); _namedElements.Add(BL_Vs);
+        _namedElements.Add(BR_Hs); _namedElements.Add(BR_Vs);
+    }
+
     public void ClearFinalizedPreviews()
     {
-        // Remove everything except the DragPreview border
         for (int i = PreviewCanvas.Children.Count - 1; i >= 0; i--)
         {
-            if (PreviewCanvas.Children[i] != DragPreview)
+            if (!_namedElements.Contains(PreviewCanvas.Children[i]))
                 PreviewCanvas.Children.RemoveAt(i);
         }
     }
 
     #endregion
 
-    /// <summary>
-    /// Animates a fade-in effect for a newly added cutout. Places a temporary dark
-    /// rectangle over the cutout area and fades it out, revealing the transparent hole.
-    /// </summary>
     public void AnimateCutoutFadeIn(Rect cutoutRect)
     {
         var patch = new System.Windows.Shapes.Rectangle
@@ -217,7 +327,7 @@ public partial class OverlayWindow : Window
         patch.BeginAnimation(OpacityProperty, fadeOut);
     }
 
-    #region Click-Through P/Invoke (Req 3.5, 3.6)
+    #region Click-Through P/Invoke
 
     private const int GWL_EXSTYLE = -20;
     private const int WS_EX_TRANSPARENT = 0x00000020;
@@ -229,12 +339,6 @@ public partial class OverlayWindow : Window
     [DllImport("user32.dll")]
     private static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
 
-    /// <summary>
-    /// Toggles click-through mode on the overlay window.
-    /// When enabled, mouse events pass through to underlying windows (Req 3.5).
-    /// When disabled, the overlay captures mouse events for drag tracking (Req 3.6).
-    /// </summary>
-    /// <param name="enabled">True to enable click-through; false to capture mouse events.</param>
     public void SetClickThrough(bool enabled)
     {
         var hwnd = new WindowInteropHelper(this).Handle;

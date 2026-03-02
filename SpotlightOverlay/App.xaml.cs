@@ -51,6 +51,7 @@ public partial class App : Application
         // Install hooks and enable by default
         _inputHook.Install();
         _inputHook.IsEnabled = true;
+        _inputHook.DragStyle = _settings.DragStyle;
         _trayIcon.SetEnabled(true);
         DebugLog.Write($"[App] Startup complete. Hook IsEnabled: {_inputHook.IsEnabled}");
 
@@ -66,6 +67,14 @@ public partial class App : Application
         _inputHook.CtrlReleased += OnCtrlReleased;
         _inputHook.DismissRequested += OnDismissRequested;
         _inputHook.RestoreRequested += OnRestoreRequested;
+
+        // Keep hook in sync when settings change at runtime
+        _settings.SettingsChanged += (_, _) =>
+        {
+            _inputHook.DragStyle = _settings.DragStyle;
+        };
+
+        _trayIcon.ShowBalloon("Spotlight Overlay", "Ready — Ctrl+Click to create cutouts");
     }
 
     /// <summary>
@@ -120,12 +129,18 @@ public partial class App : Application
         return new System.Windows.Rect(topLeft, bottomRight);
     }
 
+    private int _dragUpdateCount;
+
     private void OnDragUpdated(object? sender, DragRectEventArgs e)
     {
         Dispatcher.BeginInvoke(() =>
         {
             try
             {
+                _dragUpdateCount++;
+                if (_dragUpdateCount <= 3 || _dragUpdateCount % 50 == 0)
+                    DebugLog.Write($"[App] DragUpdated #{_dragUpdateCount}: screen={e.ScreenRect}, dismissed={_isDismissed}, hasWindow={_overlayWindow != null}");
+
                 // If dismissed and starting a new drag, truly clear everything and start fresh
                 if (_isDismissed && _overlayWindow != null)
                 {
@@ -142,7 +157,8 @@ public partial class App : Application
                 if (_overlayWindow == null)
                 {
                     var monitorBounds = MonitorHelper.GetMonitorBounds(e.DragStartPoint);
-                    var win = new OverlayWindow(monitorBounds, _settings.OverlayOpacity);
+                    DebugLog.Write($"[App] Creating overlay window: bounds={monitorBounds}");
+                    var win = new OverlayWindow(monitorBounds, _settings.OverlayOpacity, _settings.FeatherRadius);
                     try
                     {
                         win.Show();
@@ -152,12 +168,12 @@ public partial class App : Application
                         DebugLog.Write($"[App] Window.Show() failed during preview: {w32ex.Message}");
                         return;
                     }
-                    win.SetClickThrough(true);
                     _overlayWindow = win;
+                    DebugLog.Write("[App] Overlay window created and shown");
                 }
 
                 var windowRect = ScreenRectToWindowDip(e.ScreenRect);
-                _overlayWindow.ShowDragPreview(windowRect);
+                _overlayWindow.ShowDragPreview(windowRect, _settings.PreviewStyle);
             }
             catch (Exception ex)
             {
@@ -176,6 +192,7 @@ public partial class App : Application
     private void OnDragCompleted(object? sender, DragRectEventArgs e)
     {
         DebugLog.Write($"[App] OnDragCompleted received: ScreenRect={e.ScreenRect}, DragStart={e.DragStartPoint}");
+        _dragUpdateCount = 0;
         Dispatcher.BeginInvoke(() =>
         {
           try
@@ -186,7 +203,7 @@ public partial class App : Application
 
             DebugLog.Write($"[App] Queuing pending cutout: {windowRect}");
             _pendingCutouts.Add(windowRect);
-            _overlayWindow.FinalizeDragPreview(windowRect);
+            _overlayWindow.FinalizeDragPreview(windowRect, _settings.PreviewStyle);
           }
           catch (Exception ex)
           {
@@ -214,8 +231,8 @@ public partial class App : Application
             }
 
             var overlaySize = new System.Windows.Size(_overlayWindow.ActualWidth, _overlayWindow.ActualHeight);
-            var clipGeometry = _renderer.BuildClipGeometry(overlaySize);
-            _overlayWindow.ApplyClipGeometry(clipGeometry);
+            var featheredMask = _renderer.BuildFeatheredMask(overlaySize);
+            _overlayWindow.ApplyFeatheredMask(featheredMask);
 
             // Fade in background on first batch, animate individual cutouts on subsequent batches
             bool isFirstBatch = _overlayWindow.FadeInBackground();

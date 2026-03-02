@@ -28,9 +28,8 @@ public class SpotlightRenderer
     public IReadOnlyList<Rect> Cutouts => _cutouts.AsReadOnly();
 
     /// <summary>
-    /// Builds a clip geometry using CombinedGeometry.Exclude to cut elliptical holes
-    /// out of the full overlay rectangle. This is the standard WPF approach for
-    /// creating transparent regions in an opaque element.
+    /// Builds a clip geometry using CombinedGeometry.Exclude to cut rectangular holes
+    /// out of the full overlay rectangle. Used as fallback when feather radius is 0.
     /// </summary>
     public Geometry BuildClipGeometry(Size overlaySize)
     {
@@ -44,6 +43,104 @@ public class SpotlightRenderer
 
         return result;
     }
+
+    /// <summary>
+    /// Builds a feathered opacity mask by rendering a white-on-black mask through
+    /// a BlurEffect. Uses a FrameworkElement wrapper so the GPU-accelerated blur
+    /// is captured by RenderTargetBitmap (DrawingVisual.Effect alone is not rendered).
+    /// </summary>
+    public System.Windows.Media.Brush BuildFeatheredMask(Size overlaySize)
+    {
+        int featherRadius = _settings.FeatherRadius;
+        int fullW = (int)overlaySize.Width;
+        int fullH = (int)overlaySize.Height;
+
+        // Render at 1/4 resolution for speed — blur hides the lower resolution
+        const double scale = 0.25;
+        int w = Math.Max(1, (int)(fullW * scale));
+        int h = Math.Max(1, (int)(fullH * scale));
+        int scaledFeather = Math.Max(1, (int)(featherRadius * scale));
+
+        DebugLog.Write($"[Renderer] BuildFeatheredMask: full={fullW}x{fullH}, scaled={w}x{h}, feather={scaledFeather}, cutouts={_cutouts.Count}");
+
+        // Scale cutout rects to match the smaller bitmap
+        // Expand each cutout by half the feather radius so the blur
+        // straddles the original edge (50% into dark, 50% into cutout)
+        double expand = featherRadius * 0.5;
+        var scaledCutouts = new List<Rect>(_cutouts.Count);
+        foreach (var c in _cutouts)
+        {
+            var expanded = new Rect(
+                c.X - expand, c.Y - expand,
+                c.Width + expand * 2, c.Height + expand * 2);
+            scaledCutouts.Add(new Rect(
+                expanded.X * scale, expanded.Y * scale,
+                expanded.Width * scale, expanded.Height * scale));
+        }
+
+        var element = new MaskElement(scaledCutouts, w, h)
+        {
+            Width = w,
+            Height = h
+        };
+
+        if (scaledFeather > 0)
+        {
+            element.Effect = new System.Windows.Media.Effects.BlurEffect
+            {
+                Radius = scaledFeather,
+                KernelType = System.Windows.Media.Effects.KernelType.Gaussian,
+                RenderingBias = System.Windows.Media.Effects.RenderingBias.Performance
+            };
+        }
+
+        element.Measure(new Size(w, h));
+        element.Arrange(new Rect(0, 0, w, h));
+
+        var rtb = new System.Windows.Media.Imaging.RenderTargetBitmap(
+            w, h, 96, 96, PixelFormats.Pbgra32);
+        rtb.Render(element);
+
+        return new ImageBrush(rtb)
+        {
+            Stretch = Stretch.Fill
+        };
+    }
+
+    /// <summary>
+    /// Lightweight FrameworkElement that draws the opacity mask.
+    /// Uses CombinedGeometry.Exclude to create a white shape with transparent holes,
+    /// so the alpha channel carries the cutout information for OpacityMask.
+    /// Wrapping in a FrameworkElement allows BlurEffect to be captured by RenderTargetBitmap.
+    /// </summary>
+    private class MaskElement : FrameworkElement
+    {
+        private readonly IReadOnlyList<Rect> _cutouts;
+        private readonly int _w, _h;
+
+        public MaskElement(IReadOnlyList<Rect> cutouts, int w, int h)
+        {
+            _cutouts = cutouts;
+            _w = w;
+            _h = h;
+        }
+
+        protected override void OnRender(DrawingContext dc)
+        {
+            // Build geometry: full rectangle with cutout holes excluded
+            Geometry mask = new RectangleGeometry(new Rect(0, 0, _w, _h));
+            foreach (var cutout in _cutouts)
+            {
+                mask = new CombinedGeometry(GeometryCombineMode.Exclude, mask, new RectangleGeometry(cutout));
+            }
+
+            // Draw the holed geometry in white (alpha=FF).
+            // Cutout areas have no geometry = no pixels = alpha=0.
+            // BlurEffect will feather the alpha transition at the edges.
+            dc.DrawGeometry(Brushes.White, null, mask);
+        }
+    }
+
 
     /// <summary>
     /// Legacy: Builds a DrawingGroup opacity mask. Kept for test compatibility.

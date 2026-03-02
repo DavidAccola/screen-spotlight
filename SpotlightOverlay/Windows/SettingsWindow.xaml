@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Spotlight Overlay Settings"
         Width="400"
-        Height="220"
+        Height="380"
         ResizeMode="NoResize"
         WindowStartupLocation="CenterScreen">
     <Grid Margin="20">
@@ -13,36 +13,72 @@
             <RowDefinition Height="20" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="20" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="20" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*" />
-            <ColumnDefinition Width="50" />
+            <ColumnDefinition Width="70" />
         </Grid.ColumnDefinitions>
 
         <!-- Overlay Opacity -->
-        <TextBlock Grid.Row="0" Grid.ColumnSpan="2" Text="Overlay Opacity" FontWeight="SemiBold" Margin="0,0,0,5" />
+        <TextBlock Grid.Row="0" Grid.ColumnSpan="2" Text="Overlay Opacity (10% – 90%)" FontWeight="SemiBold" Margin="0,0,0,5" />
         <Slider Grid.Row="1" Grid.Column="0"
                 x:Name="OpacitySlider"
-                Minimum="0.0" Maximum="1.0"
-                TickFrequency="0.01"
+                Minimum="10" Maximum="90"
+                TickFrequency="10"
                 IsSnapToTickEnabled="True"
+                LargeChange="10"
+                SmallChange="1"
                 ValueChanged="OpacitySlider_ValueChanged" />
-        <TextBlock Grid.Row="1" Grid.Column="1"
-                   x:Name="OpacityValueText"
-                   VerticalAlignment="Center"
-                   HorizontalAlignment="Right" />
+        <TextBox Grid.Row="1" Grid.Column="1"
+                 x:Name="OpacityTextBox"
+                 VerticalAlignment="Center"
+                 HorizontalAlignment="Right"
+                 Width="55"
+                 TextAlignment="Center"
+                 LostFocus="OpacityTextBox_LostFocus"
+                 KeyDown="OpacityTextBox_KeyDown" />
 
         <!-- Feather Radius -->
-        <TextBlock Grid.Row="3" Grid.ColumnSpan="2" Text="Feather Radius" FontWeight="SemiBold" Margin="0,0,0,5" />
+        <TextBlock Grid.Row="3" Grid.ColumnSpan="2" Text="Feather Radius (0 – 50 px)" FontWeight="SemiBold" Margin="0,0,0,5" />
         <Slider Grid.Row="4" Grid.Column="0"
                 x:Name="FeatherSlider"
-                Minimum="0" Maximum="200"
-                TickFrequency="1"
-                IsSnapToTickEnabled="True"
+                Minimum="0" Maximum="50"
+                TickFrequency="10"
+                IsSnapToTickEnabled="False"
+                LargeChange="10"
+                SmallChange="1"
                 ValueChanged="FeatherSlider_ValueChanged" />
-        <TextBlock Grid.Row="4" Grid.Column="1"
-                   x:Name="FeatherValueText"
-                   VerticalAlignment="Center"
-                   HorizontalAlignment="Right" />
+        <TextBox Grid.Row="4" Grid.Column="1"
+                 x:Name="FeatherTextBox"
+                 VerticalAlignment="Center"
+                 HorizontalAlignment="Right"
+                 Width="55"
+                 TextAlignment="Center"
+                 LostFocus="FeatherTextBox_LostFocus"
+                 KeyDown="FeatherTextBox_KeyDown" />
+
+        <!-- Preview Style -->
+        <TextBlock Grid.Row="6" Grid.ColumnSpan="2" Text="Preview Style" FontWeight="SemiBold" Margin="0,0,0,5" />
+        <ComboBox Grid.Row="7" Grid.Column="0" Grid.ColumnSpan="2"
+                  x:Name="PreviewStyleCombo"
+                  SelectionChanged="PreviewStyleCombo_SelectionChanged">
+            <ComboBoxItem Content="Outline" />
+            <ComboBoxItem Content="Crosshair" />
+        </ComboBox>
+
+        <!-- Drag Style -->
+        <TextBlock Grid.Row="9" Grid.ColumnSpan="2" Text="Drag Style" FontWeight="SemiBold" Margin="0,0,0,5" />
+        <ComboBox Grid.Row="10" Grid.Column="0" Grid.ColumnSpan="2"
+                  x:Name="DragStyleCombo"
+                  SelectionChanged="DragStyleCombo_SelectionChanged">
+            <ComboBoxItem Content="Hold and Drag" />
+            <ComboBoxItem Content="Click to Click" />
+        </ComboBox>
     </Grid>
 </Window>
