@@ -36,6 +36,8 @@ public class TrayIconService : IDisposable
             ContextMenuStrip = contextMenu,
             Visible = true
         };
+
+        _notifyIcon.DoubleClick += (s, e) => SettingsRequested?.Invoke(this, EventArgs.Empty);
     }
 
     public void SetEnabled(bool isEnabled)

@@ -157,8 +157,19 @@ public partial class App : Application
                 if (_overlayWindow == null)
                 {
                     var monitorBounds = MonitorHelper.GetMonitorBounds(e.DragStartPoint);
-                    DebugLog.Write($"[App] Creating overlay window: bounds={monitorBounds}");
-                    var win = new OverlayWindow(monitorBounds, _settings.OverlayOpacity, _settings.FeatherRadius);
+                    var monitorBoundsDip = MonitorHelper.GetMonitorBoundsDip(e.DragStartPoint);
+                    DebugLog.Write($"[App] Creating overlay window: physical={monitorBounds}, dip={monitorBoundsDip}");
+
+                    // Capture screenshot at physical pixel resolution before showing overlay
+                    System.Windows.Media.Imaging.BitmapSource? frozenScreenshot = null;
+                    if (_settings.FreezeScreen)
+                    {
+                        frozenScreenshot = Helpers.ScreenCapture.CaptureMonitor(monitorBounds);
+                        DebugLog.Write("[App] Screen captured for freeze mode");
+                    }
+
+                    // Use DIP bounds for the window so it maps exactly to the monitor
+                    var win = new OverlayWindow(monitorBoundsDip, _settings.OverlayOpacity, _settings.FeatherRadius);
                     try
                     {
                         win.Show();
@@ -168,6 +179,10 @@ public partial class App : Application
                         DebugLog.Write($"[App] Window.Show() failed during preview: {w32ex.Message}");
                         return;
                     }
+
+                    if (frozenScreenshot != null)
+                        win.SetFrozenBackground(frozenScreenshot);
+
                     _overlayWindow = win;
                     DebugLog.Write("[App] Overlay window created and shown");
                 }

@@ -10,8 +10,12 @@
     <PublishSingleFile>true</PublishSingleFile>
     <SelfContained>true</SelfContained>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
-    <!-- Application icon: replace app.ico with a custom icon file -->
-    <ApplicationIcon Condition="Exists('app.ico')">app.ico</ApplicationIcon>
+    <!-- Application icon for the EXE -->
+    <ApplicationIcon>assets\spotlightIcon.ico</ApplicationIcon>
   </PropertyGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="assets\spotlightIcon.ico" LogicalName="SpotlightOverlay.app.ico" />
+  </ItemGroup>
 
 </Project>

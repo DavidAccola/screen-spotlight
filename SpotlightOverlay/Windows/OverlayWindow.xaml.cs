@@ -47,6 +47,24 @@ public partial class OverlayWindow : Window
     private bool _hasFadedIn;
 
     /// <summary>
+    /// Sets a frozen screenshot as the background behind the dark overlay.
+    /// Cutout holes in the overlay will reveal this frozen image instead of the live screen.
+    /// Uses an ImageBrush with Stretch=Fill so the physical-pixel bitmap maps correctly
+    /// to the DIP-sized Border regardless of DPI scaling.
+    /// </summary>
+    public void SetFrozenBackground(System.Windows.Media.Imaging.BitmapSource screenshot)
+    {
+        DebugLog.Write($"[Overlay] SetFrozenBackground: bitmap={screenshot.PixelWidth}x{screenshot.PixelHeight} dpi={screenshot.DpiX}x{screenshot.DpiY}");
+        DebugLog.Write($"[Overlay] Window: Width={Width} Height={Height} ActualWidth={ActualWidth} ActualHeight={ActualHeight}");
+
+        FrozenBackground.Background = new ImageBrush(screenshot)
+        {
+            Stretch = Stretch.Fill
+        };
+        FrozenBackground.Visibility = Visibility.Visible;
+    }
+
+    /// <summary>
     /// Animates the overlay background from transparent to the target opacity.
     /// Only runs once (first cutout batch). Returns true if first fade-in.
     /// </summary>
@@ -240,28 +258,28 @@ public partial class OverlayWindow : Window
     private void AddStaticCornerBrackets(Rect rect)
     {
         double len = Math.Min(CornerSize, Math.Min(rect.Width / 2, rect.Height / 2));
-        var shadow = new SolidColorBrush(System.Windows.Media.Color.FromArgb(0x80, 0, 0, 0));
-        var fg = new SolidColorBrush(System.Windows.Media.Color.FromArgb(0xCC, 0xFF, 0xFF, 0xFF));
+        var shadow = new SolidColorBrush(System.Windows.Media.Color.FromArgb(0x40, 0, 0, 0));
+        var fg = new SolidColorBrush(System.Windows.Media.Color.FromArgb(0x90, 0xFF, 0xFF, 0xFF));
 
         // Shadow
-        AddStaticLine(shadow, 3, rect.Left, rect.Top, rect.Left + len, rect.Top);
-        AddStaticLine(shadow, 3, rect.Left, rect.Top, rect.Left, rect.Top + len);
-        AddStaticLine(shadow, 3, rect.Right - len, rect.Top, rect.Right, rect.Top);
-        AddStaticLine(shadow, 3, rect.Right, rect.Top, rect.Right, rect.Top + len);
-        AddStaticLine(shadow, 3, rect.Left, rect.Bottom, rect.Left + len, rect.Bottom);
-        AddStaticLine(shadow, 3, rect.Left, rect.Bottom - len, rect.Left, rect.Bottom);
-        AddStaticLine(shadow, 3, rect.Right - len, rect.Bottom, rect.Right, rect.Bottom);
-        AddStaticLine(shadow, 3, rect.Right, rect.Bottom - len, rect.Right, rect.Bottom);
+        AddStaticLine(shadow, 2, rect.Left, rect.Top, rect.Left + len, rect.Top);
+        AddStaticLine(shadow, 2, rect.Left, rect.Top, rect.Left, rect.Top + len);
+        AddStaticLine(shadow, 2, rect.Right - len, rect.Top, rect.Right, rect.Top);
+        AddStaticLine(shadow, 2, rect.Right, rect.Top, rect.Right, rect.Top + len);
+        AddStaticLine(shadow, 2, rect.Left, rect.Bottom, rect.Left + len, rect.Bottom);
+        AddStaticLine(shadow, 2, rect.Left, rect.Bottom - len, rect.Left, rect.Bottom);
+        AddStaticLine(shadow, 2, rect.Right - len, rect.Bottom, rect.Right, rect.Bottom);
+        AddStaticLine(shadow, 2, rect.Right, rect.Bottom - len, rect.Right, rect.Bottom);
 
         // Foreground
-        AddStaticLine(fg, 1.5, rect.Left, rect.Top, rect.Left + len, rect.Top);
-        AddStaticLine(fg, 1.5, rect.Left, rect.Top, rect.Left, rect.Top + len);
-        AddStaticLine(fg, 1.5, rect.Right - len, rect.Top, rect.Right, rect.Top);
-        AddStaticLine(fg, 1.5, rect.Right, rect.Top, rect.Right, rect.Top + len);
-        AddStaticLine(fg, 1.5, rect.Left, rect.Bottom, rect.Left + len, rect.Bottom);
-        AddStaticLine(fg, 1.5, rect.Left, rect.Bottom - len, rect.Left, rect.Bottom);
-        AddStaticLine(fg, 1.5, rect.Right - len, rect.Bottom, rect.Right, rect.Bottom);
-        AddStaticLine(fg, 1.5, rect.Right, rect.Bottom - len, rect.Right, rect.Bottom);
+        AddStaticLine(fg, 1, rect.Left, rect.Top, rect.Left + len, rect.Top);
+        AddStaticLine(fg, 1, rect.Left, rect.Top, rect.Left, rect.Top + len);
+        AddStaticLine(fg, 1, rect.Right - len, rect.Top, rect.Right, rect.Top);
+        AddStaticLine(fg, 1, rect.Right, rect.Top, rect.Right, rect.Top + len);
+        AddStaticLine(fg, 1, rect.Left, rect.Bottom, rect.Left + len, rect.Bottom);
+        AddStaticLine(fg, 1, rect.Left, rect.Bottom - len, rect.Left, rect.Bottom);
+        AddStaticLine(fg, 1, rect.Right - len, rect.Bottom, rect.Right, rect.Bottom);
+        AddStaticLine(fg, 1, rect.Right, rect.Bottom - len, rect.Right, rect.Bottom);
     }
 
     private void AddStaticLine(SolidColorBrush brush, double thickness, double x1, double y1, double x2, double y2)

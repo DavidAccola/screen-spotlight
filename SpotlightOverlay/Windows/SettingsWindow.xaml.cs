@@ -23,6 +23,7 @@ public partial class SettingsWindow : Window
 
         PreviewStyleCombo.SelectedIndex = (int)_settings.PreviewStyle;
         DragStyleCombo.SelectedIndex = (int)_settings.DragStyle;
+        FreezeScreenCheck.IsChecked = _settings.FreezeScreen;
 
         _isInitializing = false;
     }
@@ -119,6 +120,13 @@ public partial class SettingsWindow : Window
     {
         if (_isInitializing) return;
         _settings.DragStyle = (Models.DragStyle)DragStyleCombo.SelectedIndex;
+        _settings.Save();
+    }
+
+    private void FreezeScreenCheck_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_isInitializing) return;
+        _settings.FreezeScreen = FreezeScreenCheck.IsChecked == true;
         _settings.Save();
     }
 

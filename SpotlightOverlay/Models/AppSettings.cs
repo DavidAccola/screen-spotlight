@@ -3,7 +3,7 @@ namespace SpotlightOverlay.Models;
 /// <summary>
 /// Immutable settings record for the Spotlight Overlay application.
 /// </summary>
-public record AppSettings(double OverlayOpacity, int FeatherRadius, PreviewStyle PreviewStyle, DragStyle DragStyle);
+public record AppSettings(double OverlayOpacity, int FeatherRadius, PreviewStyle PreviewStyle, DragStyle DragStyle, bool FreezeScreen);
 
 public enum PreviewStyle
 {

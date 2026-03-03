@@ -10,6 +10,7 @@ public class SettingsService
     private const int DefaultFeatherRadius = 8;
     private const PreviewStyle DefaultPreviewStyle = PreviewStyle.Crosshair;
     private const DragStyle DefaultDragStyle = DragStyle.ClickClick;
+    private const bool DefaultFreezeScreen = false;
     private const string SettingsFileName = "Settings.json";
 
     private readonly string _settingsFilePath;
@@ -18,6 +19,7 @@ public class SettingsService
     public int FeatherRadius { get; set; } = DefaultFeatherRadius;
     public PreviewStyle PreviewStyle { get; set; } = DefaultPreviewStyle;
     public DragStyle DragStyle { get; set; } = DefaultDragStyle;
+    public bool FreezeScreen { get; set; } = DefaultFreezeScreen;
 
     /// <summary>Fired after Save() so listeners can react to any setting change.</summary>
     public event EventHandler? SettingsChanged;
@@ -36,6 +38,7 @@ public class SettingsService
         FeatherRadius = DefaultFeatherRadius;
         PreviewStyle = DefaultPreviewStyle;
         DragStyle = DefaultDragStyle;
+        FreezeScreen = DefaultFreezeScreen;
     }
 
     public void Load()
@@ -55,18 +58,19 @@ public class SettingsService
         FeatherRadius = v.FeatherRadius;
         PreviewStyle = v.PreviewStyle;
         DragStyle = v.DragStyle;
+        FreezeScreen = v.FreezeScreen;
     }
 
     public void Save()
     {
-        var json = Serialize(new AppSettings(OverlayOpacity, FeatherRadius, PreviewStyle, DragStyle));
+        var json = Serialize(new AppSettings(OverlayOpacity, FeatherRadius, PreviewStyle, DragStyle, FreezeScreen));
         File.WriteAllText(_settingsFilePath, json);
         SettingsChanged?.Invoke(this, EventArgs.Empty);
     }
 
     public static AppSettings Deserialize(string json) =>
         JsonSerializer.Deserialize<AppSettings>(json)
-        ?? new AppSettings(DefaultOverlayOpacity, DefaultFeatherRadius, DefaultPreviewStyle, DefaultDragStyle);
+        ?? new AppSettings(DefaultOverlayOpacity, DefaultFeatherRadius, DefaultPreviewStyle, DefaultDragStyle, DefaultFreezeScreen);
 
     public static string Serialize(AppSettings settings) =>
         JsonSerializer.Serialize(settings);
@@ -78,6 +82,6 @@ public class SettingsService
         var radius = Math.Clamp(s.FeatherRadius, 0, 50);
         var preview = Enum.IsDefined(s.PreviewStyle) ? s.PreviewStyle : DefaultPreviewStyle;
         var drag = Enum.IsDefined(s.DragStyle) ? s.DragStyle : DefaultDragStyle;
-        return new AppSettings(opacity, radius, preview, drag);
+        return new AppSettings(opacity, radius, preview, drag, s.FreezeScreen);
     }
 }
