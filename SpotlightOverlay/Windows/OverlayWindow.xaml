@@ -13,10 +13,10 @@
         <!-- Dark overlay with clip geometry + blur for feathered cutouts -->
         <Border x:Name="OverlayBorder" />
         <Canvas x:Name="PreviewCanvas">
-            <Border x:Name="DragPreview"
-                    BorderBrush="#40FFFFFF"
-                    BorderThickness="1"
-                    Visibility="Collapsed" />
+            <Border x:Name="DragPreview" Visibility="Collapsed" />
+            <!-- Outline preview: shadow + foreground rectangles -->
+            <Rectangle x:Name="OutlineShadow" Stroke="#CC000000" StrokeThickness="2" Visibility="Collapsed" IsHitTestVisible="False" />
+            <Rectangle x:Name="OutlineFg" Stroke="#FFFFFFFF" StrokeThickness="1" Visibility="Collapsed" IsHitTestVisible="False" />
             <!-- Corner brackets with shadow for contrast on any background -->
             <!-- Shadow lines (dark outline) -->
             <Line x:Name="TL_Hs" Stroke="#CC000000" StrokeThickness="2" Visibility="Collapsed" />

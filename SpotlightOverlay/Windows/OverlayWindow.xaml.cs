@@ -163,16 +163,26 @@ public partial class OverlayWindow : Window
         if (style == Models.PreviewStyle.Crosshair || style == Models.PreviewStyle.Corners)
         {
             DragPreview.Visibility = Visibility.Collapsed;
+            OutlineShadow.Visibility = Visibility.Collapsed;
+            OutlineFg.Visibility = Visibility.Collapsed;
             ShowCornerBrackets(rect, style == Models.PreviewStyle.Corners);
         }
         else
         {
             HideCornerBrackets();
-            System.Windows.Controls.Canvas.SetLeft(DragPreview, rect.X);
-            System.Windows.Controls.Canvas.SetTop(DragPreview, rect.Y);
-            DragPreview.Width = rect.Width;
-            DragPreview.Height = rect.Height;
-            DragPreview.Visibility = Visibility.Visible;
+            DragPreview.Visibility = Visibility.Collapsed;
+            // Shadow outline
+            System.Windows.Controls.Canvas.SetLeft(OutlineShadow, rect.X);
+            System.Windows.Controls.Canvas.SetTop(OutlineShadow, rect.Y);
+            OutlineShadow.Width = rect.Width;
+            OutlineShadow.Height = rect.Height;
+            OutlineShadow.Visibility = Visibility.Visible;
+            // Foreground outline
+            System.Windows.Controls.Canvas.SetLeft(OutlineFg, rect.X);
+            System.Windows.Controls.Canvas.SetTop(OutlineFg, rect.Y);
+            OutlineFg.Width = rect.Width;
+            OutlineFg.Height = rect.Height;
+            OutlineFg.Visibility = Visibility.Visible;
         }
     }
 
@@ -237,6 +247,8 @@ public partial class OverlayWindow : Window
     public void HideDragPreview()
     {
         DragPreview.Visibility = Visibility.Collapsed;
+        OutlineShadow.Visibility = Visibility.Collapsed;
+        OutlineFg.Visibility = Visibility.Collapsed;
         HideCornerBrackets();
     }
 
@@ -249,18 +261,30 @@ public partial class OverlayWindow : Window
         }
         else
         {
-            var box = new System.Windows.Shapes.Rectangle
+            // Shadow outline
+            var shadowBox = new System.Windows.Shapes.Rectangle
             {
-                Width = rect.Width,
-                Height = rect.Height,
-                Stroke = new SolidColorBrush(System.Windows.Media.Color.FromArgb(0x40, 0xFF, 0xFF, 0xFF)),
-                StrokeThickness = 1,
-                IsHitTestVisible = false
+                Width = rect.Width, Height = rect.Height,
+                Stroke = new SolidColorBrush(System.Windows.Media.Color.FromArgb(0xCC, 0, 0, 0)),
+                StrokeThickness = 2, IsHitTestVisible = false
             };
-            System.Windows.Controls.Canvas.SetLeft(box, rect.X);
-            System.Windows.Controls.Canvas.SetTop(box, rect.Y);
-            PreviewCanvas.Children.Add(box);
-            DragPreview.Visibility = Visibility.Collapsed;
+            System.Windows.Controls.Canvas.SetLeft(shadowBox, rect.X);
+            System.Windows.Controls.Canvas.SetTop(shadowBox, rect.Y);
+            PreviewCanvas.Children.Add(shadowBox);
+
+            // Foreground outline
+            var fgBox = new System.Windows.Shapes.Rectangle
+            {
+                Width = rect.Width, Height = rect.Height,
+                Stroke = new SolidColorBrush(System.Windows.Media.Color.FromArgb(0xFF, 0xFF, 0xFF, 0xFF)),
+                StrokeThickness = 1, IsHitTestVisible = false
+            };
+            System.Windows.Controls.Canvas.SetLeft(fgBox, rect.X);
+            System.Windows.Controls.Canvas.SetTop(fgBox, rect.Y);
+            PreviewCanvas.Children.Add(fgBox);
+
+            OutlineShadow.Visibility = Visibility.Collapsed;
+            OutlineFg.Visibility = Visibility.Collapsed;
         }
     }
 
@@ -313,6 +337,8 @@ public partial class OverlayWindow : Window
     private void InitNamedElements()
     {
         _namedElements.Add(DragPreview);
+        _namedElements.Add(OutlineShadow);
+        _namedElements.Add(OutlineFg);
         _namedElements.Add(TL_H); _namedElements.Add(TL_V);
         _namedElements.Add(TR_H); _namedElements.Add(TR_V);
         _namedElements.Add(BL_H); _namedElements.Add(BL_V);
