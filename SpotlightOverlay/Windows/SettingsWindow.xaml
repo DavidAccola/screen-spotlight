@@ -54,6 +54,7 @@
             </Setter>
         </Style>
         <Style TargetType="Slider">
+            <Setter Property="Height" Value="22" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Slider">
@@ -294,7 +295,7 @@
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0" Text="Freeze screen while overlay is active"
+                <TextBlock Grid.Column="0" Text="Freeze screen while spotlight exists"
                            Foreground="{StaticResource TextPrimary}" VerticalAlignment="Center" />
                 <ToggleButton Grid.Column="1" x:Name="FreezeToggle"
                               Style="{StaticResource ToggleSwitch}"
