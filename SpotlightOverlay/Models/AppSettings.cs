@@ -8,7 +8,8 @@ public record AppSettings(double OverlayOpacity, int FeatherRadius, PreviewStyle
 public enum PreviewStyle
 {
     Outline = 0,
-    Crosshair = 1
+    Crosshair = 1,
+    Corners = 2
 }
 
 public enum DragStyle

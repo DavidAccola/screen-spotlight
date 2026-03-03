@@ -18,24 +18,24 @@
                     BorderThickness="1"
                     Visibility="Collapsed" />
             <!-- Corner brackets with shadow for contrast on any background -->
-            <!-- Shadow lines (dark, subtle) -->
-            <Line x:Name="TL_Hs" Stroke="#40000000" StrokeThickness="2" Visibility="Collapsed" />
-            <Line x:Name="TL_Vs" Stroke="#40000000" StrokeThickness="2" Visibility="Collapsed" />
-            <Line x:Name="TR_Hs" Stroke="#40000000" StrokeThickness="2" Visibility="Collapsed" />
-            <Line x:Name="TR_Vs" Stroke="#40000000" StrokeThickness="2" Visibility="Collapsed" />
-            <Line x:Name="BL_Hs" Stroke="#40000000" StrokeThickness="2" Visibility="Collapsed" />
-            <Line x:Name="BL_Vs" Stroke="#40000000" StrokeThickness="2" Visibility="Collapsed" />
-            <Line x:Name="BR_Hs" Stroke="#40000000" StrokeThickness="2" Visibility="Collapsed" />
-            <Line x:Name="BR_Vs" Stroke="#40000000" StrokeThickness="2" Visibility="Collapsed" />
-            <!-- Foreground lines (light, subtle) -->
-            <Line x:Name="TL_H" Stroke="#90FFFFFF" StrokeThickness="1" Visibility="Collapsed" />
-            <Line x:Name="TL_V" Stroke="#90FFFFFF" StrokeThickness="1" Visibility="Collapsed" />
-            <Line x:Name="TR_H" Stroke="#90FFFFFF" StrokeThickness="1" Visibility="Collapsed" />
-            <Line x:Name="TR_V" Stroke="#90FFFFFF" StrokeThickness="1" Visibility="Collapsed" />
-            <Line x:Name="BL_H" Stroke="#90FFFFFF" StrokeThickness="1" Visibility="Collapsed" />
-            <Line x:Name="BL_V" Stroke="#90FFFFFF" StrokeThickness="1" Visibility="Collapsed" />
-            <Line x:Name="BR_H" Stroke="#90FFFFFF" StrokeThickness="1" Visibility="Collapsed" />
-            <Line x:Name="BR_V" Stroke="#90FFFFFF" StrokeThickness="1" Visibility="Collapsed" />
+            <!-- Shadow lines (dark outline) -->
+            <Line x:Name="TL_Hs" Stroke="#CC000000" StrokeThickness="2" Visibility="Collapsed" />
+            <Line x:Name="TL_Vs" Stroke="#CC000000" StrokeThickness="2" Visibility="Collapsed" />
+            <Line x:Name="TR_Hs" Stroke="#CC000000" StrokeThickness="2" Visibility="Collapsed" />
+            <Line x:Name="TR_Vs" Stroke="#CC000000" StrokeThickness="2" Visibility="Collapsed" />
+            <Line x:Name="BL_Hs" Stroke="#CC000000" StrokeThickness="2" Visibility="Collapsed" />
+            <Line x:Name="BL_Vs" Stroke="#CC000000" StrokeThickness="2" Visibility="Collapsed" />
+            <Line x:Name="BR_Hs" Stroke="#CC000000" StrokeThickness="2" Visibility="Collapsed" />
+            <Line x:Name="BR_Vs" Stroke="#CC000000" StrokeThickness="2" Visibility="Collapsed" />
+            <!-- Foreground lines (bright white) -->
+            <Line x:Name="TL_H" Stroke="#FFFFFFFF" StrokeThickness="1" Visibility="Collapsed" />
+            <Line x:Name="TL_V" Stroke="#FFFFFFFF" StrokeThickness="1" Visibility="Collapsed" />
+            <Line x:Name="TR_H" Stroke="#FFFFFFFF" StrokeThickness="1" Visibility="Collapsed" />
+            <Line x:Name="TR_V" Stroke="#FFFFFFFF" StrokeThickness="1" Visibility="Collapsed" />
+            <Line x:Name="BL_H" Stroke="#FFFFFFFF" StrokeThickness="1" Visibility="Collapsed" />
+            <Line x:Name="BL_V" Stroke="#FFFFFFFF" StrokeThickness="1" Visibility="Collapsed" />
+            <Line x:Name="BR_H" Stroke="#FFFFFFFF" StrokeThickness="1" Visibility="Collapsed" />
+            <Line x:Name="BR_V" Stroke="#FFFFFFFF" StrokeThickness="1" Visibility="Collapsed" />
         </Canvas>
         <Canvas x:Name="FadeCanvas" IsHitTestVisible="False" />
     </Grid>

@@ -160,10 +160,10 @@ public partial class OverlayWindow : Window
 
     public void ShowDragPreview(Rect rect, Models.PreviewStyle style)
     {
-        if (style == Models.PreviewStyle.Crosshair)
+        if (style == Models.PreviewStyle.Crosshair || style == Models.PreviewStyle.Corners)
         {
             DragPreview.Visibility = Visibility.Collapsed;
-            ShowCornerBrackets(rect);
+            ShowCornerBrackets(rect, style == Models.PreviewStyle.Corners);
         }
         else
         {
@@ -177,33 +177,42 @@ public partial class OverlayWindow : Window
     }
 
     /// <summary>
-    /// Shows L-shaped corner brackets at all four corners of the rect,
-    /// each pointing inward (└ ┘ ┌ ┐). Arms are clamped so they never
-    /// exceed half the rect dimension — prevents overlap on small rects.
+    /// Shows L-shaped corner brackets. When oppositeOnly is true, only
+    /// top-left (┌) and bottom-right (┘) are shown.
     /// </summary>
-    private void ShowCornerBrackets(Rect rect)
+    private void ShowCornerBrackets(Rect rect, bool oppositeOnly = false)
     {
         double len = Math.Min(CornerSize, Math.Min(rect.Width / 2, rect.Height / 2));
 
-        // Shadow lines (drawn first, behind foreground)
+        // Top-left and bottom-right always shown
         SetLine(TL_Hs, rect.Left, rect.Top, rect.Left + len, rect.Top);
         SetLine(TL_Vs, rect.Left, rect.Top, rect.Left, rect.Top + len);
-        SetLine(TR_Hs, rect.Right - len, rect.Top, rect.Right, rect.Top);
-        SetLine(TR_Vs, rect.Right, rect.Top, rect.Right, rect.Top + len);
-        SetLine(BL_Hs, rect.Left, rect.Bottom, rect.Left + len, rect.Bottom);
-        SetLine(BL_Vs, rect.Left, rect.Bottom - len, rect.Left, rect.Bottom);
         SetLine(BR_Hs, rect.Right - len, rect.Bottom, rect.Right, rect.Bottom);
         SetLine(BR_Vs, rect.Right, rect.Bottom - len, rect.Right, rect.Bottom);
-
-        // Foreground lines
         SetLine(TL_H, rect.Left, rect.Top, rect.Left + len, rect.Top);
         SetLine(TL_V, rect.Left, rect.Top, rect.Left, rect.Top + len);
-        SetLine(TR_H, rect.Right - len, rect.Top, rect.Right, rect.Top);
-        SetLine(TR_V, rect.Right, rect.Top, rect.Right, rect.Top + len);
-        SetLine(BL_H, rect.Left, rect.Bottom, rect.Left + len, rect.Bottom);
-        SetLine(BL_V, rect.Left, rect.Bottom - len, rect.Left, rect.Bottom);
         SetLine(BR_H, rect.Right - len, rect.Bottom, rect.Right, rect.Bottom);
         SetLine(BR_V, rect.Right, rect.Bottom - len, rect.Right, rect.Bottom);
+
+        if (oppositeOnly)
+        {
+            // Hide TR and BL
+            TR_Hs.Visibility = Visibility.Collapsed; TR_Vs.Visibility = Visibility.Collapsed;
+            BL_Hs.Visibility = Visibility.Collapsed; BL_Vs.Visibility = Visibility.Collapsed;
+            TR_H.Visibility = Visibility.Collapsed; TR_V.Visibility = Visibility.Collapsed;
+            BL_H.Visibility = Visibility.Collapsed; BL_V.Visibility = Visibility.Collapsed;
+        }
+        else
+        {
+            SetLine(TR_Hs, rect.Right - len, rect.Top, rect.Right, rect.Top);
+            SetLine(TR_Vs, rect.Right, rect.Top, rect.Right, rect.Top + len);
+            SetLine(BL_Hs, rect.Left, rect.Bottom, rect.Left + len, rect.Bottom);
+            SetLine(BL_Vs, rect.Left, rect.Bottom - len, rect.Left, rect.Bottom);
+            SetLine(TR_H, rect.Right - len, rect.Top, rect.Right, rect.Top);
+            SetLine(TR_V, rect.Right, rect.Top, rect.Right, rect.Top + len);
+            SetLine(BL_H, rect.Left, rect.Bottom, rect.Left + len, rect.Bottom);
+            SetLine(BL_V, rect.Left, rect.Bottom - len, rect.Left, rect.Bottom);
+        }
     }
 
     private static void SetLine(System.Windows.Shapes.Line line, double x1, double y1, double x2, double y2)
@@ -233,9 +242,9 @@ public partial class OverlayWindow : Window
 
     public void FinalizeDragPreview(Rect rect, Models.PreviewStyle style)
     {
-        if (style == Models.PreviewStyle.Crosshair)
+        if (style == Models.PreviewStyle.Crosshair || style == Models.PreviewStyle.Corners)
         {
-            AddStaticCornerBrackets(rect);
+            AddStaticCornerBrackets(rect, style == Models.PreviewStyle.Corners);
             HideCornerBrackets();
         }
         else
@@ -255,31 +264,38 @@ public partial class OverlayWindow : Window
         }
     }
 
-    private void AddStaticCornerBrackets(Rect rect)
+    private void AddStaticCornerBrackets(Rect rect, bool oppositeOnly = false)
     {
         double len = Math.Min(CornerSize, Math.Min(rect.Width / 2, rect.Height / 2));
-        var shadow = new SolidColorBrush(System.Windows.Media.Color.FromArgb(0x40, 0, 0, 0));
-        var fg = new SolidColorBrush(System.Windows.Media.Color.FromArgb(0x90, 0xFF, 0xFF, 0xFF));
+        var shadow = new SolidColorBrush(System.Windows.Media.Color.FromArgb(0xCC, 0, 0, 0));
+        var fg = new SolidColorBrush(System.Windows.Media.Color.FromArgb(0xFF, 0xFF, 0xFF, 0xFF));
 
-        // Shadow
+        // Top-left
         AddStaticLine(shadow, 2, rect.Left, rect.Top, rect.Left + len, rect.Top);
         AddStaticLine(shadow, 2, rect.Left, rect.Top, rect.Left, rect.Top + len);
-        AddStaticLine(shadow, 2, rect.Right - len, rect.Top, rect.Right, rect.Top);
-        AddStaticLine(shadow, 2, rect.Right, rect.Top, rect.Right, rect.Top + len);
-        AddStaticLine(shadow, 2, rect.Left, rect.Bottom, rect.Left + len, rect.Bottom);
-        AddStaticLine(shadow, 2, rect.Left, rect.Bottom - len, rect.Left, rect.Bottom);
-        AddStaticLine(shadow, 2, rect.Right - len, rect.Bottom, rect.Right, rect.Bottom);
-        AddStaticLine(shadow, 2, rect.Right, rect.Bottom - len, rect.Right, rect.Bottom);
-
-        // Foreground
         AddStaticLine(fg, 1, rect.Left, rect.Top, rect.Left + len, rect.Top);
         AddStaticLine(fg, 1, rect.Left, rect.Top, rect.Left, rect.Top + len);
-        AddStaticLine(fg, 1, rect.Right - len, rect.Top, rect.Right, rect.Top);
-        AddStaticLine(fg, 1, rect.Right, rect.Top, rect.Right, rect.Top + len);
-        AddStaticLine(fg, 1, rect.Left, rect.Bottom, rect.Left + len, rect.Bottom);
-        AddStaticLine(fg, 1, rect.Left, rect.Bottom - len, rect.Left, rect.Bottom);
+
+        // Bottom-right
+        AddStaticLine(shadow, 2, rect.Right - len, rect.Bottom, rect.Right, rect.Bottom);
+        AddStaticLine(shadow, 2, rect.Right, rect.Bottom - len, rect.Right, rect.Bottom);
         AddStaticLine(fg, 1, rect.Right - len, rect.Bottom, rect.Right, rect.Bottom);
         AddStaticLine(fg, 1, rect.Right, rect.Bottom - len, rect.Right, rect.Bottom);
+
+        if (!oppositeOnly)
+        {
+            // Top-right
+            AddStaticLine(shadow, 2, rect.Right - len, rect.Top, rect.Right, rect.Top);
+            AddStaticLine(shadow, 2, rect.Right, rect.Top, rect.Right, rect.Top + len);
+            AddStaticLine(fg, 1, rect.Right - len, rect.Top, rect.Right, rect.Top);
+            AddStaticLine(fg, 1, rect.Right, rect.Top, rect.Right, rect.Top + len);
+
+            // Bottom-left
+            AddStaticLine(shadow, 2, rect.Left, rect.Bottom, rect.Left + len, rect.Bottom);
+            AddStaticLine(shadow, 2, rect.Left, rect.Bottom - len, rect.Left, rect.Bottom);
+            AddStaticLine(fg, 1, rect.Left, rect.Bottom, rect.Left + len, rect.Bottom);
+            AddStaticLine(fg, 1, rect.Left, rect.Bottom - len, rect.Left, rect.Bottom);
+        }
     }
 
     private void AddStaticLine(SolidColorBrush brush, double thickness, double x1, double y1, double x2, double y2)

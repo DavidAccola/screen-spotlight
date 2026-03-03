@@ -62,6 +62,7 @@ public class GlobalInputHook : IDisposable
     public event EventHandler<DragRectEventArgs>? DragUpdated;
     public event EventHandler? DragCancelled;
     public event EventHandler? CtrlReleased;
+    public event EventHandler? CtrlPressed;
     public event EventHandler? RestoreRequested;
     public event EventHandler? DismissRequested;
     #endregion
@@ -302,6 +303,12 @@ public class GlobalInputHook : IDisposable
                 else if (!ctrlHeld)
                 {
                     DismissRequested?.Invoke(this, EventArgs.Empty);
+                    return (IntPtr)1;
+                }
+                else if (ctrlHeld && _hasPendingDrags)
+                {
+                    // Ctrl+Esc during batch mode — suppress to prevent Start menu
+                    return (IntPtr)1;
                 }
             }
             else if (msg == WM_KEYUP)
@@ -311,6 +318,12 @@ public class GlobalInputHook : IDisposable
                     _hasPendingDrags = false;
                     CtrlReleased?.Invoke(this, EventArgs.Empty);
                 }
+            }
+            else if (msg == WM_KEYDOWN &&
+                     (hs.vkCode == VK_CONTROL || hs.vkCode == VK_LCONTROL || hs.vkCode == VK_RCONTROL) &&
+                     !_isDragging && !_isClickClickActive)
+            {
+                CtrlPressed?.Invoke(this, EventArgs.Empty);
             }
         }
 

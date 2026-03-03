@@ -19,6 +19,7 @@ public partial class App : Application
     private OverlayWindow? _overlayWindow;
     private readonly List<System.Windows.Rect> _pendingCutouts = new();
     private bool _isDismissed; // true when overlay is hidden but cutouts are preserved
+    private System.Windows.Media.Imaging.BitmapSource? _cachedScreenshot; // pre-captured on Ctrl press
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -67,6 +68,7 @@ public partial class App : Application
         _inputHook.CtrlReleased += OnCtrlReleased;
         _inputHook.DismissRequested += OnDismissRequested;
         _inputHook.RestoreRequested += OnRestoreRequested;
+        _inputHook.CtrlPressed += OnCtrlPressed;
 
         // Keep hook in sync when settings change at runtime
         _settings.SettingsChanged += (_, _) =>
@@ -130,6 +132,34 @@ public partial class App : Application
         Dispatcher.BeginInvoke(() =>
         {
             _overlayWindow?.HideDragPreview();
+            _cachedScreenshot = null;
+        });
+    }
+
+    /// <summary>
+    /// Pre-captures a screenshot on Ctrl keydown (before any click) so that
+    /// menus/tooltips are still visible in the frozen image.
+    /// </summary>
+    private void OnCtrlPressed(object? sender, EventArgs e)
+    {
+        if (!_settings.FreezeScreen || _overlayWindow != null) return;
+
+        Dispatcher.BeginInvoke(() =>
+        {
+            try
+            {
+                // Capture the primary monitor for now; we'll use the correct monitor
+                // when the overlay is created, but this pre-capture catches transient UI.
+                var cursorPos = System.Windows.Forms.Cursor.Position;
+                var screenPoint = new System.Windows.Point(cursorPos.X, cursorPos.Y);
+                var monitorBounds = MonitorHelper.GetMonitorBounds(screenPoint);
+                _cachedScreenshot = Helpers.ScreenCapture.CaptureMonitor(monitorBounds);
+                DebugLog.Write("[App] Pre-captured screenshot on Ctrl press");
+            }
+            catch (Exception ex)
+            {
+                DebugLog.Write($"[App] Pre-capture failed: {ex.Message}");
+            }
         });
     }
 
@@ -178,12 +208,13 @@ public partial class App : Application
                     var monitorBoundsDip = MonitorHelper.GetMonitorBoundsDip(e.DragStartPoint);
                     DebugLog.Write($"[App] Creating overlay window: physical={monitorBounds}, dip={monitorBoundsDip}");
 
-                    // Capture screenshot at physical pixel resolution before showing overlay
+                    // Use pre-captured screenshot if available, otherwise capture now as fallback
                     System.Windows.Media.Imaging.BitmapSource? frozenScreenshot = null;
                     if (_settings.FreezeScreen)
                     {
-                        frozenScreenshot = Helpers.ScreenCapture.CaptureMonitor(monitorBounds);
-                        DebugLog.Write("[App] Screen captured for freeze mode");
+                        frozenScreenshot = _cachedScreenshot ?? Helpers.ScreenCapture.CaptureMonitor(monitorBounds);
+                        _cachedScreenshot = null;
+                        DebugLog.Write($"[App] Using {(frozenScreenshot == _cachedScreenshot ? "fallback" : "pre-captured")} screenshot for freeze mode");
                     }
 
                     // Use DIP bounds for the window so it maps exactly to the monitor
@@ -305,6 +336,7 @@ public partial class App : Application
             DebugLog.Write("[App] Dismissing overlay");
             _isDismissed = true;
             _inputHook.CanRestore = true;
+            _cachedScreenshot = null;
             _overlayWindow.BeginFadeOut(() =>
             {
                 DebugLog.Write("[App] Fade-out complete, overlay hidden (cutouts preserved)");

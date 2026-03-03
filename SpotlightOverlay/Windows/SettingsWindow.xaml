@@ -71,7 +71,8 @@
                   x:Name="PreviewStyleCombo"
                   SelectionChanged="PreviewStyleCombo_SelectionChanged">
             <ComboBoxItem Content="Outline" />
-            <ComboBoxItem Content="Crosshair" />
+            <ComboBoxItem Content="Crop Marks" />
+            <ComboBoxItem Content="Half Crop Marks (2/4 corners)" />
         </ComboBox>
 
         <!-- Drag Style -->
