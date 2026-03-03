@@ -2,7 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Spotlight Overlay Settings"
-        Width="420" Height="620"
+        Width="420" Height="640"
         ResizeMode="NoResize"
         WindowStartupLocation="CenterScreen"
         Background="#1E1E1E">
@@ -200,6 +200,8 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="12" />
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="12" />
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
         <Border Grid.Row="0" CornerRadius="6" ClipToBounds="True"
                 Background="#2D2D2D" BorderBrush="{StaticResource CardBorder}" BorderThickness="1">
@@ -301,6 +303,28 @@
                               Style="{StaticResource ToggleSwitch}"
                               Checked="FreezeToggle_Changed" Unchecked="FreezeToggle_Changed" />
             </Grid>
+        </Border>
+        <Border Grid.Row="12" Background="{StaticResource CardBg}" CornerRadius="6"
+                BorderBrush="{StaticResource CardBorder}" BorderThickness="1" Padding="14,12">
+            <Button Content="Reset to Defaults" Click="ResetDefaults_Click"
+                    HorizontalAlignment="Stretch" Padding="0,8"
+                    Cursor="Hand" FontSize="13"
+                    Foreground="{StaticResource TextSecondary}"
+                    Background="Transparent" BorderThickness="0">
+                <Button.Template>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" Background="{StaticResource ControlBg}"
+                                CornerRadius="4" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource ControlHover}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Button.Template>
+            </Button>
         </Border>
     </Grid>
 </Window>

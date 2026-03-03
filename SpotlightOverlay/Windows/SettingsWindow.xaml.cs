@@ -1,5 +1,7 @@
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Effects;
 using System.Windows.Media.Imaging;
@@ -18,11 +20,25 @@ public partial class SettingsWindow : Window
     private System.Windows.Threading.DispatcherTimer? _animTimer;
     private int _animFrame;
 
+    [DllImport("dwmapi.dll", PreserveSig = true)]
+    private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int value, int size);
+
     public SettingsWindow(SettingsService settings)
     {
         _settings = settings;
         _isInitializing = true;
         InitializeComponent();
+
+        // Force dark title bar (DWMWA_USE_IMMERSIVE_DARK_MODE = 20)
+        if (new WindowInteropHelper(this).EnsureHandle() is var hwnd && hwnd != IntPtr.Zero)
+        {
+            int useDark = 1;
+            DwmSetWindowAttribute(hwnd, 20, ref useDark, sizeof(int));
+
+            // Match title bar color to window background (#1E1E1E) — DWMWA_CAPTION_COLOR = 35
+            int captionColor = 0x1E1E1E; // COLORREF: 0x00BBGGRR
+            DwmSetWindowAttribute(hwnd, 35, ref captionColor, sizeof(int));
+        }
 
         OpacitySlider.Value = _settings.OverlayOpacity * 100;
         OpacityTextBox.Text = ((int)(_settings.OverlayOpacity * 100)).ToString() + "%";
@@ -33,7 +49,7 @@ public partial class SettingsWindow : Window
         FreezeToggle.IsChecked = _settings.FreezeScreen;
 
         _isInitializing = false;
-        UpdatePreview();
+        Loaded += (_, _) => UpdatePreview();
     }
 
     public static void ShowSingleton(SettingsService settings)
@@ -272,8 +288,8 @@ public partial class SettingsWindow : Window
     private void DrawDragStyleLabel()
     {
         string label = _settings.DragStyle == Models.DragStyle.HoldDrag
-            ? "Hold Ctrl + Click and drag"
-            : "Hold Ctrl > Click to start > Click to end";
+            ? "Ctrl+Drag"
+            : "Ctrl+Click > Click";
         bool dark = _settings.OverlayOpacity <= 0.3;
         var tb = new TextBlock
         {
@@ -281,9 +297,10 @@ public partial class SettingsWindow : Window
             Foreground = dark ? System.Windows.Media.Brushes.Black : System.Windows.Media.Brushes.White,
             FontSize = 9, Opacity = dark ? 0.6 : 0.5, IsHitTestVisible = false
         };
-        tb.Measure(new Size(CanvasW, CanvasH));
-        Canvas.SetLeft(tb, CanvasW - tb.DesiredSize.Width - 6);
-        Canvas.SetTop(tb, CanvasH - tb.DesiredSize.Height - 4);
+        double areaW = PreviewArea.ActualWidth > 0 ? PreviewArea.ActualWidth : CanvasW;
+        tb.Measure(new Size(areaW, CanvasH));
+        Canvas.SetLeft(tb, areaW - tb.DesiredSize.Width - 14);
+        Canvas.SetTop(tb, CanvasH - tb.DesiredSize.Height - 6);
         PreviewArea.Children.Add(tb);
     }
 
@@ -391,5 +408,22 @@ public partial class SettingsWindow : Window
         if (_isInitializing) return;
         _settings.FreezeScreen = FreezeToggle.IsChecked == true;
         _settings.Save();
+    }
+
+    private void ResetDefaults_Click(object sender, RoutedEventArgs e)
+    {
+        _settings.ResetToDefaults();
+
+        _isInitializing = true;
+        OpacitySlider.Value = _settings.OverlayOpacity * 100;
+        OpacityTextBox.Text = ((int)(_settings.OverlayOpacity * 100)).ToString() + "%";
+        FeatherSlider.Value = _settings.FeatherRadius;
+        FeatherTextBox.Text = _settings.FeatherRadius.ToString();
+        PreviewStyleCombo.SelectedIndex = (int)_settings.PreviewStyle;
+        DragStyleCombo.SelectedIndex = (int)_settings.DragStyle;
+        FreezeToggle.IsChecked = _settings.FreezeScreen;
+        _isInitializing = false;
+
+        UpdatePreview();
     }
 }

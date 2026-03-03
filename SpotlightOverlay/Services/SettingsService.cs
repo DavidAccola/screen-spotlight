@@ -32,6 +32,12 @@ public class SettingsService
         _settingsFilePath = settingsFilePath;
     }
 
+    public void ResetToDefaults()
+    {
+        SetDefaults();
+        Save();
+    }
+
     private void SetDefaults()
     {
         OverlayOpacity = DefaultOverlayOpacity;
