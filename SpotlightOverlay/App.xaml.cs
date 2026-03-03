@@ -75,6 +75,24 @@ public partial class App : Application
         };
 
         _trayIcon.ShowBalloon("Spotlight Overlay", "Ready — Ctrl+Click to create cutouts");
+
+        // Pre-warm WPF window infrastructure at idle priority so the first
+        // Ctrl+click doesn't pay the JIT/XAML-parse cost (~250ms).
+        Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ApplicationIdle, () =>
+        {
+            try
+            {
+                var primaryBounds = MonitorHelper.GetMonitorBoundsDip(new System.Windows.Point(0, 0));
+                var warmup = new OverlayWindow(primaryBounds, 0, 0);
+                warmup.Show();
+                warmup.Close();
+                DebugLog.Write("[App] Pre-warm window created and closed");
+            }
+            catch (Exception ex)
+            {
+                DebugLog.Write($"[App] Pre-warm failed (non-fatal): {ex.Message}");
+            }
+        });
     }
 
     /// <summary>
