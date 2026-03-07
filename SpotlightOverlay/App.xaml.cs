@@ -53,6 +53,7 @@ public partial class App : Application
         _inputHook.Install();
         _inputHook.IsEnabled = true;
         _inputHook.DragStyle = _settings.DragStyle;
+        _inputHook.ActivationModifier = _settings.ActivationModifier;
         _trayIcon.SetEnabled(true);
         DebugLog.Write($"[App] Startup complete. Hook IsEnabled: {_inputHook.IsEnabled}");
 
@@ -74,9 +75,18 @@ public partial class App : Application
         _settings.SettingsChanged += (_, _) =>
         {
             _inputHook.DragStyle = _settings.DragStyle;
+            _inputHook.ActivationModifier = _settings.ActivationModifier;
         };
 
-        _trayIcon.ShowBalloon("Spotlight Overlay", "Ready — Ctrl+Click to create cutouts");
+        var modName = _settings.ActivationModifier switch
+        {
+            Models.ModifierKey.Alt => "Alt",
+            Models.ModifierKey.Shift => "Shift",
+            Models.ModifierKey.CtrlShift => "Ctrl+Shift",
+            Models.ModifierKey.CtrlAlt => "Ctrl+Alt",
+            _ => "Ctrl"
+        };
+        _trayIcon.ShowBalloon("Spotlight Overlay", $"Ready — {modName}+Click to create cutouts");
 
         // Pre-warm WPF window infrastructure at idle priority so the first
         // Ctrl+click doesn't pay the JIT/XAML-parse cost (~250ms).
@@ -144,23 +154,22 @@ public partial class App : Application
     {
         if (!_settings.FreezeScreen || _overlayWindow != null) return;
 
-        Dispatcher.BeginInvoke(() =>
+        // Capture screenshot synchronously on the hook thread — this runs before
+        // the message pump processes anything, so transient UI (Start menu, tooltips,
+        // popups) is captured while still visible. CaptureMonitor uses GDI BitBlt
+        // and returns a Frozen BitmapSource, so it's safe from any thread.
+        try
         {
-            try
-            {
-                // Capture the primary monitor for now; we'll use the correct monitor
-                // when the overlay is created, but this pre-capture catches transient UI.
-                var cursorPos = System.Windows.Forms.Cursor.Position;
-                var screenPoint = new System.Windows.Point(cursorPos.X, cursorPos.Y);
-                var monitorBounds = MonitorHelper.GetMonitorBounds(screenPoint);
-                _cachedScreenshot = Helpers.ScreenCapture.CaptureMonitor(monitorBounds);
-                DebugLog.Write("[App] Pre-captured screenshot on Ctrl press");
-            }
-            catch (Exception ex)
-            {
-                DebugLog.Write($"[App] Pre-capture failed: {ex.Message}");
-            }
-        });
+            var cursorPos = System.Windows.Forms.Cursor.Position;
+            var screenPoint = new System.Windows.Point(cursorPos.X, cursorPos.Y);
+            var monitorBounds = MonitorHelper.GetMonitorBounds(screenPoint);
+            _cachedScreenshot = Helpers.ScreenCapture.CaptureMonitor(monitorBounds);
+            DebugLog.Write("[App] Pre-captured screenshot on modifier press (sync)");
+        }
+        catch (Exception ex)
+        {
+            DebugLog.Write($"[App] Pre-capture failed: {ex.Message}");
+        }
     }
 
     /// <summary>
@@ -230,7 +239,17 @@ public partial class App : Application
                     }
 
                     if (frozenScreenshot != null)
+                    {
                         win.SetFrozenBackground(frozenScreenshot);
+                        // Immediately show the darkened frozen screen so the preview
+                        // rectangle draws on top of it, not the live desktop
+                        win.FadeInBackground(300);
+                        win.ForceTopmost();
+
+                        // Dismiss Start menu by clicking on our own overlay.
+                        // The overlay absorbs the click harmlessly — nothing underneath is affected.
+                        DismissStartMenu(monitorBounds);
+                    }
 
                     _overlayWindow = win;
                     DebugLog.Write("[App] Overlay window created and shown");
@@ -383,5 +402,108 @@ public partial class App : Application
         }
 
         return SystemIcons.Application;
+    }
+
+    // --- DismissStartMenu: synthetic mouse click to steal focus ---
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern IntPtr FindWindow(string? lpClassName, string? lpWindowName);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern bool IsWindowVisible(IntPtr hWnd);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll", SetLastError = true)]
+    private static extern uint SendInput(uint nInputs, NativeInput[] pInputs, int cbSize);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern bool GetCursorPos(out POINT lpPoint);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern bool SetCursorPos(int X, int Y);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern int GetSystemMetrics(int nIndex);
+
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+    private struct POINT { public int X; public int Y; }
+
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Explicit, Size = 40)]
+    private struct NativeInput
+    {
+        [System.Runtime.InteropServices.FieldOffset(0)]  public uint type;
+        [System.Runtime.InteropServices.FieldOffset(8)]  public int dx;
+        [System.Runtime.InteropServices.FieldOffset(12)] public int dy;
+        [System.Runtime.InteropServices.FieldOffset(16)] public uint mouseData;
+        [System.Runtime.InteropServices.FieldOffset(20)] public uint dwFlags;
+        [System.Runtime.InteropServices.FieldOffset(24)] public uint time;
+        [System.Runtime.InteropServices.FieldOffset(32)] public IntPtr dwExtraInfo;
+    }
+
+    private const uint INPUT_MOUSE = 0;
+    private const uint MOUSEEVENTF_LEFTDOWN = 0x0002;
+    private const uint MOUSEEVENTF_LEFTUP = 0x0004;
+    private const uint MOUSEEVENTF_ABSOLUTE = 0x8000;
+    private const int SM_CXSCREEN = 0;
+    private const int SM_CYSCREEN = 1;
+    private const int DISMISS_EXTRA_INFO = 0x534D4449;
+
+    /// <summary>
+    /// Dismisses the Start menu by injecting a synthetic left-click on our own
+    /// overlay window (top-center pixel). The overlay absorbs the click so nothing
+    /// underneath is affected. The Start menu loses focus and auto-closes.
+    /// </summary>
+    private static void DismissStartMenu(System.Windows.Rect monitorBounds)
+    {
+        try
+        {
+            var startMenu = FindWindow("Windows.UI.Core.CoreWindow", "Start");
+            bool visible = startMenu != IntPtr.Zero && IsWindowVisible(startMenu);
+            DebugLog.Write($"[App] DismissStartMenu: hwnd={startMenu}, visible={visible}");
+
+            if (!visible) return;
+
+            // Save cursor position
+            GetCursorPos(out POINT origCursor);
+
+            // Click at top-center of the monitor (where our overlay is).
+            // The overlay is fullscreen on this monitor and topmost, so it absorbs the click.
+            int clickX = (int)(monitorBounds.X + monitorBounds.Width / 2);
+            int clickY = (int)monitorBounds.Y;
+
+            int screenW = GetSystemMetrics(SM_CXSCREEN);
+            int screenH = GetSystemMetrics(SM_CYSCREEN);
+
+            // Convert to absolute coordinates (0..65535 range)
+            int absX = (int)Math.Round(clickX * 65535.0 / (screenW - 1));
+            int absY = (int)Math.Round(clickY * 65535.0 / (screenH - 1));
+
+            SetCursorPos(clickX, clickY);
+
+            var inputs = new NativeInput[2];
+            int size = System.Runtime.InteropServices.Marshal.SizeOf<NativeInput>();
+
+            inputs[0].type = INPUT_MOUSE;
+            inputs[0].dx = absX;
+            inputs[0].dy = absY;
+            inputs[0].dwFlags = MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_LEFTDOWN;
+            inputs[0].dwExtraInfo = (IntPtr)DISMISS_EXTRA_INFO;
+
+            inputs[1].type = INPUT_MOUSE;
+            inputs[1].dx = absX;
+            inputs[1].dy = absY;
+            inputs[1].dwFlags = MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_LEFTUP;
+            inputs[1].dwExtraInfo = (IntPtr)DISMISS_EXTRA_INFO;
+
+            uint sent = SendInput(2, inputs, size);
+
+            // Restore cursor
+            SetCursorPos(origCursor.X, origCursor.Y);
+
+            DebugLog.Write($"[App] DismissStartMenu: click at {clickX},{clickY}, sent={sent}/2");
+        }
+        catch (Exception ex)
+        {
+            DebugLog.Write($"[App] DismissStartMenu failed (non-fatal): {ex.Message}");
+        }
     }
 }

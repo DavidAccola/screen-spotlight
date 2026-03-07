@@ -36,9 +36,18 @@ public class GlobalInputHook : IDisposable
     private const int VK_CONTROL = 0x11;
     private const int VK_LCONTROL = 0xA2;
     private const int VK_RCONTROL = 0xA3;
+    private const int VK_SHIFT = 0x10;
+    private const int VK_LSHIFT = 0xA0;
+    private const int VK_RSHIFT = 0xA1;
+    private const int VK_MENU = 0x12;    // Alt
+    private const int VK_LMENU = 0xA4;
+    private const int VK_RMENU = 0xA5;
     private const int VK_ESCAPE = 0x1B;
+
     private const int WM_KEYDOWN = 0x0100;
     private const int WM_KEYUP = 0x0101;
+    private const int WM_SYSKEYDOWN = 0x0104;
+    private const int WM_SYSKEYUP = 0x0105;
 
     [StructLayout(LayoutKind.Sequential)]
     private struct KBDLLHOOKSTRUCT
@@ -70,6 +79,7 @@ public class GlobalInputHook : IDisposable
     public bool IsEnabled { get; set; }
     public bool CanRestore { get; set; }
     public DragStyle DragStyle { get; set; }
+    public ModifierKey ActivationModifier { get; set; } = ModifierKey.Ctrl;
     public Action<string>? OnError { get; set; }
 
     private IntPtr _mouseHookHandle = IntPtr.Zero;
@@ -85,6 +95,54 @@ public class GlobalInputHook : IDisposable
     private bool _isClickClickActive;
 
     private bool _disposed;
+
+    /// <summary>Checks if the configured activation modifier key(s) are currently held.</summary>
+    private bool IsActivationModifierHeld()
+    {
+        return ActivationModifier switch
+        {
+            ModifierKey.Ctrl => (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0,
+            ModifierKey.Alt => (GetAsyncKeyState(VK_MENU) & 0x8000) != 0,
+            ModifierKey.Shift => (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0,
+            ModifierKey.CtrlShift => (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0
+                                  && (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0,
+            ModifierKey.CtrlAlt => (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0
+                                 && (GetAsyncKeyState(VK_MENU) & 0x8000) != 0,
+            _ => (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0
+        };
+    }
+
+    /// <summary>Checks if the given vkCode is one of the keys for the configured modifier.</summary>
+    private bool IsActivationModifierVk(uint vkCode)
+    {
+        return ActivationModifier switch
+        {
+            ModifierKey.Ctrl => vkCode is VK_CONTROL or VK_LCONTROL or VK_RCONTROL,
+            ModifierKey.Alt => vkCode is VK_MENU or VK_LMENU or VK_RMENU,
+            ModifierKey.Shift => vkCode is VK_SHIFT or VK_LSHIFT or VK_RSHIFT,
+            ModifierKey.CtrlShift => vkCode is VK_CONTROL or VK_LCONTROL or VK_RCONTROL
+                                  or VK_SHIFT or VK_LSHIFT or VK_RSHIFT,
+            ModifierKey.CtrlAlt => vkCode is VK_CONTROL or VK_LCONTROL or VK_RCONTROL
+                                 or VK_MENU or VK_LMENU or VK_RMENU,
+            _ => vkCode is VK_CONTROL or VK_LCONTROL or VK_RCONTROL
+        };
+    }
+
+    /// <summary>For multi-key modifiers (CtrlShift, CtrlAlt), checks if ALL required keys are released.</summary>
+    private bool IsActivationModifierFullyReleased()
+    {
+        return ActivationModifier switch
+        {
+            ModifierKey.Ctrl => (GetAsyncKeyState(VK_CONTROL) & 0x8000) == 0,
+            ModifierKey.Alt => (GetAsyncKeyState(VK_MENU) & 0x8000) == 0,
+            ModifierKey.Shift => (GetAsyncKeyState(VK_SHIFT) & 0x8000) == 0,
+            ModifierKey.CtrlShift => (GetAsyncKeyState(VK_CONTROL) & 0x8000) == 0
+                                  || (GetAsyncKeyState(VK_SHIFT) & 0x8000) == 0,
+            ModifierKey.CtrlAlt => (GetAsyncKeyState(VK_CONTROL) & 0x8000) == 0
+                                 || (GetAsyncKeyState(VK_MENU) & 0x8000) == 0,
+            _ => (GetAsyncKeyState(VK_CONTROL) & 0x8000) == 0
+        };
+    }
 
     public void Install()
     {
@@ -128,6 +186,14 @@ public class GlobalInputHook : IDisposable
 
     private IntPtr MouseHookCallback(int nCode, IntPtr wParam, IntPtr lParam)
     {
+        if (nCode >= 0)
+        {
+            // Suppress synthetic mouse events from DismissStartMenu (tagged via dwExtraInfo)
+            var hs = Marshal.PtrToStructure<MSLLHOOKSTRUCT>(lParam);
+            if (hs.dwExtraInfo == (IntPtr)0x534D4449)
+                return CallNextHookEx(_mouseHookHandle, nCode, wParam, lParam);
+        }
+
         if (nCode >= 0 && IsEnabled)
         {
             int msg = wParam.ToInt32();
@@ -151,8 +217,7 @@ public class GlobalInputHook : IDisposable
     {
         if (msg == WM_LBUTTONDOWN)
         {
-            short ctrlState = GetAsyncKeyState(VK_CONTROL);
-            if ((ctrlState & 0x8000) != 0)
+            if (IsActivationModifierHeld())
             {
                 var hs = Marshal.PtrToStructure<MSLLHOOKSTRUCT>(lParam);
                 _isDragging = true;
@@ -199,27 +264,25 @@ public class GlobalInputHook : IDisposable
                 SpotlightOverlay.DebugLog.Write($"[Hook] ClickClick: second click at {hs.pt.x},{hs.pt.y}");
                 EmitDragCompleted(hs.pt.x, hs.pt.y);
 
-                // If Ctrl is still held, respect batch mode (wait for Ctrl release)
-                // If Ctrl is NOT held, apply immediately
-                short ctrlNow = GetAsyncKeyState(VK_CONTROL);
-                if ((ctrlNow & 0x8000) == 0)
+                // If modifier is still held, respect batch mode (wait for release)
+                // If modifier is NOT held, apply immediately
+                if (!IsActivationModifierHeld())
                 {
-                    SpotlightOverlay.DebugLog.Write("[Hook] ClickClick: Ctrl not held, applying immediately");
+                    SpotlightOverlay.DebugLog.Write("[Hook] ClickClick: modifier not held, applying immediately");
                     _hasPendingDrags = false;
                     CtrlReleased?.Invoke(this, EventArgs.Empty);
                 }
                 else
                 {
-                    SpotlightOverlay.DebugLog.Write("[Hook] ClickClick: Ctrl held, batching");
+                    SpotlightOverlay.DebugLog.Write("[Hook] ClickClick: modifier held, batching");
                 }
                 return (IntPtr)1;
             }
             else
             {
-                short ctrlState = GetAsyncKeyState(VK_CONTROL);
-                if ((ctrlState & 0x8000) != 0)
+                if (IsActivationModifierHeld())
                 {
-                    // First Ctrl+click — set start point
+                    // First modifier+click — set start point
                     var hs = Marshal.PtrToStructure<MSLLHOOKSTRUCT>(lParam);
                     _isClickClickActive = true;
                     _dragStartPoint = new System.Windows.Point(hs.pt.x, hs.pt.y);
@@ -276,10 +339,12 @@ public class GlobalInputHook : IDisposable
             int msg = wParam.ToInt32();
             var hs = Marshal.PtrToStructure<KBDLLHOOKSTRUCT>(lParam);
 
-            if (msg == WM_KEYDOWN && hs.vkCode == VK_ESCAPE)
+            bool isKeyDown = msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN;
+            bool isKeyUp = msg == WM_KEYUP || msg == WM_SYSKEYUP;
+
+            if (isKeyDown && hs.vkCode == VK_ESCAPE)
             {
-                short ctrlState = GetAsyncKeyState(VK_CONTROL);
-                bool ctrlHeld = (ctrlState & 0x8000) != 0;
+                bool modifierHeld = IsActivationModifierHeld();
 
                 // Cancel any in-progress drag (hold-drag or click-click)
                 if (_isDragging)
@@ -295,35 +360,47 @@ public class GlobalInputHook : IDisposable
                     return (IntPtr)1;
                 }
 
-                if (ctrlHeld && CanRestore)
+                if (modifierHeld && CanRestore)
                 {
                     RestoreRequested?.Invoke(this, EventArgs.Empty);
                     return (IntPtr)1;
                 }
-                else if (!ctrlHeld)
+                else if (!modifierHeld)
                 {
                     DismissRequested?.Invoke(this, EventArgs.Empty);
                     return (IntPtr)1;
                 }
-                else if (ctrlHeld && _hasPendingDrags)
+                else if (modifierHeld && _hasPendingDrags)
                 {
-                    // Ctrl+Esc during batch mode — suppress to prevent Start menu
                     return (IntPtr)1;
                 }
             }
-            else if (msg == WM_KEYUP)
+            else if (isKeyUp && IsActivationModifierVk(hs.vkCode) && _hasPendingDrags)
             {
-                if ((hs.vkCode == VK_CONTROL || hs.vkCode == VK_LCONTROL || hs.vkCode == VK_RCONTROL) && _hasPendingDrags)
+                // For single-key modifiers, the key-up event itself means it's released.
+                // For combo modifiers, check if the other key in the combo is also released.
+                bool released = ActivationModifier switch
+                {
+                    ModifierKey.Ctrl => true,  // key-up for Ctrl = released
+                    ModifierKey.Alt => true,
+                    ModifierKey.Shift => true,
+                    // For combos: releasing either key breaks the combo
+                    ModifierKey.CtrlShift => true,
+                    ModifierKey.CtrlAlt => true,
+                    _ => true
+                };
+                if (released)
                 {
                     _hasPendingDrags = false;
                     CtrlReleased?.Invoke(this, EventArgs.Empty);
                 }
             }
-            else if (msg == WM_KEYDOWN &&
-                     (hs.vkCode == VK_CONTROL || hs.vkCode == VK_LCONTROL || hs.vkCode == VK_RCONTROL) &&
-                     !_isDragging && !_isClickClickActive)
+            else if (isKeyDown && IsActivationModifierVk(hs.vkCode)
+                     && !_isDragging && !_isClickClickActive)
             {
-                CtrlPressed?.Invoke(this, EventArgs.Empty);
+                // Only fire pressed when the full modifier combo is held
+                if (IsActivationModifierHeld())
+                    CtrlPressed?.Invoke(this, EventArgs.Empty);
             }
         }
 

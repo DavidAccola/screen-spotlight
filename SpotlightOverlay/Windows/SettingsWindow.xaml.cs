@@ -47,6 +47,7 @@ public partial class SettingsWindow : Window
         PreviewStyleCombo.SelectedIndex = (int)_settings.PreviewStyle;
         DragStyleCombo.SelectedIndex = (int)_settings.DragStyle;
         FreezeToggle.IsChecked = _settings.FreezeScreen;
+        UpdateHotkeyDisplay();
 
         _isInitializing = false;
         Loaded += (_, _) => UpdatePreview();
@@ -287,9 +288,10 @@ public partial class SettingsWindow : Window
 
     private void DrawDragStyleLabel()
     {
+        string mod = ModifierDisplayName(_settings.ActivationModifier);
         string label = _settings.DragStyle == Models.DragStyle.HoldDrag
-            ? "Ctrl+Drag"
-            : "Ctrl+Click > Click";
+            ? $"{mod}+Drag"
+            : $"{mod}+Click > Click";
         bool dark = _settings.OverlayOpacity <= 0.3;
         var tb = new TextBlock
         {
@@ -410,6 +412,8 @@ public partial class SettingsWindow : Window
         _settings.Save();
     }
 
+    private bool _isRecordingHotkey;
+
     private void ResetDefaults_Click(object sender, RoutedEventArgs e)
     {
         _settings.ResetToDefaults();
@@ -422,8 +426,119 @@ public partial class SettingsWindow : Window
         PreviewStyleCombo.SelectedIndex = (int)_settings.PreviewStyle;
         DragStyleCombo.SelectedIndex = (int)_settings.DragStyle;
         FreezeToggle.IsChecked = _settings.FreezeScreen;
+        UpdateHotkeyDisplay();
         _isInitializing = false;
 
         UpdatePreview();
+    }
+
+    // ── Hotkey recorder ────────────────────────────────────────────
+
+    private static string ModifierDisplayName(Models.ModifierKey mod) => mod switch
+    {
+        Models.ModifierKey.Alt => "Alt",
+        Models.ModifierKey.Shift => "Shift",
+        Models.ModifierKey.CtrlShift => "Ctrl + Shift",
+        Models.ModifierKey.CtrlAlt => "Ctrl + Alt",
+        _ => "Ctrl"
+    };
+
+    private void UpdateHotkeyDisplay()
+    {
+        HotkeyDisplay.Text = ModifierDisplayName(_settings.ActivationModifier) + " + Click";
+        HotkeyHint.Text = "Click to change, then press a modifier key";
+        HotkeyHint.Foreground = (System.Windows.Media.Brush)FindResource("TextSecondary");
+        HotkeyRecorderBorder.BorderBrush = (System.Windows.Media.Brush)FindResource("CardBorder");
+    }
+
+    private void HotkeyRecorder_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        if (_isRecordingHotkey) return;
+        _isRecordingHotkey = true;
+        HotkeyDisplay.Text = "Press a modifier key...";
+        HotkeyHint.Text = "Ctrl, Alt, Shift, or a combination";
+        HotkeyRecorderBorder.BorderBrush = (System.Windows.Media.Brush)FindResource("Accent");
+        PreviewKeyDown += HotkeyRecorder_PreviewKeyDown;
+    }
+
+    private void HotkeyRecorder_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        e.Handled = true;
+        var key = e.Key == System.Windows.Input.Key.System ? e.SystemKey : e.Key;
+
+        // Ignore non-modifier keys
+        if (key != System.Windows.Input.Key.LeftCtrl && key != System.Windows.Input.Key.RightCtrl &&
+            key != System.Windows.Input.Key.LeftAlt && key != System.Windows.Input.Key.RightAlt &&
+            key != System.Windows.Input.Key.LeftShift && key != System.Windows.Input.Key.RightShift)
+        {
+            if (key == System.Windows.Input.Key.Escape)
+            {
+                // Cancel recording
+                _isRecordingHotkey = false;
+                PreviewKeyDown -= HotkeyRecorder_PreviewKeyDown;
+                UpdateHotkeyDisplay();
+            }
+            return;
+        }
+
+        // Build modifier from current state
+        var mods = System.Windows.Input.Keyboard.Modifiers;
+        Models.ModifierKey? newMod = null;
+
+        if (mods.HasFlag(System.Windows.Input.ModifierKeys.Control) && mods.HasFlag(System.Windows.Input.ModifierKeys.Shift))
+            newMod = Models.ModifierKey.CtrlShift;
+        else if (mods.HasFlag(System.Windows.Input.ModifierKeys.Control) && mods.HasFlag(System.Windows.Input.ModifierKeys.Alt))
+            newMod = Models.ModifierKey.CtrlAlt;
+        else if (mods.HasFlag(System.Windows.Input.ModifierKeys.Control))
+            newMod = Models.ModifierKey.Ctrl;
+        else if (mods.HasFlag(System.Windows.Input.ModifierKeys.Alt))
+            newMod = Models.ModifierKey.Alt;
+        else if (mods.HasFlag(System.Windows.Input.ModifierKeys.Shift))
+            newMod = Models.ModifierKey.Shift;
+
+        if (newMod == null) return;
+
+        // Wait briefly for combo keys — use a timer to finalize
+        HotkeyDisplay.Text = ModifierDisplayName(newMod.Value) + " + Click";
+
+        // Debounce: finalize after 400ms of no new modifier presses
+        _hotkeyDebounceTimer?.Stop();
+        _hotkeyDebounceTimer = new System.Windows.Threading.DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(400)
+        };
+        var captured = newMod.Value;
+        _hotkeyDebounceTimer.Tick += (_, _) =>
+        {
+            _hotkeyDebounceTimer?.Stop();
+            _hotkeyDebounceTimer = null;
+            _isRecordingHotkey = false;
+            PreviewKeyDown -= HotkeyRecorder_PreviewKeyDown;
+
+            _settings.ActivationModifier = captured;
+            _settings.Save();
+            UpdateHotkeyDisplay();
+            ShowHotkeyWarning(captured);
+            UpdatePreview();
+        };
+        _hotkeyDebounceTimer.Start();
+    }
+
+    private System.Windows.Threading.DispatcherTimer? _hotkeyDebounceTimer;
+
+    private void ShowHotkeyWarning(Models.ModifierKey mod)
+    {
+        string? warning = mod switch
+        {
+            Models.ModifierKey.Alt => "Alt+Click is used by some apps (e.g. Photoshop, some window managers)",
+            Models.ModifierKey.Shift => "Shift+Click is commonly used for range selection",
+            _ => null
+        };
+
+        if (warning != null)
+        {
+            HotkeyHint.Text = "⚠ " + warning;
+            HotkeyHint.Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xA8, 0x38));
+        }
     }
 }

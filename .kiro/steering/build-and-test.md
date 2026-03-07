@@ -11,6 +11,7 @@ inclusion: always
 - After editing code, always build and verify before telling the user to run.
 - ALWAYS kill SpotlightOverlay.exe before building: `taskkill /IM SpotlightOverlay.exe /F` — the exe locks DLLs and causes build failures if still running.
 - Use `run.ps1` to build and run the app — it kills any existing instance, does a clean rebuild, and launches.
+- ALWAYS use `run.ps1` to build AND launch. Never call `dotnet build` separately — `run.ps1` handles kill, clean build, and launch in one step. Run it via `controlPwshProcess` (background process) so it doesn't block.
 
 ## Test Script
 - Use `test-spotlight.ps1` to do automated end-to-end testing (simulates Ctrl+Drag via SendInput, checks debug log).

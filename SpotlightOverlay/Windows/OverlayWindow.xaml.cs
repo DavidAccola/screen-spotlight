@@ -57,11 +57,15 @@ public partial class OverlayWindow : Window
         DebugLog.Write($"[Overlay] SetFrozenBackground: bitmap={screenshot.PixelWidth}x{screenshot.PixelHeight} dpi={screenshot.DpiX}x{screenshot.DpiY}");
         DebugLog.Write($"[Overlay] Window: Width={Width} Height={Height} ActualWidth={ActualWidth} ActualHeight={ActualHeight}");
 
-        FrozenBackground.Background = new ImageBrush(screenshot)
+        // Set the screenshot as the window's own background so that the semi-transparent
+        // OverlayBorder composites against the screenshot rather than the live desktop.
+        // With AllowsTransparency=True, elements composite against the window surface,
+        // not against sibling elements in the z-order.
+        Background = new ImageBrush(screenshot)
         {
             Stretch = Stretch.Fill
         };
-        FrozenBackground.Visibility = Visibility.Visible;
+        FrozenBackground.Visibility = Visibility.Collapsed;
     }
 
     /// <summary>
@@ -398,6 +402,25 @@ public partial class OverlayWindow : Window
 
     [DllImport("user32.dll")]
     private static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
+
+    [DllImport("user32.dll")]
+    private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
+
+    private static readonly IntPtr HWND_TOPMOST = new(-1);
+    private const uint SWP_NOMOVE = 0x0002;
+    private const uint SWP_NOSIZE = 0x0001;
+    private const uint SWP_NOACTIVATE = 0x0010;
+
+    /// <summary>
+    /// Reinforces the topmost z-order via SetWindowPos. Call after Show()
+    /// to push above other topmost windows where possible.
+    /// </summary>
+    public void ForceTopmost()
+    {
+        var hwnd = new WindowInteropHelper(this).Handle;
+        if (hwnd != IntPtr.Zero)
+            SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+    }
 
     public void SetClickThrough(bool enabled)
     {
