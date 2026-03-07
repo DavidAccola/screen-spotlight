@@ -20,7 +20,7 @@ public class SettingsValidationPropertyTests
     [Property(MaxTest = 100)]
     public Property Validate_Always_Clamps_Opacity_To_Valid_Range(double opacity, int radius)
     {
-        var input = new AppSettings(opacity, radius, PreviewStyle.Crosshair, DragStyle.ClickClick, false, ModifierKey.Ctrl);
+        var input = new AppSettings(opacity, radius, PreviewStyle.Crosshair, DragStyle.ClickClick, false, ModifierKey.Ctrl, ModifierKey.CtrlShift, 0x51);
         var result = SettingsService.Validate(input);
 
         return (result.OverlayOpacity >= 0.0 && result.OverlayOpacity <= 1.0)
@@ -30,7 +30,7 @@ public class SettingsValidationPropertyTests
     [Property(MaxTest = 100)]
     public Property Validate_Always_Clamps_FeatherRadius_To_NonNegative(double opacity, int radius)
     {
-        var input = new AppSettings(opacity, radius, PreviewStyle.Crosshair, DragStyle.ClickClick, false, ModifierKey.Ctrl);
+        var input = new AppSettings(opacity, radius, PreviewStyle.Crosshair, DragStyle.ClickClick, false, ModifierKey.Ctrl, ModifierKey.CtrlShift, 0x51);
         var result = SettingsService.Validate(input);
 
         return (result.FeatherRadius >= 0)
@@ -48,7 +48,7 @@ public class SettingsValidationPropertyTests
         if (double.IsNaN(opacity) || double.IsInfinity(opacity))
             return true.ToProperty();
 
-        var inRangeInput = new AppSettings(clampedOpacity, clampedRadius, PreviewStyle.Crosshair, DragStyle.ClickClick, false, ModifierKey.Ctrl);
+        var inRangeInput = new AppSettings(clampedOpacity, clampedRadius, PreviewStyle.Crosshair, DragStyle.ClickClick, false, ModifierKey.Ctrl, ModifierKey.CtrlShift, 0x51);
         var result = SettingsService.Validate(inRangeInput);
 
         return (result.OverlayOpacity == inRangeInput.OverlayOpacity

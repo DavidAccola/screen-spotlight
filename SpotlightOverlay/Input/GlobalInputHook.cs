@@ -74,12 +74,15 @@ public class GlobalInputHook : IDisposable
     public event EventHandler? CtrlPressed;
     public event EventHandler? RestoreRequested;
     public event EventHandler? DismissRequested;
+    public event EventHandler? ToggleRequested;
     #endregion
 
     public bool IsEnabled { get; set; }
     public bool CanRestore { get; set; }
     public DragStyle DragStyle { get; set; }
     public ModifierKey ActivationModifier { get; set; } = ModifierKey.Ctrl;
+    public ModifierKey ToggleModifier { get; set; } = ModifierKey.CtrlShift;
+    public int ToggleKey { get; set; } = 0x51; // VK_Q
     public Action<string>? OnError { get; set; }
 
     private IntPtr _mouseHookHandle = IntPtr.Zero;
@@ -141,6 +144,22 @@ public class GlobalInputHook : IDisposable
             ModifierKey.CtrlAlt => (GetAsyncKeyState(VK_CONTROL) & 0x8000) == 0
                                  || (GetAsyncKeyState(VK_MENU) & 0x8000) == 0,
             _ => (GetAsyncKeyState(VK_CONTROL) & 0x8000) == 0
+        };
+    }
+
+    /// <summary>Checks if the toggle modifier key(s) are currently held.</summary>
+    private bool IsToggleModifierHeld()
+    {
+        return ToggleModifier switch
+        {
+            ModifierKey.Ctrl => (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0,
+            ModifierKey.Alt => (GetAsyncKeyState(VK_MENU) & 0x8000) != 0,
+            ModifierKey.Shift => (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0,
+            ModifierKey.CtrlShift => (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0
+                                  && (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0,
+            ModifierKey.CtrlAlt => (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0
+                                 && (GetAsyncKeyState(VK_MENU) & 0x8000) != 0,
+            _ => (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0
         };
     }
 
@@ -334,6 +353,20 @@ public class GlobalInputHook : IDisposable
 
     private IntPtr KeyboardHookCallback(int nCode, IntPtr wParam, IntPtr lParam)
     {
+        if (nCode >= 0)
+        {
+            int msg = wParam.ToInt32();
+            var hs = Marshal.PtrToStructure<KBDLLHOOKSTRUCT>(lParam);
+            bool isKeyDown = msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN;
+
+            // Toggle hotkey works regardless of IsEnabled so user can re-enable
+            if (isKeyDown && hs.vkCode == (uint)ToggleKey && IsToggleModifierHeld())
+            {
+                ToggleRequested?.Invoke(this, EventArgs.Empty);
+                return (IntPtr)1; // eat the key
+            }
+        }
+
         if (nCode >= 0 && IsEnabled)
         {
             int msg = wParam.ToInt32();

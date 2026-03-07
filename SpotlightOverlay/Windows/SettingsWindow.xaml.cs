@@ -46,8 +46,10 @@ public partial class SettingsWindow : Window
         FeatherTextBox.Text = _settings.FeatherRadius.ToString();
         PreviewStyleCombo.SelectedIndex = (int)_settings.PreviewStyle;
         DragStyleCombo.SelectedIndex = (int)_settings.DragStyle;
-        FreezeToggle.IsChecked = _settings.FreezeScreen;
+        BackgroundCombo.SelectedIndex = _settings.FreezeScreen ? 1 : 0;
         UpdateHotkeyDisplay();
+        UpdateToggleHotkeyDisplay();
+        UpdateDragStyleLabels();
 
         _isInitializing = false;
         Loaded += (_, _) => UpdatePreview();
@@ -63,7 +65,7 @@ public partial class SettingsWindow : Window
 
     // ── Preview constants ──────────────────────────────────────────
 
-    private const double CanvasW = 386, CanvasH = 130;
+    private const double CanvasW = 486, CanvasH = 110;
     private static readonly Rect CutoutFinal = new(
         CanvasW * 0.3, CanvasH * 0.25, CanvasW * 0.4, CanvasH * 0.5);
 
@@ -318,6 +320,13 @@ public partial class SettingsWindow : Window
 
     // ── Settings event handlers ────────────────────────────────────
 
+    private void UpdateDragStyleLabels()
+    {
+        string mod = ModifierDisplayName(_settings.ActivationModifier);
+        DragStyleHold.Content = $"{mod} + Hold and Drag";
+        DragStyleClick.Content = $"{mod} + Click to Click";
+    }
+
     private void OpacitySlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
         if (_isInitializing) return;
@@ -405,10 +414,10 @@ public partial class SettingsWindow : Window
         UpdatePreview();
     }
 
-    private void FreezeToggle_Changed(object sender, RoutedEventArgs e)
+    private void BackgroundCombo_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
     {
         if (_isInitializing) return;
-        _settings.FreezeScreen = FreezeToggle.IsChecked == true;
+        _settings.FreezeScreen = BackgroundCombo.SelectedIndex == 1;
         _settings.Save();
     }
 
@@ -425,8 +434,10 @@ public partial class SettingsWindow : Window
         FeatherTextBox.Text = _settings.FeatherRadius.ToString();
         PreviewStyleCombo.SelectedIndex = (int)_settings.PreviewStyle;
         DragStyleCombo.SelectedIndex = (int)_settings.DragStyle;
-        FreezeToggle.IsChecked = _settings.FreezeScreen;
+        BackgroundCombo.SelectedIndex = _settings.FreezeScreen ? 1 : 0;
         UpdateHotkeyDisplay();
+        UpdateToggleHotkeyDisplay();
+        UpdateDragStyleLabels();
         _isInitializing = false;
 
         UpdatePreview();
@@ -518,6 +529,7 @@ public partial class SettingsWindow : Window
             _settings.ActivationModifier = captured;
             _settings.Save();
             UpdateHotkeyDisplay();
+            UpdateDragStyleLabels();
             ShowHotkeyWarning(captured);
             UpdatePreview();
         };
@@ -540,5 +552,108 @@ public partial class SettingsWindow : Window
             HotkeyHint.Text = "⚠ " + warning;
             HotkeyHint.Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xA8, 0x38));
         }
+    }
+
+    // ── Toggle hotkey recorder ─────────────────────────────────────
+
+    private bool _isRecordingToggleHotkey;
+    private Models.ModifierKey? _pendingToggleMod;
+
+    private static string VkDisplayName(int vk)
+    {
+        // Common keys
+        if (vk >= 0x30 && vk <= 0x39) return ((char)vk).ToString(); // 0-9
+        if (vk >= 0x41 && vk <= 0x5A) return ((char)vk).ToString(); // A-Z
+        if (vk >= 0x70 && vk <= 0x87) return "F" + (vk - 0x6F);    // F1-F24
+        return vk switch
+        {
+            0x20 => "Space", 0x09 => "Tab", 0x0D => "Enter",
+            0xBE => ".", 0xBC => ",", 0xBF => "/", 0xBA => ";",
+            0xDE => "'", 0xDB => "[", 0xDD => "]", 0xDC => "\\",
+            0xBD => "-", 0xBB => "=", 0xC0 => "`",
+            _ => $"0x{vk:X2}"
+        };
+    }
+
+    private void UpdateToggleHotkeyDisplay()
+    {
+        ToggleHotkeyDisplay.Text = ModifierDisplayName(_settings.ToggleModifier) + " + " + VkDisplayName(_settings.ToggleKey);
+        ToggleHotkeyHint.Text = "Click to change, then press modifier(s) + key";
+        ToggleHotkeyHint.Foreground = (System.Windows.Media.Brush)FindResource("TextSecondary");
+        ToggleHotkeyBorder.BorderBrush = (System.Windows.Media.Brush)FindResource("CardBorder");
+    }
+
+    private void ToggleHotkeyRecorder_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        if (_isRecordingToggleHotkey) return;
+        _isRecordingToggleHotkey = true;
+        _pendingToggleMod = null;
+        ToggleHotkeyDisplay.Text = "Press modifier(s) + key...";
+        ToggleHotkeyHint.Text = "e.g. Ctrl+Shift+Q";
+        ToggleHotkeyBorder.BorderBrush = (System.Windows.Media.Brush)FindResource("Accent");
+        PreviewKeyDown += ToggleHotkeyRecorder_PreviewKeyDown;
+    }
+
+    private void ToggleHotkeyRecorder_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        e.Handled = true;
+        var key = e.Key == System.Windows.Input.Key.System ? e.SystemKey : e.Key;
+
+        if (key == System.Windows.Input.Key.Escape)
+        {
+            _isRecordingToggleHotkey = false;
+            _pendingToggleMod = null;
+            PreviewKeyDown -= ToggleHotkeyRecorder_PreviewKeyDown;
+            UpdateToggleHotkeyDisplay();
+            return;
+        }
+
+        // Check if it's a modifier key — just update the pending modifier
+        bool isModifier = key is System.Windows.Input.Key.LeftCtrl or System.Windows.Input.Key.RightCtrl
+            or System.Windows.Input.Key.LeftAlt or System.Windows.Input.Key.RightAlt
+            or System.Windows.Input.Key.LeftShift or System.Windows.Input.Key.RightShift;
+
+        var mods = System.Windows.Input.Keyboard.Modifiers;
+        Models.ModifierKey? currentMod = null;
+        if (mods.HasFlag(System.Windows.Input.ModifierKeys.Control) && mods.HasFlag(System.Windows.Input.ModifierKeys.Shift))
+            currentMod = Models.ModifierKey.CtrlShift;
+        else if (mods.HasFlag(System.Windows.Input.ModifierKeys.Control) && mods.HasFlag(System.Windows.Input.ModifierKeys.Alt))
+            currentMod = Models.ModifierKey.CtrlAlt;
+        else if (mods.HasFlag(System.Windows.Input.ModifierKeys.Control))
+            currentMod = Models.ModifierKey.Ctrl;
+        else if (mods.HasFlag(System.Windows.Input.ModifierKeys.Alt))
+            currentMod = Models.ModifierKey.Alt;
+        else if (mods.HasFlag(System.Windows.Input.ModifierKeys.Shift))
+            currentMod = Models.ModifierKey.Shift;
+
+        if (isModifier)
+        {
+            _pendingToggleMod = currentMod;
+            if (currentMod != null)
+                ToggleHotkeyDisplay.Text = ModifierDisplayName(currentMod.Value) + " + ...";
+            return;
+        }
+
+        // Non-modifier key pressed — this is the action key
+        // Need at least one modifier
+        var mod = currentMod ?? _pendingToggleMod;
+        if (mod == null)
+        {
+            ToggleHotkeyHint.Text = "⚠ Must include at least one modifier (Ctrl, Alt, Shift)";
+            ToggleHotkeyHint.Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xA8, 0x38));
+            return;
+        }
+
+        // Convert WPF Key to VK code
+        int vk = System.Windows.Input.KeyInterop.VirtualKeyFromKey(key);
+        if (vk == 0) return;
+
+        _isRecordingToggleHotkey = false;
+        PreviewKeyDown -= ToggleHotkeyRecorder_PreviewKeyDown;
+
+        _settings.ToggleModifier = mod.Value;
+        _settings.ToggleKey = vk;
+        _settings.Save();
+        UpdateToggleHotkeyDisplay();
     }
 }

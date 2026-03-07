@@ -32,7 +32,7 @@ public class SettingsServiceTests : IDisposable
     public void Load_ExistingValidFile_AppliesValues()
     {
         var path = GetSettingsPath();
-        var settings = new AppSettings(0.8, 50, PreviewStyle.Crosshair, DragStyle.ClickClick, false, ModifierKey.Ctrl);
+        var settings = new AppSettings(0.8, 50, PreviewStyle.Crosshair, DragStyle.ClickClick, false, ModifierKey.Ctrl, ModifierKey.CtrlShift, 0x51);
         File.WriteAllText(path, JsonSerializer.Serialize(settings));
 
         var service = new SettingsService(path);
@@ -55,15 +55,15 @@ public class SettingsServiceTests : IDisposable
         var service = new SettingsService(path);
         service.Load();
 
-        Assert.Equal(0.5, service.OverlayOpacity);
-        Assert.Equal(30, service.FeatherRadius);
+        Assert.Equal(0.75, service.OverlayOpacity);
+        Assert.Equal(8, service.FeatherRadius);
 
         // Verify the file was created with default values
         Assert.True(File.Exists(path));
         var written = JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(path));
         Assert.NotNull(written);
-        Assert.Equal(0.5, written!.OverlayOpacity);
-        Assert.Equal(30, written.FeatherRadius);
+        Assert.Equal(0.75, written!.OverlayOpacity);
+        Assert.Equal(8, written.FeatherRadius);
     }
 
     /// <summary>
@@ -79,7 +79,7 @@ public class SettingsServiceTests : IDisposable
         var service = new SettingsService(path);
         service.Load();
 
-        Assert.Equal(0.5, service.OverlayOpacity);
-        Assert.Equal(30, service.FeatherRadius);
+        Assert.Equal(0.75, service.OverlayOpacity);
+        Assert.Equal(8, service.FeatherRadius);
     }
 }

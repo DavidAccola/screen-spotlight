@@ -54,6 +54,8 @@ public partial class App : Application
         _inputHook.IsEnabled = true;
         _inputHook.DragStyle = _settings.DragStyle;
         _inputHook.ActivationModifier = _settings.ActivationModifier;
+        _inputHook.ToggleModifier = _settings.ToggleModifier;
+        _inputHook.ToggleKey = _settings.ToggleKey;
         _trayIcon.SetEnabled(true);
         DebugLog.Write($"[App] Startup complete. Hook IsEnabled: {_inputHook.IsEnabled}");
 
@@ -70,12 +72,15 @@ public partial class App : Application
         _inputHook.DismissRequested += OnDismissRequested;
         _inputHook.RestoreRequested += OnRestoreRequested;
         _inputHook.CtrlPressed += OnCtrlPressed;
+        _inputHook.ToggleRequested += OnToggleSpotlight;
 
         // Keep hook in sync when settings change at runtime
         _settings.SettingsChanged += (_, _) =>
         {
             _inputHook.DragStyle = _settings.DragStyle;
             _inputHook.ActivationModifier = _settings.ActivationModifier;
+            _inputHook.ToggleModifier = _settings.ToggleModifier;
+            _inputHook.ToggleKey = _settings.ToggleKey;
         };
 
         var modName = _settings.ActivationModifier switch
