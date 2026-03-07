@@ -5,6 +5,7 @@ using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Effects;
 using System.Windows.Media.Imaging;
+using SpotlightOverlay.Input;
 using SpotlightOverlay.Services;
 using Color = System.Windows.Media.Color;
 using Rectangle = System.Windows.Shapes.Rectangle;
@@ -16,6 +17,7 @@ public partial class SettingsWindow : Window
 {
     private static SettingsWindow? _instance;
     private readonly SettingsService _settings;
+    private readonly GlobalInputHook? _inputHook;
     private bool _isInitializing;
     private System.Windows.Threading.DispatcherTimer? _animTimer;
     private int _animFrame;
@@ -23,9 +25,37 @@ public partial class SettingsWindow : Window
     [DllImport("dwmapi.dll", PreserveSig = true)]
     private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int value, int size);
 
-    public SettingsWindow(SettingsService settings)
+    [DllImport("user32.dll")]
+    private static extern short GetAsyncKeyState(int vKey);
+
+    private const int VK_CONTROL = 0x11;
+    private const int VK_SHIFT   = 0x10;
+    private const int VK_MENU    = 0x12; // Alt
+
+    private static bool IsKeyDown(int vk) => (GetAsyncKeyState(vk) & 0x8000) != 0;
+
+    /// <summary>
+    /// Read the physical modifier state via GetAsyncKeyState — more reliable
+    /// than Keyboard.Modifiers during rapid key combos in PreviewKeyDown.
+    /// </summary>
+    private static Models.ModifierKey? ReadPhysicalModifiers()
+    {
+        bool ctrl  = IsKeyDown(VK_CONTROL);
+        bool shift = IsKeyDown(VK_SHIFT);
+        bool alt   = IsKeyDown(VK_MENU);
+
+        if (ctrl && shift) return Models.ModifierKey.CtrlShift;
+        if (ctrl && alt)   return Models.ModifierKey.CtrlAlt;
+        if (ctrl)          return Models.ModifierKey.Ctrl;
+        if (alt)           return Models.ModifierKey.Alt;
+        if (shift)         return Models.ModifierKey.Shift;
+        return null;
+    }
+
+    public SettingsWindow(SettingsService settings, GlobalInputHook? inputHook = null)
     {
         _settings = settings;
+        _inputHook = inputHook;
         _isInitializing = true;
         InitializeComponent();
 
@@ -40,8 +70,8 @@ public partial class SettingsWindow : Window
             DwmSetWindowAttribute(hwnd, 35, ref captionColor, sizeof(int));
         }
 
-        OpacitySlider.Value = _settings.OverlayOpacity * 100;
-        OpacityTextBox.Text = ((int)(_settings.OverlayOpacity * 100)).ToString() + "%";
+        OpacitySlider.Value = 100 - _settings.OverlayOpacity * 100;
+        OpacityTextBox.Text = ((int)(100 - _settings.OverlayOpacity * 100)).ToString() + "%";
         FeatherSlider.Value = _settings.FeatherRadius;
         FeatherTextBox.Text = _settings.FeatherRadius.ToString();
         PreviewStyleCombo.SelectedIndex = (int)_settings.PreviewStyle;
@@ -55,10 +85,10 @@ public partial class SettingsWindow : Window
         Loaded += (_, _) => UpdatePreview();
     }
 
-    public static void ShowSingleton(SettingsService settings)
+    public static void ShowSingleton(SettingsService settings, GlobalInputHook? inputHook = null)
     {
         if (_instance is { IsLoaded: true }) { _instance.Activate(); return; }
-        _instance = new SettingsWindow(settings);
+        _instance = new SettingsWindow(settings, inputHook);
         _instance.Closed += (_, _) => _instance = null;
         _instance.Show();
     }
@@ -291,9 +321,33 @@ public partial class SettingsWindow : Window
     private void DrawDragStyleLabel()
     {
         string mod = ModifierDisplayName(_settings.ActivationModifier);
-        string label = _settings.DragStyle == Models.DragStyle.HoldDrag
-            ? $"{mod}+Drag"
-            : $"{mod}+Click > Click";
+        string keyName = _settings.ActivationKey != 0 ? VkDisplayName(_settings.ActivationKey) : "";
+        bool isMouseBtn = IsMouseButtonVk(_settings.ActivationKey);
+
+        // Build prefix: "Ctrl+Space", "Mouse 4", "Ctrl", etc.
+        string prefix;
+        if (!string.IsNullOrEmpty(mod) && !string.IsNullOrEmpty(keyName))
+            prefix = mod + "+" + keyName;
+        else if (!string.IsNullOrEmpty(keyName))
+            prefix = keyName;
+        else
+            prefix = mod;
+
+        string label;
+        if (isMouseBtn)
+        {
+            // Mouse button IS the click — no extra "+Drag"/"+Click"
+            label = _settings.DragStyle == Models.DragStyle.HoldDrag
+                ? $"{prefix}+Drag"
+                : $"{prefix} > {prefix}";
+        }
+        else
+        {
+            label = _settings.DragStyle == Models.DragStyle.HoldDrag
+                ? $"{prefix}+Drag"
+                : $"{prefix}+Click > Click";
+        }
+
         bool dark = _settings.OverlayOpacity <= 0.3;
         var tb = new TextBlock
         {
@@ -323,37 +377,56 @@ public partial class SettingsWindow : Window
     private void UpdateDragStyleLabels()
     {
         string mod = ModifierDisplayName(_settings.ActivationModifier);
-        DragStyleHold.Content = $"{mod} + Hold and Drag";
-        DragStyleClick.Content = $"{mod} + Click to Click";
+        string keyName = _settings.ActivationKey != 0 ? VkDisplayName(_settings.ActivationKey) : "";
+        bool isMouseBtn = IsMouseButtonVk(_settings.ActivationKey);
+
+        string prefix;
+        if (!string.IsNullOrEmpty(mod) && !string.IsNullOrEmpty(keyName))
+            prefix = mod + " + " + keyName;
+        else if (!string.IsNullOrEmpty(keyName))
+            prefix = keyName;
+        else
+            prefix = mod;
+
+        if (isMouseBtn)
+        {
+            DragStyleHold.Content = $"{prefix} + Hold and Drag";
+            DragStyleClick.Content = $"{prefix} to {prefix}";
+        }
+        else
+        {
+            DragStyleHold.Content = $"{prefix} + Hold and Drag";
+            DragStyleClick.Content = $"{prefix} + Click to Click";
+        }
     }
 
     private void OpacitySlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
         if (_isInitializing) return;
-        var pct = (int)Math.Clamp(e.NewValue, 1, 99);
-        _settings.OverlayOpacity = pct / 100.0;
+        var transPct = (int)Math.Clamp(e.NewValue, 1, 99);
+        _settings.OverlayOpacity = (100 - transPct) / 100.0;
         _settings.Save();
-        OpacityTextBox.Text = pct.ToString() + "%";
+        OpacityTextBox.Text = transPct.ToString() + "%";
         UpdatePreview();
     }
 
     private void ApplyOpacityFromTextBox()
     {
         var text = OpacityTextBox.Text.TrimEnd('%', ' ');
-        if (int.TryParse(text, out int pct))
+        if (int.TryParse(text, out int transPct))
         {
-            pct = Math.Clamp(pct, 1, 99);
+            transPct = Math.Clamp(transPct, 1, 99);
             _isInitializing = true;
-            OpacitySlider.Value = pct;
+            OpacitySlider.Value = transPct;
             _isInitializing = false;
-            _settings.OverlayOpacity = pct / 100.0;
+            _settings.OverlayOpacity = (100 - transPct) / 100.0;
             _settings.Save();
-            OpacityTextBox.Text = pct.ToString() + "%";
+            OpacityTextBox.Text = transPct.ToString() + "%";
             UpdatePreview();
         }
         else
         {
-            OpacityTextBox.Text = ((int)(_settings.OverlayOpacity * 100)).ToString() + "%";
+            OpacityTextBox.Text = ((int)(100 - _settings.OverlayOpacity * 100)).ToString() + "%";
         }
     }
 
@@ -428,8 +501,8 @@ public partial class SettingsWindow : Window
         _settings.ResetToDefaults();
 
         _isInitializing = true;
-        OpacitySlider.Value = _settings.OverlayOpacity * 100;
-        OpacityTextBox.Text = ((int)(_settings.OverlayOpacity * 100)).ToString() + "%";
+        OpacitySlider.Value = 100 - _settings.OverlayOpacity * 100;
+        OpacityTextBox.Text = ((int)(100 - _settings.OverlayOpacity * 100)).ToString() + "%";
         FeatherSlider.Value = _settings.FeatherRadius;
         FeatherTextBox.Text = _settings.FeatherRadius.ToString();
         PreviewStyleCombo.SelectedIndex = (int)_settings.PreviewStyle;
@@ -451,13 +524,19 @@ public partial class SettingsWindow : Window
         Models.ModifierKey.Shift => "Shift",
         Models.ModifierKey.CtrlShift => "Ctrl + Shift",
         Models.ModifierKey.CtrlAlt => "Ctrl + Alt",
+        Models.ModifierKey.None => "",
         _ => "Ctrl"
     };
 
     private void UpdateHotkeyDisplay()
     {
-        HotkeyDisplay.Text = ModifierDisplayName(_settings.ActivationModifier) + " + Click";
-        HotkeyHint.Text = "Click to change, then press a modifier key";
+        var parts = new System.Collections.Generic.List<string>();
+        var modDisplay = ModifierDisplayName(_settings.ActivationModifier);
+        if (!string.IsNullOrEmpty(modDisplay)) parts.Add(modDisplay);
+        if (_settings.ActivationKey != 0) parts.Add(VkDisplayName(_settings.ActivationKey));
+        if (!IsMouseButtonVk(_settings.ActivationKey)) parts.Add("Click");
+        HotkeyDisplay.Text = string.Join(" + ", parts);
+        HotkeyHint.Text = "Click to change — press keys or mouse buttons";
         HotkeyHint.Foreground = (System.Windows.Media.Brush)FindResource("TextSecondary");
         HotkeyRecorderBorder.BorderBrush = (System.Windows.Media.Brush)FindResource("CardBorder");
     }
@@ -466,80 +545,158 @@ public partial class SettingsWindow : Window
     {
         if (_isRecordingHotkey) return;
         _isRecordingHotkey = true;
-        HotkeyDisplay.Text = "Press a modifier key...";
-        HotkeyHint.Text = "Ctrl, Alt, Shift, or a combination";
+        if (_inputHook != null) _inputHook.IsRecordingHotkey = true;
+        _pendingActivationMod = null;
+        HotkeyDisplay.Text = "Press modifier(s) + key, or a mouse button...";
+        HotkeyHint.Text = "e.g. Ctrl, Ctrl+Space, or Mouse 4";
         HotkeyRecorderBorder.BorderBrush = (System.Windows.Media.Brush)FindResource("Accent");
         PreviewKeyDown += HotkeyRecorder_PreviewKeyDown;
+        PreviewMouseDown += HotkeyRecorder_PreviewMouseDown;
     }
+
+    private void StopRecordingActivation()
+    {
+        _isRecordingHotkey = false;
+        if (_inputHook != null) _inputHook.IsRecordingHotkey = false;
+        _hotkeyDebounceTimer?.Stop();
+        _hotkeyDebounceTimer = null;
+        PreviewKeyDown -= HotkeyRecorder_PreviewKeyDown;
+        PreviewMouseDown -= HotkeyRecorder_PreviewMouseDown;
+    }
+
+    private void HotkeyRecorder_PreviewMouseDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        // Only capture middle, X1, X2 — left click is used to start recording
+        int vk = e.ChangedButton switch
+        {
+            System.Windows.Input.MouseButton.Middle => 0x04,
+            System.Windows.Input.MouseButton.XButton1 => 0x05,
+            System.Windows.Input.MouseButton.XButton2 => 0x06,
+            _ => 0
+        };
+        if (vk == 0) return;
+
+        e.Handled = true;
+        _hotkeyDebounceTimer?.Stop();
+        _hotkeyDebounceTimer = null;
+
+        var mod = ReadPhysicalModifiers() ?? _pendingActivationMod ?? Models.ModifierKey.None;
+
+        // Check conflict with toggle
+        if (mod == _settings.ToggleModifier && vk == _settings.ToggleKey)
+        {
+            HotkeyHint.Text = "⚠ Same as Toggle On/Off hotkey — pick a different combo";
+            HotkeyHint.Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xA8, 0x38));
+            return;
+        }
+
+        StopRecordingActivation();
+        _settings.ActivationModifier = mod;
+        _settings.ActivationKey = vk;
+        _settings.Save();
+        UpdateHotkeyDisplay();
+        UpdateDragStyleLabels();
+        UpdatePreview();
+    }
+
+    private Models.ModifierKey? _pendingActivationMod;
 
     private void HotkeyRecorder_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
         e.Handled = true;
         var key = e.Key == System.Windows.Input.Key.System ? e.SystemKey : e.Key;
 
-        // Ignore non-modifier keys
-        if (key != System.Windows.Input.Key.LeftCtrl && key != System.Windows.Input.Key.RightCtrl &&
-            key != System.Windows.Input.Key.LeftAlt && key != System.Windows.Input.Key.RightAlt &&
-            key != System.Windows.Input.Key.LeftShift && key != System.Windows.Input.Key.RightShift)
+        if (key == System.Windows.Input.Key.Escape)
         {
-            if (key == System.Windows.Input.Key.Escape)
-            {
-                // Cancel recording
-                _isRecordingHotkey = false;
-                PreviewKeyDown -= HotkeyRecorder_PreviewKeyDown;
-                UpdateHotkeyDisplay();
-            }
+            StopRecordingActivation();
+            UpdateHotkeyDisplay();
             return;
         }
 
-        // Build modifier from current state
-        var mods = System.Windows.Input.Keyboard.Modifiers;
-        Models.ModifierKey? newMod = null;
+        bool isModifier = key is System.Windows.Input.Key.LeftCtrl or System.Windows.Input.Key.RightCtrl
+            or System.Windows.Input.Key.LeftAlt or System.Windows.Input.Key.RightAlt
+            or System.Windows.Input.Key.LeftShift or System.Windows.Input.Key.RightShift;
 
-        if (mods.HasFlag(System.Windows.Input.ModifierKeys.Control) && mods.HasFlag(System.Windows.Input.ModifierKeys.Shift))
-            newMod = Models.ModifierKey.CtrlShift;
-        else if (mods.HasFlag(System.Windows.Input.ModifierKeys.Control) && mods.HasFlag(System.Windows.Input.ModifierKeys.Alt))
-            newMod = Models.ModifierKey.CtrlAlt;
-        else if (mods.HasFlag(System.Windows.Input.ModifierKeys.Control))
-            newMod = Models.ModifierKey.Ctrl;
-        else if (mods.HasFlag(System.Windows.Input.ModifierKeys.Alt))
-            newMod = Models.ModifierKey.Alt;
-        else if (mods.HasFlag(System.Windows.Input.ModifierKeys.Shift))
-            newMod = Models.ModifierKey.Shift;
+        Models.ModifierKey? currentMod = ReadPhysicalModifiers();
 
-        if (newMod == null) return;
-
-        // Wait briefly for combo keys — use a timer to finalize
-        HotkeyDisplay.Text = ModifierDisplayName(newMod.Value) + " + Click";
-
-        // Debounce: finalize after 400ms of no new modifier presses
-        _hotkeyDebounceTimer?.Stop();
-        _hotkeyDebounceTimer = new System.Windows.Threading.DispatcherTimer
+        if (isModifier)
         {
-            Interval = TimeSpan.FromMilliseconds(400)
-        };
-        var captured = newMod.Value;
-        _hotkeyDebounceTimer.Tick += (_, _) =>
-        {
+            _pendingActivationMod = currentMod;
+            if (currentMod != null)
+                HotkeyDisplay.Text = ModifierDisplayName(currentMod.Value) + " + Click";
+
+            // Debounce: if user only presses modifiers (no key), finalize after 600ms
             _hotkeyDebounceTimer?.Stop();
-            _hotkeyDebounceTimer = null;
-            _isRecordingHotkey = false;
-            PreviewKeyDown -= HotkeyRecorder_PreviewKeyDown;
+            _hotkeyDebounceTimer = new System.Windows.Threading.DispatcherTimer
+            {
+                Interval = TimeSpan.FromMilliseconds(600)
+            };
+            var captured = currentMod;
+            _hotkeyDebounceTimer.Tick += (_, _) =>
+            {
+                _hotkeyDebounceTimer?.Stop();
+                _hotkeyDebounceTimer = null;
+                if (!_isRecordingHotkey || captured == null) return;
 
-            _settings.ActivationModifier = captured;
-            _settings.Save();
-            UpdateHotkeyDisplay();
-            UpdateDragStyleLabels();
-            ShowHotkeyWarning(captured);
-            UpdatePreview();
-        };
-        _hotkeyDebounceTimer.Start();
+                StopRecordingActivation();
+                _settings.ActivationModifier = captured.Value;
+                _settings.ActivationKey = 0; // modifier-only
+                _settings.Save();
+                UpdateHotkeyDisplay();
+                UpdateDragStyleLabels();
+                ShowHotkeyWarning(captured.Value);
+                UpdatePreview();
+            };
+            _hotkeyDebounceTimer.Start();
+            return;
+        }
+
+        // Non-modifier key pressed — commit immediately as modifier+key
+        _hotkeyDebounceTimer?.Stop();
+        _hotkeyDebounceTimer = null;
+
+        var mod = currentMod ?? _pendingActivationMod;
+        if (mod == null)
+        {
+            HotkeyHint.Text = "⚠ Must include at least one modifier (Ctrl, Alt, Shift)";
+            HotkeyHint.Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xA8, 0x38));
+            return;
+        }
+
+        int vk = System.Windows.Input.KeyInterop.VirtualKeyFromKey(key);
+        if (vk == 0) return;
+
+        // Check conflict with toggle hotkey
+        if (mod.Value == _settings.ToggleModifier && vk == _settings.ToggleKey)
+        {
+            HotkeyHint.Text = "⚠ Same as Toggle On/Off hotkey — pick a different combo";
+            HotkeyHint.Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xA8, 0x38));
+            return;
+        }
+
+        StopRecordingActivation();
+        _settings.ActivationModifier = mod.Value;
+        _settings.ActivationKey = vk;
+        _settings.Save();
+        UpdateHotkeyDisplay();
+        UpdateDragStyleLabels();
+        ShowHotkeyWarning(mod.Value);
+        UpdatePreview();
     }
 
     private System.Windows.Threading.DispatcherTimer? _hotkeyDebounceTimer;
 
     private void ShowHotkeyWarning(Models.ModifierKey mod)
     {
+        // Check for conflict with toggle hotkey
+        if (mod == _settings.ToggleModifier && _settings.ActivationKey != 0 
+            && _settings.ActivationKey == _settings.ToggleKey)
+        {
+            HotkeyHint.Text = "⚠ Would conflict with Toggle On/Off hotkey";
+            HotkeyHint.Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xA8, 0x38));
+            return;
+        }
+
         string? warning = mod switch
         {
             Models.ModifierKey.Alt => "Alt+Click is used by some apps (e.g. Photoshop, some window managers)",
@@ -559,8 +716,12 @@ public partial class SettingsWindow : Window
     private bool _isRecordingToggleHotkey;
     private Models.ModifierKey? _pendingToggleMod;
 
-    private static string VkDisplayName(int vk)
+    public static string VkDisplayName(int vk)
     {
+        // Mouse buttons
+        if (vk == 0x04) return "Middle Click";
+        if (vk == 0x05) return "Mouse 4";
+        if (vk == 0x06) return "Mouse 5";
         // Common keys
         if (vk >= 0x30 && vk <= 0x39) return ((char)vk).ToString(); // 0-9
         if (vk >= 0x41 && vk <= 0x5A) return ((char)vk).ToString(); // A-Z
@@ -575,10 +736,16 @@ public partial class SettingsWindow : Window
         };
     }
 
+    private static bool IsMouseButtonVk(int vk) => vk is 0x04 or 0x05 or 0x06;
+
     private void UpdateToggleHotkeyDisplay()
     {
-        ToggleHotkeyDisplay.Text = ModifierDisplayName(_settings.ToggleModifier) + " + " + VkDisplayName(_settings.ToggleKey);
-        ToggleHotkeyHint.Text = "Click to change, then press modifier(s) + key";
+        var parts = new System.Collections.Generic.List<string>();
+        var modDisplay = ModifierDisplayName(_settings.ToggleModifier);
+        if (!string.IsNullOrEmpty(modDisplay)) parts.Add(modDisplay);
+        parts.Add(VkDisplayName(_settings.ToggleKey));
+        ToggleHotkeyDisplay.Text = string.Join(" + ", parts);
+        ToggleHotkeyHint.Text = "Click to change — press keys or mouse buttons";
         ToggleHotkeyHint.Foreground = (System.Windows.Media.Brush)FindResource("TextSecondary");
         ToggleHotkeyBorder.BorderBrush = (System.Windows.Media.Brush)FindResource("CardBorder");
     }
@@ -588,43 +755,70 @@ public partial class SettingsWindow : Window
         if (_isRecordingToggleHotkey) return;
         _isRecordingToggleHotkey = true;
         _pendingToggleMod = null;
-        ToggleHotkeyDisplay.Text = "Press modifier(s) + key...";
-        ToggleHotkeyHint.Text = "e.g. Ctrl+Shift+Q";
+        if (_inputHook != null) _inputHook.IsRecordingHotkey = true;
+        ToggleHotkeyDisplay.Text = "Press modifier(s) + key, or a mouse button...";
+        ToggleHotkeyHint.Text = "e.g. Ctrl+Shift+Q, or Mouse 4";
         ToggleHotkeyBorder.BorderBrush = (System.Windows.Media.Brush)FindResource("Accent");
         PreviewKeyDown += ToggleHotkeyRecorder_PreviewKeyDown;
+        PreviewMouseDown += ToggleHotkeyRecorder_PreviewMouseDown;
+    }
+
+    private void StopRecordingToggle()
+    {
+        _isRecordingToggleHotkey = false;
+        _pendingToggleMod = null;
+        if (_inputHook != null) _inputHook.IsRecordingHotkey = false;
+        PreviewKeyDown -= ToggleHotkeyRecorder_PreviewKeyDown;
+        PreviewMouseDown -= ToggleHotkeyRecorder_PreviewMouseDown;
+    }
+
+    private void ToggleHotkeyRecorder_PreviewMouseDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        int vk = e.ChangedButton switch
+        {
+            System.Windows.Input.MouseButton.Middle => 0x04,
+            System.Windows.Input.MouseButton.XButton1 => 0x05,
+            System.Windows.Input.MouseButton.XButton2 => 0x06,
+            _ => 0
+        };
+        if (vk == 0) return;
+
+        e.Handled = true;
+        var mod = ReadPhysicalModifiers() ?? _pendingToggleMod ?? Models.ModifierKey.None;
+
+        // Check conflict with activation
+        if (mod == _settings.ActivationModifier && vk == _settings.ActivationKey)
+        {
+            ToggleHotkeyHint.Text = "⚠ Same as Activation hotkey — pick a different combo";
+            ToggleHotkeyHint.Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xA8, 0x38));
+            return;
+        }
+
+        StopRecordingToggle();
+        _settings.ToggleModifier = mod;
+        _settings.ToggleKey = vk;
+        _settings.Save();
+        UpdateToggleHotkeyDisplay();
     }
 
     private void ToggleHotkeyRecorder_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
-        e.Handled = true;
         var key = e.Key == System.Windows.Input.Key.System ? e.SystemKey : e.Key;
+
+        e.Handled = true;
 
         if (key == System.Windows.Input.Key.Escape)
         {
-            _isRecordingToggleHotkey = false;
-            _pendingToggleMod = null;
-            PreviewKeyDown -= ToggleHotkeyRecorder_PreviewKeyDown;
+            StopRecordingToggle();
             UpdateToggleHotkeyDisplay();
             return;
         }
 
-        // Check if it's a modifier key — just update the pending modifier
         bool isModifier = key is System.Windows.Input.Key.LeftCtrl or System.Windows.Input.Key.RightCtrl
             or System.Windows.Input.Key.LeftAlt or System.Windows.Input.Key.RightAlt
             or System.Windows.Input.Key.LeftShift or System.Windows.Input.Key.RightShift;
 
-        var mods = System.Windows.Input.Keyboard.Modifiers;
-        Models.ModifierKey? currentMod = null;
-        if (mods.HasFlag(System.Windows.Input.ModifierKeys.Control) && mods.HasFlag(System.Windows.Input.ModifierKeys.Shift))
-            currentMod = Models.ModifierKey.CtrlShift;
-        else if (mods.HasFlag(System.Windows.Input.ModifierKeys.Control) && mods.HasFlag(System.Windows.Input.ModifierKeys.Alt))
-            currentMod = Models.ModifierKey.CtrlAlt;
-        else if (mods.HasFlag(System.Windows.Input.ModifierKeys.Control))
-            currentMod = Models.ModifierKey.Ctrl;
-        else if (mods.HasFlag(System.Windows.Input.ModifierKeys.Alt))
-            currentMod = Models.ModifierKey.Alt;
-        else if (mods.HasFlag(System.Windows.Input.ModifierKeys.Shift))
-            currentMod = Models.ModifierKey.Shift;
+        Models.ModifierKey? currentMod = ReadPhysicalModifiers();
 
         if (isModifier)
         {
@@ -634,8 +828,7 @@ public partial class SettingsWindow : Window
             return;
         }
 
-        // Non-modifier key pressed — this is the action key
-        // Need at least one modifier
+        // Non-modifier key pressed — need at least one modifier for keyboard keys
         var mod = currentMod ?? _pendingToggleMod;
         if (mod == null)
         {
@@ -644,16 +837,22 @@ public partial class SettingsWindow : Window
             return;
         }
 
-        // Convert WPF Key to VK code
         int vk = System.Windows.Input.KeyInterop.VirtualKeyFromKey(key);
         if (vk == 0) return;
 
-        _isRecordingToggleHotkey = false;
-        PreviewKeyDown -= ToggleHotkeyRecorder_PreviewKeyDown;
+        // Check conflict with activation hotkey
+        if (mod.Value == _settings.ActivationModifier && vk == _settings.ActivationKey)
+        {
+            ToggleHotkeyHint.Text = "⚠ Same as Activation hotkey — pick a different combo";
+            ToggleHotkeyHint.Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xA8, 0x38));
+            return;
+        }
 
+        StopRecordingToggle();
         _settings.ToggleModifier = mod.Value;
         _settings.ToggleKey = vk;
         _settings.Save();
         UpdateToggleHotkeyDisplay();
     }
+
 }

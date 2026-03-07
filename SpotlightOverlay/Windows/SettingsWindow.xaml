@@ -194,7 +194,7 @@
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="46" />
                         </Grid.ColumnDefinitions>
-                        <TextBlock Grid.Column="0" Text="Overlay Opacity" Style="{StaticResource RowLabel}" />
+                        <TextBlock Grid.Column="0" Text="Transparency" Style="{StaticResource RowLabel}" />
                         <Slider Grid.Column="1" x:Name="OpacitySlider"
                                 Minimum="10" Maximum="90" TickFrequency="10"
                                 IsSnapToTickEnabled="True" LargeChange="10" SmallChange="1"
@@ -212,7 +212,7 @@
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="46" />
                         </Grid.ColumnDefinitions>
-                        <TextBlock Grid.Column="0" Text="Feather Radius" Style="{StaticResource RowLabel}" />
+                        <TextBlock Grid.Column="0" Text="Blurred Edges" Style="{StaticResource RowLabel}" />
                         <Slider Grid.Column="1" x:Name="FeatherSlider"
                                 Minimum="0" Maximum="50" TickFrequency="10"
                                 IsSnapToTickEnabled="False" LargeChange="10" SmallChange="1"
@@ -242,7 +242,7 @@
         </Border>
 
         <!-- ═══ CAPTURE section ═══ -->
-        <TextBlock Text="CAPTURE" Style="{StaticResource H1}" />
+        <TextBlock Text="BEHAVIOR" Style="{StaticResource H1}" />
         <Border Background="{StaticResource CardBg}" CornerRadius="6"
                 BorderBrush="{StaticResource CardBorder}" BorderThickness="1"
                 Padding="14,10" Margin="0,0,0,14">

@@ -54,6 +54,7 @@ public partial class App : Application
         _inputHook.IsEnabled = true;
         _inputHook.DragStyle = _settings.DragStyle;
         _inputHook.ActivationModifier = _settings.ActivationModifier;
+        _inputHook.ActivationKey = _settings.ActivationKey;
         _inputHook.ToggleModifier = _settings.ToggleModifier;
         _inputHook.ToggleKey = _settings.ToggleKey;
         _trayIcon.SetEnabled(true);
@@ -79,6 +80,7 @@ public partial class App : Application
         {
             _inputHook.DragStyle = _settings.DragStyle;
             _inputHook.ActivationModifier = _settings.ActivationModifier;
+            _inputHook.ActivationKey = _settings.ActivationKey;
             _inputHook.ToggleModifier = _settings.ToggleModifier;
             _inputHook.ToggleKey = _settings.ToggleKey;
         };
@@ -89,9 +91,17 @@ public partial class App : Application
             Models.ModifierKey.Shift => "Shift",
             Models.ModifierKey.CtrlShift => "Ctrl+Shift",
             Models.ModifierKey.CtrlAlt => "Ctrl+Alt",
+            Models.ModifierKey.None => "",
             _ => "Ctrl"
         };
-        _trayIcon.ShowBalloon("Spotlight Overlay", $"Ready — {modName}+Click to create cutouts");
+        var activationDisplay = _settings.ActivationKey != 0
+            ? (string.IsNullOrEmpty(modName) ? SettingsWindow.VkDisplayName(_settings.ActivationKey)
+               : $"{modName}+{SettingsWindow.VkDisplayName(_settings.ActivationKey)}")
+            : modName;
+        var actionSuffix = SettingsWindow.VkDisplayName(_settings.ActivationKey) is var vkName
+            && _settings.ActivationKey != 0 && (vkName.Contains("Click") || vkName.Contains("Mouse"))
+            ? "+Drag" : "+Click";
+        _trayIcon.ShowBalloon("Spotlight Overlay", $"Ready — {activationDisplay}{actionSuffix} to create cutouts");
 
         // Pre-warm WPF window infrastructure at idle priority so the first
         // Ctrl+click doesn't pay the JIT/XAML-parse cost (~250ms).
@@ -126,7 +136,7 @@ public partial class App : Application
     /// </summary>
     private void OnSettingsRequested(object? sender, EventArgs e)
     {
-        SettingsWindow.ShowSingleton(_settings);
+        SettingsWindow.ShowSingleton(_settings, _inputHook);
     }
 
     /// <summary>

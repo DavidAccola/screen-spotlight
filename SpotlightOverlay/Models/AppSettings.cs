@@ -10,6 +10,7 @@ public record AppSettings(
     DragStyle DragStyle,
     bool FreezeScreen,
     ModifierKey ActivationModifier,
+    int ActivationKey,
     ModifierKey ToggleModifier,
     int ToggleKey);
 
@@ -35,5 +36,6 @@ public enum ModifierKey
     Alt = 1,
     Shift = 2,
     CtrlShift = 3,
-    CtrlAlt = 4
+    CtrlAlt = 4,
+    None = 5
 }

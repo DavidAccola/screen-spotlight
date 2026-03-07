@@ -22,7 +22,7 @@ public class SettingsRoundTripPropertyTests
     {
         var gen = from opacity in Gen.Choose(0, 1_000_000).Select(i => i / 1_000_000.0)
                   from radius in Gen.Choose(0, 10_000)
-                  select new AppSettings(opacity, radius, PreviewStyle.Crosshair, DragStyle.ClickClick, false, ModifierKey.Ctrl, ModifierKey.CtrlShift, 0x51);
+                  select new AppSettings(opacity, radius, PreviewStyle.Crosshair, DragStyle.ClickClick, false, ModifierKey.Ctrl, 0, ModifierKey.CtrlShift, 0x51);
 
         return gen.ToArbitrary();
     }

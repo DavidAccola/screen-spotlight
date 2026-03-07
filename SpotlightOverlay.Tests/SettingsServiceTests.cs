@@ -32,7 +32,7 @@ public class SettingsServiceTests : IDisposable
     public void Load_ExistingValidFile_AppliesValues()
     {
         var path = GetSettingsPath();
-        var settings = new AppSettings(0.8, 50, PreviewStyle.Crosshair, DragStyle.ClickClick, false, ModifierKey.Ctrl, ModifierKey.CtrlShift, 0x51);
+        var settings = new AppSettings(0.8, 50, PreviewStyle.Crosshair, DragStyle.ClickClick, false, ModifierKey.Ctrl, 0, ModifierKey.CtrlShift, 0x51);
         File.WriteAllText(path, JsonSerializer.Serialize(settings));
 
         var service = new SettingsService(path);

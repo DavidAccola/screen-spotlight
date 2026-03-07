@@ -33,6 +33,12 @@ public class GlobalInputHook : IDisposable
     private const int WM_MOUSEMOVE = 0x0200;
     private const int WM_RBUTTONDOWN = 0x0204;
     private const int WM_RBUTTONUP = 0x0205;
+    private const int WM_MBUTTONDOWN = 0x0207;
+    private const int WM_MBUTTONUP = 0x0208;
+    private const int WM_XBUTTONDOWN = 0x020B;
+    private const int WM_XBUTTONUP = 0x020C;
+    private const int XBUTTON1 = 0x0001;
+    private const int XBUTTON2 = 0x0002;
     private const int VK_CONTROL = 0x11;
     private const int VK_LCONTROL = 0xA2;
     private const int VK_RCONTROL = 0xA3;
@@ -81,8 +87,10 @@ public class GlobalInputHook : IDisposable
     public bool CanRestore { get; set; }
     public DragStyle DragStyle { get; set; }
     public ModifierKey ActivationModifier { get; set; } = ModifierKey.Ctrl;
+    public int ActivationKey { get; set; } = 0; // 0 = no key, modifier-only
     public ModifierKey ToggleModifier { get; set; } = ModifierKey.CtrlShift;
     public int ToggleKey { get; set; } = 0x51; // VK_Q
+    public bool IsRecordingHotkey { get; set; }
     public Action<string>? OnError { get; set; }
 
     private IntPtr _mouseHookHandle = IntPtr.Zero;
@@ -102,7 +110,7 @@ public class GlobalInputHook : IDisposable
     /// <summary>Checks if the configured activation modifier key(s) are currently held.</summary>
     private bool IsActivationModifierHeld()
     {
-        return ActivationModifier switch
+        bool modsHeld = ActivationModifier switch
         {
             ModifierKey.Ctrl => (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0,
             ModifierKey.Alt => (GetAsyncKeyState(VK_MENU) & 0x8000) != 0,
@@ -111,13 +119,24 @@ public class GlobalInputHook : IDisposable
                                   && (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0,
             ModifierKey.CtrlAlt => (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0
                                  && (GetAsyncKeyState(VK_MENU) & 0x8000) != 0,
+            ModifierKey.None => true, // No modifier required
             _ => (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0
         };
+        if (!modsHeld) return false;
+        // If an activation key is configured and it's NOT a mouse button, it must also be held
+        // Mouse button keys are checked via WM messages in the mouse hook, not via GetAsyncKeyState
+        if (ActivationKey != 0 && !IsMouseButtonVk(ActivationKey)
+            && (GetAsyncKeyState(ActivationKey) & 0x8000) == 0)
+            return false;
+        return true;
     }
 
     /// <summary>Checks if the given vkCode is one of the keys for the configured modifier.</summary>
     private bool IsActivationModifierVk(uint vkCode)
     {
+        // Check if it's the activation key itself (but not mouse buttons — those are handled in mouse hook)
+        if (ActivationKey != 0 && !IsMouseButtonVk(ActivationKey) && vkCode == (uint)ActivationKey)
+            return true;
         return ActivationModifier switch
         {
             ModifierKey.Ctrl => vkCode is VK_CONTROL or VK_LCONTROL or VK_RCONTROL,
@@ -127,6 +146,7 @@ public class GlobalInputHook : IDisposable
                                   or VK_SHIFT or VK_LSHIFT or VK_RSHIFT,
             ModifierKey.CtrlAlt => vkCode is VK_CONTROL or VK_LCONTROL or VK_RCONTROL
                                  or VK_MENU or VK_LMENU or VK_RMENU,
+            ModifierKey.None => false, // No keyboard modifier — activation is mouse-only
             _ => vkCode is VK_CONTROL or VK_LCONTROL or VK_RCONTROL
         };
     }
@@ -134,6 +154,10 @@ public class GlobalInputHook : IDisposable
     /// <summary>For multi-key modifiers (CtrlShift, CtrlAlt), checks if ALL required keys are released.</summary>
     private bool IsActivationModifierFullyReleased()
     {
+        // If an activation key is set and it's NOT a mouse button and it's released, the combo is broken
+        if (ActivationKey != 0 && !IsMouseButtonVk(ActivationKey)
+            && (GetAsyncKeyState(ActivationKey) & 0x8000) == 0)
+            return true;
         return ActivationModifier switch
         {
             ModifierKey.Ctrl => (GetAsyncKeyState(VK_CONTROL) & 0x8000) == 0,
@@ -143,6 +167,7 @@ public class GlobalInputHook : IDisposable
                                   || (GetAsyncKeyState(VK_SHIFT) & 0x8000) == 0,
             ModifierKey.CtrlAlt => (GetAsyncKeyState(VK_CONTROL) & 0x8000) == 0
                                  || (GetAsyncKeyState(VK_MENU) & 0x8000) == 0,
+            ModifierKey.None => true, // No modifier — always "released" (mouse button up handles this)
             _ => (GetAsyncKeyState(VK_CONTROL) & 0x8000) == 0
         };
     }
@@ -159,8 +184,69 @@ public class GlobalInputHook : IDisposable
                                   && (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0,
             ModifierKey.CtrlAlt => (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0
                                  && (GetAsyncKeyState(VK_MENU) & 0x8000) != 0,
+            ModifierKey.None => true, // No modifier required
             _ => (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0
         };
+    }
+
+    /// <summary>Returns true if the VK code is a mouse button (middle, X1, X2).</summary>
+    private static bool IsMouseButtonVk(int vk) => vk is 0x04 or 0x05 or 0x06;
+
+    /// <summary>Returns the WM_*BUTTONDOWN message for the given mouse button VK, or 0 if not a mouse button.</summary>
+    private static int MouseVkToDownMsg(int vk) => vk switch
+    {
+        0x04 => WM_MBUTTONDOWN,
+        0x05 => WM_XBUTTONDOWN,
+        0x06 => WM_XBUTTONDOWN,
+        _ => 0
+    };
+
+    /// <summary>Returns the WM_*BUTTONUP message for the given mouse button VK, or 0 if not a mouse button.</summary>
+    private static int MouseVkToUpMsg(int vk) => vk switch
+    {
+        0x04 => WM_MBUTTONUP,
+        0x05 => WM_XBUTTONUP,
+        0x06 => WM_XBUTTONUP,
+        _ => 0
+    };
+
+    /// <summary>Checks if an XBUTTON message matches the expected VK (X1 vs X2) by inspecting mouseData high word.</summary>
+    private static bool IsXButtonMatch(int vk, uint mouseData)
+    {
+        int xButton = (int)(mouseData >> 16);
+        return vk switch
+        {
+            0x05 => xButton == XBUTTON1,
+            0x06 => xButton == XBUTTON2,
+            _ => true // middle click doesn't need xButton check
+        };
+    }
+
+    /// <summary>Checks if the given WM message + mouseData matches the configured activation mouse button.</summary>
+    private bool IsActivationMouseButtonMsg(int msg, uint mouseData)
+    {
+        if (!IsMouseButtonVk(ActivationKey)) return false;
+        int expectedDown = MouseVkToDownMsg(ActivationKey);
+        if (msg != expectedDown) return false;
+        return IsXButtonMatch(ActivationKey, mouseData);
+    }
+
+    /// <summary>Checks if the given WM message + mouseData is the UP event for the configured activation mouse button.</summary>
+    private bool IsActivationMouseButtonUpMsg(int msg, uint mouseData)
+    {
+        if (!IsMouseButtonVk(ActivationKey)) return false;
+        int expectedUp = MouseVkToUpMsg(ActivationKey);
+        if (msg != expectedUp) return false;
+        return IsXButtonMatch(ActivationKey, mouseData);
+    }
+
+    /// <summary>Checks if the given WM message + mouseData matches the configured toggle mouse button.</summary>
+    private bool IsToggleMouseButtonMsg(int msg, uint mouseData)
+    {
+        if (!IsMouseButtonVk(ToggleKey)) return false;
+        int expectedDown = MouseVkToDownMsg(ToggleKey);
+        if (msg != expectedDown) return false;
+        return IsXButtonMatch(ToggleKey, mouseData);
     }
 
     public void Install()
@@ -213,6 +299,21 @@ public class GlobalInputHook : IDisposable
                 return CallNextHookEx(_mouseHookHandle, nCode, wParam, lParam);
         }
 
+        if (nCode >= 0)
+        {
+            int msg = wParam.ToInt32();
+            var hs = Marshal.PtrToStructure<MSLLHOOKSTRUCT>(lParam);
+
+            // Toggle via mouse button (works regardless of IsEnabled, like keyboard toggle)
+            // Skip when recording hotkeys in settings
+            if (!IsRecordingHotkey && IsMouseButtonVk(ToggleKey)
+                && IsToggleMouseButtonMsg(msg, hs.mouseData) && IsToggleModifierHeld())
+            {
+                ToggleRequested?.Invoke(this, EventArgs.Empty);
+                return (IntPtr)1;
+            }
+        }
+
         if (nCode >= 0 && IsEnabled)
         {
             int msg = wParam.ToInt32();
@@ -231,31 +332,53 @@ public class GlobalInputHook : IDisposable
         return CallNextHookEx(_mouseHookHandle, nCode, wParam, lParam);
     }
 
-    /// <summary>Hold-drag mode: Ctrl+click down, drag, release = cutout</summary>
+    /// <summary>Hold-drag mode: activation+click down, drag, release = cutout.
+    /// When ActivationKey is a mouse button, that button triggers the drag instead of left click.</summary>
     private IntPtr HandleHoldDragMouse(int msg, IntPtr lParam, int nCode, IntPtr wParam)
     {
-        if (msg == WM_LBUTTONDOWN)
+        var hs = Marshal.PtrToStructure<MSLLHOOKSTRUCT>(lParam);
+        bool isMouseButtonActivation = IsMouseButtonVk(ActivationKey);
+
+        // Determine if this message is the "activation down" event
+        bool isActivationDown = isMouseButtonActivation
+            ? IsActivationMouseButtonMsg(msg, hs.mouseData)
+            : msg == WM_LBUTTONDOWN;
+
+        // Determine if this message is the "activation up" event
+        bool isActivationUp = isMouseButtonActivation
+            ? IsActivationMouseButtonUpMsg(msg, hs.mouseData)
+            : msg == WM_LBUTTONUP;
+
+        if (isActivationDown && !_isDragging)
         {
             if (IsActivationModifierHeld())
             {
-                var hs = Marshal.PtrToStructure<MSLLHOOKSTRUCT>(lParam);
                 _isDragging = true;
                 _dragStartPoint = new System.Windows.Point(hs.pt.x, hs.pt.y);
                 SpotlightOverlay.DebugLog.Write($"[Hook] HoldDrag: start at {hs.pt.x},{hs.pt.y}");
+                // Fire CtrlPressed for mouse-button activation so screenshot pre-capture works
+                if (isMouseButtonActivation)
+                    CtrlPressed?.Invoke(this, EventArgs.Empty);
                 return (IntPtr)1;
             }
         }
-        else if (msg == WM_LBUTTONUP && _isDragging)
+        else if (isActivationUp && _isDragging)
         {
             _isDragging = false;
-            var hs = Marshal.PtrToStructure<MSLLHOOKSTRUCT>(lParam);
             SpotlightOverlay.DebugLog.Write($"[Hook] HoldDrag: end at {hs.pt.x},{hs.pt.y}");
             EmitDragCompleted(hs.pt.x, hs.pt.y);
+
+            // For mouse-button-only activation (no keyboard modifier), apply immediately
+            // since there's no modifier key-up event to trigger batch apply
+            if (isMouseButtonActivation && ActivationModifier == ModifierKey.None)
+            {
+                _hasPendingDrags = false;
+                CtrlReleased?.Invoke(this, EventArgs.Empty);
+            }
             return (IntPtr)1;
         }
         else if (msg == WM_MOUSEMOVE && _isDragging)
         {
-            var hs = Marshal.PtrToStructure<MSLLHOOKSTRUCT>(lParam);
             EmitDragUpdated(hs.pt.x, hs.pt.y);
             return CallNextHookEx(_mouseHookHandle, nCode, wParam, lParam);
         }
@@ -270,15 +393,23 @@ public class GlobalInputHook : IDisposable
         return CallNextHookEx(_mouseHookHandle, nCode, wParam, lParam);
     }
 
-    /// <summary>Click-click mode: Ctrl+click = start, move, click = end. Right-click cancels.</summary>
+    /// <summary>Click-click mode: activation+click = start, move, click = end. Right-click cancels.
+    /// When ActivationKey is a mouse button, that button triggers instead of left click.</summary>
     private IntPtr HandleClickClickMouse(int msg, IntPtr lParam, int nCode, IntPtr wParam)
     {
-        if (msg == WM_LBUTTONDOWN)
+        var hs = Marshal.PtrToStructure<MSLLHOOKSTRUCT>(lParam);
+        bool isMouseButtonActivation = IsMouseButtonVk(ActivationKey);
+
+        // Determine if this message is the "activation down" event
+        bool isActivationDown = isMouseButtonActivation
+            ? IsActivationMouseButtonMsg(msg, hs.mouseData)
+            : msg == WM_LBUTTONDOWN;
+
+        if (isActivationDown)
         {
             if (_isClickClickActive)
             {
                 // Second click — complete the cutout
-                var hs = Marshal.PtrToStructure<MSLLHOOKSTRUCT>(lParam);
                 _isClickClickActive = false;
                 SpotlightOverlay.DebugLog.Write($"[Hook] ClickClick: second click at {hs.pt.x},{hs.pt.y}");
                 EmitDragCompleted(hs.pt.x, hs.pt.y);
@@ -302,17 +433,18 @@ public class GlobalInputHook : IDisposable
                 if (IsActivationModifierHeld())
                 {
                     // First modifier+click — set start point
-                    var hs = Marshal.PtrToStructure<MSLLHOOKSTRUCT>(lParam);
                     _isClickClickActive = true;
                     _dragStartPoint = new System.Windows.Point(hs.pt.x, hs.pt.y);
                     SpotlightOverlay.DebugLog.Write($"[Hook] ClickClick: first click at {hs.pt.x},{hs.pt.y}");
+                    // Fire CtrlPressed for mouse-button activation so screenshot pre-capture works
+                    if (isMouseButtonActivation)
+                        CtrlPressed?.Invoke(this, EventArgs.Empty);
                     return (IntPtr)1;
                 }
             }
         }
         else if (msg == WM_MOUSEMOVE && _isClickClickActive)
         {
-            var hs = Marshal.PtrToStructure<MSLLHOOKSTRUCT>(lParam);
             EmitDragUpdated(hs.pt.x, hs.pt.y);
             return CallNextHookEx(_mouseHookHandle, nCode, wParam, lParam);
         }
@@ -360,7 +492,10 @@ public class GlobalInputHook : IDisposable
             bool isKeyDown = msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN;
 
             // Toggle hotkey works regardless of IsEnabled so user can re-enable
-            if (isKeyDown && hs.vkCode == (uint)ToggleKey && IsToggleModifierHeld())
+            // But skip when the settings window is recording a new hotkey
+            // Also skip if ToggleKey is a mouse button — that's handled in MouseHookCallback
+            if (isKeyDown && !IsRecordingHotkey && !IsMouseButtonVk(ToggleKey)
+                && hs.vkCode == (uint)ToggleKey && IsToggleModifierHeld())
             {
                 ToggleRequested?.Invoke(this, EventArgs.Empty);
                 return (IntPtr)1; // eat the key
