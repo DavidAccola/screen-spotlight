@@ -16,6 +16,7 @@
 
   <ItemGroup>
     <EmbeddedResource Include="assets\spotlightIcon.ico" LogicalName="SpotlightOverlay.app.ico" />
+    <Resource Include="assets\background.png" />
   </ItemGroup>
 
 </Project>

@@ -77,11 +77,13 @@ public partial class SettingsWindow : Window
         PreviewStyleCombo.SelectedIndex = (int)_settings.PreviewStyle;
         DragStyleCombo.SelectedIndex = (int)_settings.DragStyle;
         BackgroundCombo.SelectedIndex = _settings.FreezeScreen ? 1 : 0;
+        SpotlightModeCombo.SelectedIndex = _settings.CumulativeSpotlights ? 0 : 1;
         UpdateHotkeyDisplay();
         UpdateToggleHotkeyDisplay();
         UpdateDragStyleLabels();
 
         _isInitializing = false;
+        UpdateSpotlightModeHint();
         Loaded += (_, _) => UpdatePreview();
     }
 
@@ -494,6 +496,22 @@ public partial class SettingsWindow : Window
         _settings.Save();
     }
 
+    private void SpotlightModeCombo_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        if (_isInitializing) return;
+        _settings.CumulativeSpotlights = SpotlightModeCombo.SelectedIndex == 0;
+        _settings.Save();
+        UpdateSpotlightModeHint();
+    }
+
+    private void UpdateSpotlightModeHint()
+    {
+        if (SpotlightModeHint == null) return;
+        SpotlightModeHint.Text = _settings.CumulativeSpotlights
+            ? "New spotlights are added alongside existing ones"
+            : "Each new spotlight replaces the previous one";
+    }
+
     private bool _isRecordingHotkey;
 
     private void ResetDefaults_Click(object sender, RoutedEventArgs e)
@@ -508,11 +526,13 @@ public partial class SettingsWindow : Window
         PreviewStyleCombo.SelectedIndex = (int)_settings.PreviewStyle;
         DragStyleCombo.SelectedIndex = (int)_settings.DragStyle;
         BackgroundCombo.SelectedIndex = _settings.FreezeScreen ? 1 : 0;
+        SpotlightModeCombo.SelectedIndex = _settings.CumulativeSpotlights ? 0 : 1;
         UpdateHotkeyDisplay();
         UpdateToggleHotkeyDisplay();
         UpdateDragStyleLabels();
         _isInitializing = false;
 
+        UpdateSpotlightModeHint();
         UpdatePreview();
     }
 
@@ -552,6 +572,9 @@ public partial class SettingsWindow : Window
         HotkeyRecorderBorder.BorderBrush = (System.Windows.Media.Brush)FindResource("Accent");
         PreviewKeyDown += HotkeyRecorder_PreviewKeyDown;
         PreviewMouseDown += HotkeyRecorder_PreviewMouseDown;
+        HotkeyRecorderBorder.Focusable = true;
+        System.Windows.Input.Keyboard.Focus(HotkeyRecorderBorder);
+        DebugLog.Write($"[Settings] Activation recording started. KbFocus={System.Windows.Input.Keyboard.FocusedElement?.GetType().Name}, IsKbFocusWithin={IsKeyboardFocusWithin}");
     }
 
     private void StopRecordingActivation()
@@ -605,9 +628,11 @@ public partial class SettingsWindow : Window
     {
         e.Handled = true;
         var key = e.Key == System.Windows.Input.Key.System ? e.SystemKey : e.Key;
+        DebugLog.Write($"[Settings] Activation PreviewKeyDown: key={key}, e.Key={e.Key}, e.SystemKey={e.SystemKey}");
 
         if (key == System.Windows.Input.Key.Escape)
         {
+            DebugLog.Write("[Settings] Escape detected — stopping activation recording");
             StopRecordingActivation();
             UpdateHotkeyDisplay();
             return;
@@ -761,6 +786,8 @@ public partial class SettingsWindow : Window
         ToggleHotkeyBorder.BorderBrush = (System.Windows.Media.Brush)FindResource("Accent");
         PreviewKeyDown += ToggleHotkeyRecorder_PreviewKeyDown;
         PreviewMouseDown += ToggleHotkeyRecorder_PreviewMouseDown;
+        ToggleHotkeyBorder.Focusable = true;
+        System.Windows.Input.Keyboard.Focus(ToggleHotkeyBorder);
     }
 
     private void StopRecordingToggle()
@@ -804,11 +831,13 @@ public partial class SettingsWindow : Window
     private void ToggleHotkeyRecorder_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
         var key = e.Key == System.Windows.Input.Key.System ? e.SystemKey : e.Key;
+        DebugLog.Write($"[Settings] Toggle PreviewKeyDown: key={key}, e.Key={e.Key}, e.SystemKey={e.SystemKey}");
 
         e.Handled = true;
 
         if (key == System.Windows.Input.Key.Escape)
         {
+            DebugLog.Write("[Settings] Escape detected — stopping toggle recording");
             StopRecordingToggle();
             UpdateToggleHotkeyDisplay();
             return;

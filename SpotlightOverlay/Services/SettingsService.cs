@@ -10,11 +10,12 @@ public class SettingsService
     private const int DefaultFeatherRadius = 8;
     private const PreviewStyle DefaultPreviewStyle = PreviewStyle.Crosshair;
     private const DragStyle DefaultDragStyle = DragStyle.ClickClick;
-    private const bool DefaultFreezeScreen = false;
+    private const bool DefaultFreezeScreen = true;
     private const ModifierKey DefaultActivationModifier = ModifierKey.Ctrl;
     private const int DefaultActivationKey = 0; // 0 = no key, modifier-only
     private const ModifierKey DefaultToggleModifier = ModifierKey.CtrlShift;
     private const int DefaultToggleKey = 0x51; // VK_Q
+    private const bool DefaultCumulativeSpotlights = true;
     private const string SettingsFileName = "Settings.json";
 
     private readonly string _settingsFilePath;
@@ -28,6 +29,7 @@ public class SettingsService
     public int ActivationKey { get; set; } = DefaultActivationKey;
     public ModifierKey ToggleModifier { get; set; } = DefaultToggleModifier;
     public int ToggleKey { get; set; } = DefaultToggleKey;
+    public bool CumulativeSpotlights { get; set; } = DefaultCumulativeSpotlights;
 
     /// <summary>Fired after Save() so listeners can react to any setting change.</summary>
     public event EventHandler? SettingsChanged;
@@ -57,6 +59,7 @@ public class SettingsService
         ActivationKey = DefaultActivationKey;
         ToggleModifier = DefaultToggleModifier;
         ToggleKey = DefaultToggleKey;
+        CumulativeSpotlights = DefaultCumulativeSpotlights;
     }
 
     public void Load()
@@ -81,18 +84,19 @@ public class SettingsService
         ActivationKey = v.ActivationKey;
         ToggleModifier = v.ToggleModifier;
         ToggleKey = v.ToggleKey;
+        CumulativeSpotlights = v.CumulativeSpotlights;
     }
 
     public void Save()
     {
-        var json = Serialize(new AppSettings(OverlayOpacity, FeatherRadius, PreviewStyle, DragStyle, FreezeScreen, ActivationModifier, ActivationKey, ToggleModifier, ToggleKey));
+        var json = Serialize(new AppSettings(OverlayOpacity, FeatherRadius, PreviewStyle, DragStyle, FreezeScreen, ActivationModifier, ActivationKey, ToggleModifier, ToggleKey, CumulativeSpotlights));
         File.WriteAllText(_settingsFilePath, json);
         SettingsChanged?.Invoke(this, EventArgs.Empty);
     }
 
     public static AppSettings Deserialize(string json) =>
         JsonSerializer.Deserialize<AppSettings>(json)
-        ?? new AppSettings(DefaultOverlayOpacity, DefaultFeatherRadius, DefaultPreviewStyle, DefaultDragStyle, DefaultFreezeScreen, DefaultActivationModifier, DefaultActivationKey, DefaultToggleModifier, DefaultToggleKey);
+        ?? new AppSettings(DefaultOverlayOpacity, DefaultFeatherRadius, DefaultPreviewStyle, DefaultDragStyle, DefaultFreezeScreen, DefaultActivationModifier, DefaultActivationKey, DefaultToggleModifier, DefaultToggleKey, DefaultCumulativeSpotlights);
 
     public static string Serialize(AppSettings settings) =>
         JsonSerializer.Serialize(settings);
@@ -108,6 +112,6 @@ public class SettingsService
         var activationKey = s.ActivationKey is >= 0x00 and <= 0xFE ? s.ActivationKey : DefaultActivationKey;
         var toggleMod = Enum.IsDefined(s.ToggleModifier) ? s.ToggleModifier : DefaultToggleModifier;
         var toggleKey = s.ToggleKey is >= 0x01 and <= 0xFE ? s.ToggleKey : DefaultToggleKey;
-        return new AppSettings(opacity, radius, preview, drag, s.FreezeScreen, modifier, activationKey, toggleMod, toggleKey);
+        return new AppSettings(opacity, radius, preview, drag, s.FreezeScreen, modifier, activationKey, toggleMod, toggleKey, s.CumulativeSpotlights);
     }
 }

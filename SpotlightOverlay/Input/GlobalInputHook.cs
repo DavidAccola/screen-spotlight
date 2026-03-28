@@ -512,6 +512,12 @@ public class GlobalInputHook : IDisposable
 
             if (isKeyDown && hs.vkCode == VK_ESCAPE)
             {
+                // When recording a hotkey in settings, let Escape pass through to WPF
+                if (IsRecordingHotkey)
+                {
+                    return CallNextHookEx(_keyboardHookHandle, nCode, wParam, lParam);
+                }
+
                 bool modifierHeld = IsActivationModifierHeld();
 
                 // Cancel any in-progress drag (hold-drag or click-click)

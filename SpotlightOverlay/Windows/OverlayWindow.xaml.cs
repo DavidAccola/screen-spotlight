@@ -391,6 +391,72 @@ public partial class OverlayWindow : Window
         patch.BeginAnimation(OpacityProperty, fadeOut);
     }
 
+    /// <summary>
+    /// Animates old cutouts "filling back in" — a feathered dark patch fades from
+    /// transparent to opaque over each cutout rect, visually closing the hole.
+    /// The patch is expanded and blurred to match the feathered cutout edges.
+    /// Calls onComplete when all animations finish.
+    /// </summary>
+    public void AnimateCutoutsFadeOut(IReadOnlyList<Rect> cutoutRects, Action? onComplete, int durationMs = 400)
+    {
+        if (cutoutRects.Count == 0) { onComplete?.Invoke(); return; }
+
+        int remaining = cutoutRects.Count;
+        double expand = _featherRadius * 0.5;
+
+        foreach (var cutoutRect in cutoutRects)
+        {
+            // Expand the patch so the blur straddles the original cutout edge,
+            // matching how BuildFeatheredMask expands cutouts
+            var expandedRect = new Rect(
+                cutoutRect.X - expand - _featherRadius,
+                cutoutRect.Y - expand - _featherRadius,
+                cutoutRect.Width + (expand + _featherRadius) * 2,
+                cutoutRect.Height + (expand + _featherRadius) * 2);
+
+            var patch = new System.Windows.Shapes.Rectangle
+            {
+                Width = expandedRect.Width,
+                Height = expandedRect.Height,
+                Fill = new SolidColorBrush(
+                    System.Windows.Media.Color.FromArgb((byte)(_overlayOpacity * 255), 0, 0, 0)),
+                Opacity = 0,
+                IsHitTestVisible = false
+            };
+
+            if (_featherRadius > 0)
+            {
+                patch.Effect = new BlurEffect
+                {
+                    Radius = _featherRadius,
+                    KernelType = KernelType.Gaussian,
+                    RenderingBias = RenderingBias.Performance
+                };
+            }
+
+            System.Windows.Controls.Canvas.SetLeft(patch, expandedRect.X);
+            System.Windows.Controls.Canvas.SetTop(patch, expandedRect.Y);
+            FadeCanvas.Children.Add(patch);
+
+            var fadeIn = new DoubleAnimation
+            {
+                From = 0.0,
+                To = 1.0,
+                Duration = new Duration(TimeSpan.FromMilliseconds(durationMs)),
+                EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseIn }
+            };
+
+            fadeIn.Completed += (_, _) =>
+            {
+                FadeCanvas.Children.Remove(patch);
+                if (Interlocked.Decrement(ref remaining) == 0)
+                    onComplete?.Invoke();
+            };
+
+            patch.BeginAnimation(OpacityProperty, fadeIn);
+        }
+    }
+
     #region Click-Through P/Invoke
 
     private const int GWL_EXSTYLE = -20;

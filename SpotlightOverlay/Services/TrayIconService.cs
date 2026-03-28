@@ -37,7 +37,12 @@ public class TrayIconService : IDisposable
             Visible = true
         };
 
-        _notifyIcon.DoubleClick += (s, e) => SettingsRequested?.Invoke(this, EventArgs.Empty);
+        _notifyIcon.Click += (s, e) =>
+        {
+            // Only open settings on left-click (not right-click which opens context menu)
+            if (e is System.Windows.Forms.MouseEventArgs me && me.Button == MouseButtons.Left)
+                SettingsRequested?.Invoke(this, EventArgs.Empty);
+        };
     }
 
     public void SetEnabled(bool isEnabled)

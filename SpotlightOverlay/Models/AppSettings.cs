@@ -12,7 +12,8 @@ public record AppSettings(
     ModifierKey ActivationModifier,
     int ActivationKey,
     ModifierKey ToggleModifier,
-    int ToggleKey);
+    int ToggleKey,
+    bool CumulativeSpotlights = true);
 
 public enum PreviewStyle
 {

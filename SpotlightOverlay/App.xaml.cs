@@ -322,30 +322,29 @@ public partial class App : Application
           {
             if (_overlayWindow == null || _pendingCutouts.Count == 0) return;
 
-            // Apply all pending cutouts
-            foreach (var rect in _pendingCutouts)
+            // In replace mode, fade out old cutouts then apply new ones
+            if (!_settings.CumulativeSpotlights && _renderer.CutoutCount > 0)
             {
-                _renderer.AddCutout(rect);
-            }
+                var oldCutouts = _renderer.Cutouts.ToList();
+                var pendingSnapshot = _pendingCutouts.ToList();
+                _pendingCutouts.Clear();
 
-            var overlaySize = new System.Windows.Size(_overlayWindow.ActualWidth, _overlayWindow.ActualHeight);
-            var featheredMask = _renderer.BuildFeatheredMask(overlaySize);
-            _overlayWindow.ApplyFeatheredMask(featheredMask);
-
-            // Fade in background on first batch, animate individual cutouts on subsequent batches
-            bool isFirstBatch = _overlayWindow.FadeInBackground();
-            if (!isFirstBatch)
-            {
-                foreach (var rect in _pendingCutouts)
+                _overlayWindow.AnimateCutoutsFadeOut(oldCutouts, () =>
                 {
-                    _overlayWindow.AnimateCutoutFadeIn(rect);
-                }
+                    _renderer.ClearCutouts();
+                    ApplyCutouts(pendingSnapshot);
+                }, durationMs: 200);
+
+                // Clear finalized preview boxes immediately
+                _overlayWindow.ClearFinalizedPreviews();
+                _overlayWindow.SetClickThrough(true);
+                return;
             }
 
-            // Clear finalized preview boxes and pending list
-            _overlayWindow.ClearFinalizedPreviews();
+            ApplyCutouts(_pendingCutouts.ToList());
             _pendingCutouts.Clear();
 
+            _overlayWindow.ClearFinalizedPreviews();
             _overlayWindow.SetClickThrough(true);
             DebugLog.Write($"[App] Applied {_renderer.CutoutCount} total cutouts");
           }
@@ -354,6 +353,32 @@ public partial class App : Application
             DebugLog.Write($"[App] ERROR in CtrlReleased: {ex}");
           }
         });
+    }
+
+    /// <summary>
+    /// Adds the given cutout rects to the renderer, rebuilds the feathered mask,
+    /// and animates the new cutouts fading in (unless it's the first batch).
+    /// </summary>
+    private void ApplyCutouts(List<System.Windows.Rect> cutouts)
+    {
+        if (_overlayWindow == null) return;
+
+        foreach (var rect in cutouts)
+            _renderer.AddCutout(rect);
+
+        var overlaySize = new System.Windows.Size(_overlayWindow.ActualWidth, _overlayWindow.ActualHeight);
+        var featheredMask = _renderer.BuildFeatheredMask(overlaySize);
+        _overlayWindow.ApplyFeatheredMask(featheredMask);
+
+        bool isFirstBatch = _overlayWindow.FadeInBackground();
+        if (!isFirstBatch)
+        {
+            foreach (var rect in cutouts)
+                _overlayWindow.AnimateCutoutFadeIn(rect);
+        }
+
+        _overlayWindow.ClearFinalizedPreviews();
+        DebugLog.Write($"[App] Applied {_renderer.CutoutCount} total cutouts");
     }
 
     private void OnDismissRequested(object? sender, EventArgs e)
