@@ -5,6 +5,36 @@
         Topmost="True" ShowInTaskbar="False" ShowActivated="False"
         ResizeMode="NoResize">
 
+    <Window.Resources>
+        <Style x:Key="ToolbarButton" TargetType="Button">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="6,8" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Focusable" Value="True" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                                CornerRadius="4" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#434343" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#505050" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
     <!--
     Architecture:
     - The window is always sized to: nub + toolbar panel
@@ -60,10 +90,7 @@
 
                 <Button x:Name="SpotlightButton"
                         AutomationProperties.Name="Spotlight"
-                        ToolTip="Spotlight" Focusable="True"
-                        Background="Transparent" Foreground="White"
-                        BorderThickness="0" Padding="6,8"
-                        HorizontalContentAlignment="Center" Cursor="Hand">
+                        Style="{StaticResource ToolbarButton}">
                     <StackPanel HorizontalAlignment="Center">
                         <TextBlock Text="&#x1F526;" FontSize="18" HorizontalAlignment="Center" />
                         <TextBlock Text="Spotlight" FontSize="10" HorizontalAlignment="Center" Margin="0,2,0,0" />
@@ -72,10 +99,7 @@
 
                 <Button x:Name="ArrowButton"
                         AutomationProperties.Name="Arrow"
-                        ToolTip="Arrow" Focusable="True"
-                        Background="Transparent" Foreground="White"
-                        BorderThickness="0" Padding="6,8"
-                        HorizontalContentAlignment="Center" Cursor="Hand">
+                        Style="{StaticResource ToolbarButton}">
                     <StackPanel HorizontalAlignment="Center">
                         <TextBlock Text="&#x279C;" FontSize="18" HorizontalAlignment="Center" />
                         <TextBlock Text="Arrow" FontSize="10" HorizontalAlignment="Center" Margin="0,2,0,0" />
@@ -84,10 +108,7 @@
 
                 <Button x:Name="NumbersButton"
                         AutomationProperties.Name="Numbers"
-                        ToolTip="Numbers" Focusable="True"
-                        Background="Transparent" Foreground="White"
-                        BorderThickness="0" Padding="6,8"
-                        HorizontalContentAlignment="Center" Cursor="Hand">
+                        Style="{StaticResource ToolbarButton}">
                     <StackPanel HorizontalAlignment="Center">
                         <TextBlock Text="&#x1F522;" FontSize="18" HorizontalAlignment="Center" />
                         <TextBlock Text="Numbers" FontSize="10" HorizontalAlignment="Center" Margin="0,2,0,0" />
@@ -96,10 +117,7 @@
 
                 <Button x:Name="HighlightButton"
                         AutomationProperties.Name="Highlight"
-                        ToolTip="Highlight" Focusable="True"
-                        Background="Transparent" Foreground="White"
-                        BorderThickness="0" Padding="6,8"
-                        HorizontalContentAlignment="Center" Cursor="Hand">
+                        Style="{StaticResource ToolbarButton}">
                     <StackPanel HorizontalAlignment="Center">
                         <TextBlock Text="&#x1F58D;" FontSize="18" HorizontalAlignment="Center" />
                         <TextBlock Text="Highlight" FontSize="10" HorizontalAlignment="Center" Margin="0,2,0,0" />
@@ -108,10 +126,7 @@
 
                 <Button x:Name="BoxButton"
                         AutomationProperties.Name="Box"
-                        ToolTip="Box" Focusable="True"
-                        Background="Transparent" Foreground="White"
-                        BorderThickness="0" Padding="6,8"
-                        HorizontalContentAlignment="Center" Cursor="Hand">
+                        Style="{StaticResource ToolbarButton}">
                     <StackPanel HorizontalAlignment="Center">
                         <TextBlock Text="&#x25A2;" FontSize="18" HorizontalAlignment="Center" />
                         <TextBlock Text="Box" FontSize="10" HorizontalAlignment="Center" Margin="0,2,0,0" />
@@ -123,10 +138,7 @@
 
                 <Button x:Name="SettingsButton"
                         AutomationProperties.Name="Settings"
-                        ToolTip="Settings" Focusable="True"
-                        Background="Transparent" Foreground="White"
-                        BorderThickness="0" Padding="6,8"
-                        HorizontalContentAlignment="Center" Cursor="Hand">
+                        Style="{StaticResource ToolbarButton}">
                     <StackPanel HorizontalAlignment="Center">
                         <TextBlock Text="&#x2699;" FontSize="18" HorizontalAlignment="Center" />
                         <TextBlock Text="Settings" FontSize="10" HorizontalAlignment="Center" Margin="0,2,0,0" />

@@ -456,6 +456,11 @@ public partial class FlyoutToolbarWindow : Window
         double mouseX = Left + relPos.X;
         double mouseY = Top + relPos.Y;
         var workArea = SystemParameters.WorkArea;
+        // Use full screen bounds for drag clamping (allows dragging onto taskbar)
+        double screenTop = 0;
+        double screenLeft = 0;
+        double screenBottom = SystemParameters.PrimaryScreenHeight;
+        double screenRight = SystemParameters.PrimaryScreenWidth;
 
         // Determine which edge the cursor is closest to
         var nearestEdge = DetectClosestEdge(new Point(mouseX, mouseY), workArea);
@@ -471,19 +476,19 @@ public partial class FlyoutToolbarWindow : Window
         BeginAnimation(Window.LeftProperty, null);
         BeginAnimation(Window.TopProperty, null);
 
-        // Dead simple: center the nub on the cursor along the edge axis
+        // Center the nub on the cursor along the edge axis, clamped to screen bounds
         switch (nearestEdge)
         {
             case AnchorEdge.Left:
                 Left = workArea.Left;
-                Top = Math.Clamp(mouseY - NubLength / 2, workArea.Top, workArea.Bottom - NubLength);
+                Top = Math.Clamp(mouseY - NubLength / 2, screenTop, screenBottom - NubLength);
                 break;
             case AnchorEdge.Right:
                 Left = workArea.Right - NubWidth;
-                Top = Math.Clamp(mouseY - NubLength / 2, workArea.Top, workArea.Bottom - NubLength);
+                Top = Math.Clamp(mouseY - NubLength / 2, screenTop, screenBottom - NubLength);
                 break;
             case AnchorEdge.Top:
-                Left = Math.Clamp(mouseX - NubLength / 2, workArea.Left, workArea.Right - NubLength);
+                Left = Math.Clamp(mouseX - NubLength / 2, screenLeft, screenRight - NubLength);
                 Top = workArea.Top;
                 break;
         }
@@ -602,6 +607,15 @@ public partial class FlyoutToolbarWindow : Window
     private void ComputeNubOffsetForExpand()
     {
         var workArea = SystemParameters.WorkArea;
+
+        // Re-measure toolbar to get correct dimensions for current orientation
+        var wasVisible = ToolbarPanel.Visibility;
+        ToolbarPanel.Visibility = Visibility.Visible;
+        ToolbarPanel.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        _toolbarWidth = ToolbarPanel.DesiredSize.Width;
+        _toolbarHeight = ToolbarPanel.DesiredSize.Height;
+        ToolbarPanel.Visibility = wasVisible;
+
         double workAreaStart, workAreaEnd, faceLength;
 
         switch (_anchorEdge)
