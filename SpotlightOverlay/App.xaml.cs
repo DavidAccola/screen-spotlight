@@ -16,6 +16,7 @@ public partial class App : Application
     private SpotlightRenderer _renderer = null!;
     private GlobalInputHook _inputHook = null!;
     private TrayIconService _trayIcon = null!;
+    private FlyoutToolbarWindow? _flyoutToolbar;
     private OverlayWindow? _overlayWindow;
     private readonly List<System.Windows.Rect> _pendingCutouts = new();
     private bool _isDismissed; // true when overlay is hidden but cutouts are preserved
@@ -63,6 +64,7 @@ public partial class App : Application
         // Wire tray icon events
         _trayIcon.ToggleSpotlightRequested += OnToggleSpotlight;
         _trayIcon.SettingsRequested += OnSettingsRequested;
+        _trayIcon.ToolbarVisibilityToggleRequested += OnToolbarVisibilityToggle;
         _trayIcon.ExitRequested += OnExitRequested;
 
         // Wire input hook events
@@ -83,25 +85,24 @@ public partial class App : Application
             _inputHook.ActivationKey = _settings.ActivationKey;
             _inputHook.ToggleModifier = _settings.ToggleModifier;
             _inputHook.ToggleKey = _settings.ToggleKey;
+            _trayIcon.SetToolbarVisible(_settings.FlyoutToolbarVisible);
         };
 
-        var modName = _settings.ActivationModifier switch
+        // Create flyout toolbar (Req 7.2, 9.1, 11.1)
+        try
         {
-            Models.ModifierKey.Alt => "Alt",
-            Models.ModifierKey.Shift => "Shift",
-            Models.ModifierKey.CtrlShift => "Ctrl+Shift",
-            Models.ModifierKey.CtrlAlt => "Ctrl+Alt",
-            Models.ModifierKey.None => "",
-            _ => "Ctrl"
-        };
-        var activationDisplay = _settings.ActivationKey != 0
-            ? (string.IsNullOrEmpty(modName) ? SettingsWindow.VkDisplayName(_settings.ActivationKey)
-               : $"{modName}+{SettingsWindow.VkDisplayName(_settings.ActivationKey)}")
-            : modName;
-        var actionSuffix = SettingsWindow.VkDisplayName(_settings.ActivationKey) is var vkName
-            && _settings.ActivationKey != 0 && (vkName.Contains("Click") || vkName.Contains("Mouse"))
-            ? "+Drag" : "+Click";
-        _trayIcon.ShowBalloon("Spotlight Overlay", $"Ready — {activationDisplay}{actionSuffix} to create cutouts");
+            _flyoutToolbar = new FlyoutToolbarWindow(_settings);
+            if (_settings.FlyoutToolbarVisible)
+                _flyoutToolbar.ShowToolbar();
+            _trayIcon.SetToolbarVisible(_settings.FlyoutToolbarVisible);
+        }
+        catch (Exception ex)
+        {
+            DebugLog.Write($"[App] Flyout toolbar init failed (non-fatal): {ex.Message}");
+            _flyoutToolbar = null;
+        }
+
+        FlyoutNotification.Show("Screen Spotlight enabled");
 
         // Pre-warm WPF window infrastructure at idle priority so the first
         // Ctrl+click doesn't pay the JIT/XAML-parse cost (~250ms).
@@ -129,6 +130,9 @@ public partial class App : Application
     {
         _inputHook.IsEnabled = !_inputHook.IsEnabled;
         _trayIcon.SetEnabled(_inputHook.IsEnabled);
+        FlyoutNotification.Show(_inputHook.IsEnabled
+            ? "Screen Spotlight enabled"
+            : "Screen Spotlight disabled");
     }
 
     /// <summary>
@@ -144,9 +148,24 @@ public partial class App : Application
     /// </summary>
     private void OnExitRequested(object? sender, EventArgs e)
     {
+        _flyoutToolbar?.Close();
         _inputHook.Dispose();
         _trayIcon.Dispose();
         Shutdown();
+    }
+
+    /// <summary>
+    /// Toggles the flyout toolbar visibility from the tray icon menu (Req 9.2, 9.3).
+    /// </summary>
+    private void OnToolbarVisibilityToggle(object? sender, EventArgs e)
+    {
+        _settings.FlyoutToolbarVisible = !_settings.FlyoutToolbarVisible;
+        _settings.Save();
+        if (_settings.FlyoutToolbarVisible)
+            _flyoutToolbar?.ShowToolbar();
+        else
+            _flyoutToolbar?.HideToolbar();
+        _trayIcon.SetToolbarVisible(_settings.FlyoutToolbarVisible);
     }
 
     /// <summary>

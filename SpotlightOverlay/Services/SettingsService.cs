@@ -16,6 +16,8 @@ public class SettingsService
     private const ModifierKey DefaultToggleModifier = ModifierKey.CtrlShift;
     private const int DefaultToggleKey = 0x51; // VK_Q
     private const bool DefaultCumulativeSpotlights = true;
+    private const AnchorEdge DefaultToolbarAnchorEdge = AnchorEdge.Right;
+    private const bool DefaultFlyoutToolbarVisible = true;
     private const string SettingsFileName = "Settings.json";
 
     private readonly string _settingsFilePath;
@@ -30,6 +32,8 @@ public class SettingsService
     public ModifierKey ToggleModifier { get; set; } = DefaultToggleModifier;
     public int ToggleKey { get; set; } = DefaultToggleKey;
     public bool CumulativeSpotlights { get; set; } = DefaultCumulativeSpotlights;
+    public AnchorEdge ToolbarAnchorEdge { get; set; } = DefaultToolbarAnchorEdge;
+    public bool FlyoutToolbarVisible { get; set; } = DefaultFlyoutToolbarVisible;
 
     /// <summary>Fired after Save() so listeners can react to any setting change.</summary>
     public event EventHandler? SettingsChanged;
@@ -60,6 +64,8 @@ public class SettingsService
         ToggleModifier = DefaultToggleModifier;
         ToggleKey = DefaultToggleKey;
         CumulativeSpotlights = DefaultCumulativeSpotlights;
+        ToolbarAnchorEdge = DefaultToolbarAnchorEdge;
+        FlyoutToolbarVisible = DefaultFlyoutToolbarVisible;
     }
 
     public void Load()
@@ -85,18 +91,20 @@ public class SettingsService
         ToggleModifier = v.ToggleModifier;
         ToggleKey = v.ToggleKey;
         CumulativeSpotlights = v.CumulativeSpotlights;
+        ToolbarAnchorEdge = v.ToolbarAnchorEdge;
+        FlyoutToolbarVisible = v.FlyoutToolbarVisible;
     }
 
     public void Save()
     {
-        var json = Serialize(new AppSettings(OverlayOpacity, FeatherRadius, PreviewStyle, DragStyle, FreezeScreen, ActivationModifier, ActivationKey, ToggleModifier, ToggleKey, CumulativeSpotlights));
+        var json = Serialize(new AppSettings(OverlayOpacity, FeatherRadius, PreviewStyle, DragStyle, FreezeScreen, ActivationModifier, ActivationKey, ToggleModifier, ToggleKey, CumulativeSpotlights, ToolbarAnchorEdge, FlyoutToolbarVisible));
         File.WriteAllText(_settingsFilePath, json);
         SettingsChanged?.Invoke(this, EventArgs.Empty);
     }
 
     public static AppSettings Deserialize(string json) =>
         JsonSerializer.Deserialize<AppSettings>(json)
-        ?? new AppSettings(DefaultOverlayOpacity, DefaultFeatherRadius, DefaultPreviewStyle, DefaultDragStyle, DefaultFreezeScreen, DefaultActivationModifier, DefaultActivationKey, DefaultToggleModifier, DefaultToggleKey, DefaultCumulativeSpotlights);
+        ?? new AppSettings(DefaultOverlayOpacity, DefaultFeatherRadius, DefaultPreviewStyle, DefaultDragStyle, DefaultFreezeScreen, DefaultActivationModifier, DefaultActivationKey, DefaultToggleModifier, DefaultToggleKey, DefaultCumulativeSpotlights, DefaultToolbarAnchorEdge, DefaultFlyoutToolbarVisible);
 
     public static string Serialize(AppSettings settings) =>
         JsonSerializer.Serialize(settings);
@@ -112,6 +120,7 @@ public class SettingsService
         var activationKey = s.ActivationKey is >= 0x00 and <= 0xFE ? s.ActivationKey : DefaultActivationKey;
         var toggleMod = Enum.IsDefined(s.ToggleModifier) ? s.ToggleModifier : DefaultToggleModifier;
         var toggleKey = s.ToggleKey is >= 0x01 and <= 0xFE ? s.ToggleKey : DefaultToggleKey;
-        return new AppSettings(opacity, radius, preview, drag, s.FreezeScreen, modifier, activationKey, toggleMod, toggleKey, s.CumulativeSpotlights);
+        var anchorEdge = Enum.IsDefined(s.ToolbarAnchorEdge) ? s.ToolbarAnchorEdge : DefaultToolbarAnchorEdge;
+        return new AppSettings(opacity, radius, preview, drag, s.FreezeScreen, modifier, activationKey, toggleMod, toggleKey, s.CumulativeSpotlights, anchorEdge, s.FlyoutToolbarVisible);
     }
 }

@@ -7,10 +7,12 @@ public class TrayIconService : IDisposable
 {
     private readonly NotifyIcon _notifyIcon;
     private readonly ToolStripMenuItem _toggleItem;
+    private readonly ToolStripMenuItem _toolbarToggleItem;
     private bool _disposed;
 
     public event EventHandler? ToggleSpotlightRequested;
     public event EventHandler? SettingsRequested;
+    public event EventHandler? ToolbarVisibilityToggleRequested;
     public event EventHandler? ExitRequested;
 
     public TrayIconService(Icon icon)
@@ -21,12 +23,16 @@ public class TrayIconService : IDisposable
         var settingsItem = new ToolStripMenuItem("Settings…");
         settingsItem.Click += (s, e) => SettingsRequested?.Invoke(this, EventArgs.Empty);
 
+        _toolbarToggleItem = new ToolStripMenuItem("Hide Toolbar");
+        _toolbarToggleItem.Click += (s, e) => ToolbarVisibilityToggleRequested?.Invoke(this, EventArgs.Empty);
+
         var exitItem = new ToolStripMenuItem("Exit");
         exitItem.Click += (s, e) => ExitRequested?.Invoke(this, EventArgs.Empty);
 
         var contextMenu = new ContextMenuStrip();
         contextMenu.Items.Add(_toggleItem);
         contextMenu.Items.Add(settingsItem);
+        contextMenu.Items.Add(_toolbarToggleItem);
         contextMenu.Items.Add(exitItem);
 
         _notifyIcon = new NotifyIcon
@@ -48,6 +54,11 @@ public class TrayIconService : IDisposable
     public void SetEnabled(bool isEnabled)
     {
         _toggleItem.Text = isEnabled ? "Disable Spotlight" : "Enable Spotlight";
+    }
+
+    public void SetToolbarVisible(bool visible)
+    {
+        _toolbarToggleItem.Text = visible ? "Hide Toolbar" : "Show Toolbar";
     }
 
     public void ShowBalloon(string title, string message)

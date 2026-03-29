@@ -13,7 +13,9 @@ public record AppSettings(
     int ActivationKey,
     ModifierKey ToggleModifier,
     int ToggleKey,
-    bool CumulativeSpotlights = true);
+    bool CumulativeSpotlights = true,
+    AnchorEdge ToolbarAnchorEdge = AnchorEdge.Right,
+    bool FlyoutToolbarVisible = true);
 
 public enum PreviewStyle
 {
@@ -39,4 +41,14 @@ public enum ModifierKey
     CtrlShift = 3,
     CtrlAlt = 4,
     None = 5
+}
+
+/// <summary>
+/// Screen edge to which the flyout toolbar is anchored.
+/// </summary>
+public enum AnchorEdge
+{
+    Left = 0,
+    Right = 1,
+    Top = 2
 }
