@@ -14,6 +14,7 @@ public partial class App : Application
 {
     private SettingsService _settings = null!;
     private SpotlightRenderer _renderer = null!;
+    private readonly ArrowRenderer _arrowRenderer = new();
     private GlobalInputHook _inputHook = null!;
     private TrayIconService _trayIcon = null!;
     private FlyoutToolbarWindow? _flyoutToolbar;
@@ -76,6 +77,8 @@ public partial class App : Application
         _inputHook.RestoreRequested += OnRestoreRequested;
         _inputHook.CtrlPressed += OnCtrlPressed;
         _inputHook.ToggleRequested += OnToggleSpotlight;
+        _inputHook.ArrowDragUpdated += OnArrowDragUpdated;
+        _inputHook.ArrowDragCompleted += OnArrowDragCompleted;
 
         // Keep hook in sync when settings change at runtime
         _settings.SettingsChanged += (_, _) =>
@@ -92,6 +95,7 @@ public partial class App : Application
         try
         {
             _flyoutToolbar = new FlyoutToolbarWindow(_settings);
+            _flyoutToolbar.ActiveToolChanged += OnActiveToolChanged;
             if (_settings.FlyoutToolbarVisible)
                 _flyoutToolbar.ShowToolbar();
             _trayIcon.SetToolbarVisible(_settings.FlyoutToolbarVisible);
@@ -176,8 +180,18 @@ public partial class App : Application
         Dispatcher.BeginInvoke(() =>
         {
             _overlayWindow?.HideDragPreview();
+            _overlayWindow?.HideArrowPreview();
             _cachedScreenshot = null;
         });
+    }
+
+    /// <summary>
+    /// Handles active tool changes from the flyout toolbar.
+    /// </summary>
+    private void OnActiveToolChanged(object? sender, ToolType tool)
+    {
+        _inputHook.ActiveTool = tool;
+        DebugLog.Write($"[App] ActiveTool changed to {tool}");
     }
 
     /// <summary>
@@ -220,6 +234,173 @@ public partial class App : Application
         return new System.Windows.Rect(topLeft, bottomRight);
     }
 
+    /// <summary>
+    /// Ensures the overlay window exists, creating it if needed (shared by spotlight and arrow flows).
+    /// Returns true if the overlay is ready, false if creation failed.
+    /// </summary>
+    private bool EnsureOverlayWindow(System.Windows.Point screenDragStart)
+    {
+        if (_overlayWindow != null) return true;
+
+        var monitorBounds = MonitorHelper.GetMonitorBounds(screenDragStart);
+        var monitorBoundsDip = MonitorHelper.GetMonitorBoundsDip(screenDragStart);
+        DebugLog.Write($"[App] Creating overlay window: physical={monitorBounds}, dip={monitorBoundsDip}");
+
+        System.Windows.Media.Imaging.BitmapSource? frozenScreenshot = null;
+        if (_settings.FreezeScreen)
+        {
+            frozenScreenshot = _cachedScreenshot ?? Helpers.ScreenCapture.CaptureMonitor(monitorBounds);
+            _cachedScreenshot = null;
+            DebugLog.Write($"[App] Using {(frozenScreenshot == _cachedScreenshot ? "fallback" : "pre-captured")} screenshot for freeze mode");
+        }
+
+        var win = new OverlayWindow(monitorBoundsDip, _settings.OverlayOpacity, _settings.FeatherRadius);
+        // Tell the overlay to block clicks before Show() so the Loaded handler knows
+        if (frozenScreenshot != null)
+        {
+            win.WillHaveFrozenBackground = true;
+        }
+        try
+        {
+            win.Show();
+        }
+        catch (System.ComponentModel.Win32Exception w32ex)
+        {
+            DebugLog.Write($"[App] Window.Show() failed during preview: {w32ex.Message}");
+            return false;
+        }
+
+        if (frozenScreenshot != null)
+        {
+            win.SetFrozenBackground(frozenScreenshot);
+            // Only fade in the dark overlay for spotlight tool — arrows don't darken the screen
+            if (_inputHook.ActiveTool == ToolType.Spotlight)
+                win.FadeInBackground(300);
+            win.ForceTopmost();
+            DismissStartMenu(monitorBounds);
+        }
+
+        _overlayWindow = win;
+        
+        // Always re-force toolbar above the overlay after all z-order changes
+        ForceToolbarAboveOverlay();
+        
+        DebugLog.Write("[App] Overlay window created and shown");
+        return true;
+    }
+
+    /// <summary>
+    /// Clears dismissed state and old overlay when starting a new drag while dismissed.
+    /// Shared by spotlight and arrow drag flows.
+    /// </summary>
+    private void ClearDismissedState()
+    {
+        if (!_isDismissed || _overlayWindow == null) return;
+
+        DebugLog.Write("[App] New drag while dismissed — clearing old state");
+        _overlayWindow.Close();
+        _overlayWindow = null;
+        _renderer.ClearCutouts();
+        _arrowRenderer.ClearArrows();
+        _pendingCutouts.Clear();
+        _isDismissed = false;
+        _inputHook.CanRestore = false;
+    }
+
+    /// <summary>
+    /// Handles live arrow drag updates: shows a preview arrow on the overlay.
+    /// </summary>
+    private void OnArrowDragUpdated(object? sender, ArrowLineEventArgs e)
+    {
+        Dispatcher.BeginInvoke(() =>
+        {
+            try
+            {
+                ClearDismissedState();
+
+                if (!EnsureOverlayWindow(e.StartPoint)) return;
+
+                var dipStart = _overlayWindow!.PointFromScreen(e.StartPoint);
+                var dipEnd = _overlayWindow.PointFromScreen(e.EndPoint);
+
+                var color = ParseArrowColor();
+                var style = _settings.ArrowheadStyle;
+
+                var previewPath = _arrowRenderer.BuildArrowPath(dipStart, dipEnd, color, style);
+                if (previewPath != null)
+                    _overlayWindow.ShowArrowPreview(previewPath);
+            }
+            catch (Exception ex)
+            {
+                DebugLog.Write($"[App] ERROR in ArrowDragUpdated: {ex}");
+            }
+        });
+    }
+
+    /// <summary>
+    /// Handles a completed arrow drag: adds the finalized arrow (shadow + main) to the overlay.
+    /// </summary>
+    private void OnArrowDragCompleted(object? sender, ArrowLineEventArgs e)
+    {
+        DebugLog.Write($"[App] OnArrowDragCompleted: Start={e.StartPoint}, End={e.EndPoint}");
+        Dispatcher.BeginInvoke(() =>
+        {
+            try
+            {
+                if (_overlayWindow == null) return;
+
+                _overlayWindow.HideArrowPreview();
+
+                var dipStart = _overlayWindow.PointFromScreen(e.StartPoint);
+                var dipEnd = _overlayWindow.PointFromScreen(e.EndPoint);
+
+                var color = ParseArrowColor();
+                var style = _settings.ArrowheadStyle;
+
+                // Add shadow path first (renders behind the main arrow)
+                var shadowPath = _arrowRenderer.BuildShadowPath(dipStart, dipEnd, style);
+                if (shadowPath != null)
+                    _overlayWindow.AddArrowVisual(shadowPath);
+
+                // Add main arrow path
+                var mainPath = _arrowRenderer.BuildArrowPath(dipStart, dipEnd, color, style);
+                if (mainPath != null)
+                {
+                    _overlayWindow.AddArrowVisual(mainPath);
+                    _arrowRenderer.AddArrow(dipStart, dipEnd);
+                }
+
+                // Note: do NOT call FadeInBackground() here — the dark overlay
+                // is only for spotlights. Arrows render on a transparent overlay.
+            }
+            catch (Exception ex)
+            {
+                DebugLog.Write($"[App] ERROR in ArrowDragCompleted: {ex}");
+            }
+        });
+    }
+
+    /// <summary>
+    /// Parses the ArrowColor hex string from settings into a WPF Color.
+    /// Falls back to white if parsing fails.
+    /// </summary>
+    private System.Windows.Media.Color ParseArrowColor()
+    {
+        try
+        {
+            var hex = _settings.ArrowColor;
+            if (hex.Length == 6)
+            {
+                byte r = Convert.ToByte(hex.Substring(0, 2), 16);
+                byte g = Convert.ToByte(hex.Substring(2, 2), 16);
+                byte b = Convert.ToByte(hex.Substring(4, 2), 16);
+                return System.Windows.Media.Color.FromRgb(r, g, b);
+            }
+        }
+        catch { }
+        return System.Windows.Media.Colors.White;
+    }
+
     private int _dragUpdateCount;
 
     private void OnDragUpdated(object? sender, DragRectEventArgs e)
@@ -232,65 +413,12 @@ public partial class App : Application
                 if (_dragUpdateCount <= 3 || _dragUpdateCount % 50 == 0)
                     DebugLog.Write($"[App] DragUpdated #{_dragUpdateCount}: screen={e.ScreenRect}, dismissed={_isDismissed}, hasWindow={_overlayWindow != null}");
 
-                // If dismissed and starting a new drag, truly clear everything and start fresh
-                if (_isDismissed && _overlayWindow != null)
-                {
-                    DebugLog.Write("[App] New drag while dismissed — clearing old cutouts");
-                    _overlayWindow.Close();
-                    _overlayWindow = null;
-                    _renderer.ClearCutouts();
-                    _pendingCutouts.Clear();
-                    _isDismissed = false;
-                    _inputHook.CanRestore = false;
-                }
+                ClearDismissedState();
 
-                // Create overlay on first move if it doesn't exist yet
-                if (_overlayWindow == null)
-                {
-                    var monitorBounds = MonitorHelper.GetMonitorBounds(e.DragStartPoint);
-                    var monitorBoundsDip = MonitorHelper.GetMonitorBoundsDip(e.DragStartPoint);
-                    DebugLog.Write($"[App] Creating overlay window: physical={monitorBounds}, dip={monitorBoundsDip}");
-
-                    // Use pre-captured screenshot if available, otherwise capture now as fallback
-                    System.Windows.Media.Imaging.BitmapSource? frozenScreenshot = null;
-                    if (_settings.FreezeScreen)
-                    {
-                        frozenScreenshot = _cachedScreenshot ?? Helpers.ScreenCapture.CaptureMonitor(monitorBounds);
-                        _cachedScreenshot = null;
-                        DebugLog.Write($"[App] Using {(frozenScreenshot == _cachedScreenshot ? "fallback" : "pre-captured")} screenshot for freeze mode");
-                    }
-
-                    // Use DIP bounds for the window so it maps exactly to the monitor
-                    var win = new OverlayWindow(monitorBoundsDip, _settings.OverlayOpacity, _settings.FeatherRadius);
-                    try
-                    {
-                        win.Show();
-                    }
-                    catch (System.ComponentModel.Win32Exception w32ex)
-                    {
-                        DebugLog.Write($"[App] Window.Show() failed during preview: {w32ex.Message}");
-                        return;
-                    }
-
-                    if (frozenScreenshot != null)
-                    {
-                        win.SetFrozenBackground(frozenScreenshot);
-                        // Immediately show the darkened frozen screen so the preview
-                        // rectangle draws on top of it, not the live desktop
-                        win.FadeInBackground(300);
-                        win.ForceTopmost();
-
-                        // Dismiss Start menu by clicking on our own overlay.
-                        // The overlay absorbs the click harmlessly — nothing underneath is affected.
-                        DismissStartMenu(monitorBounds);
-                    }
-
-                    _overlayWindow = win;
-                    DebugLog.Write("[App] Overlay window created and shown");
-                }
+                if (!EnsureOverlayWindow(e.DragStartPoint)) return;
 
                 var windowRect = ScreenRectToWindowDip(e.ScreenRect);
-                _overlayWindow.ShowDragPreview(windowRect, _settings.PreviewStyle);
+                _overlayWindow!.ShowDragPreview(windowRect, _settings.PreviewStyle);
             }
             catch (Exception ex)
             {
@@ -397,6 +525,10 @@ public partial class App : Application
         }
 
         _overlayWindow.ClearFinalizedPreviews();
+        
+        // Re-force toolbar above overlay after mask/fade changes
+        ForceToolbarAboveOverlay();
+        
         DebugLog.Write($"[App] Applied {_renderer.CutoutCount} total cutouts");
     }
 
@@ -417,7 +549,7 @@ public partial class App : Application
             _cachedScreenshot = null;
             _overlayWindow.BeginFadeOut(() =>
             {
-                DebugLog.Write("[App] Fade-out complete, overlay hidden (cutouts preserved)");
+                DebugLog.Write("[App] Fade-out complete, overlay hidden (cutouts and arrows preserved)");
             });
         });
     }
@@ -437,7 +569,24 @@ public partial class App : Application
             _isDismissed = false;
             _inputHook.CanRestore = false;
             _overlayWindow.BeginFadeIn();
+            ForceToolbarAboveOverlay();
         });
+    }
+    /// <summary>
+    /// Re-forces the flyout toolbar above the overlay in the z-order.
+    /// Called after any operation that might push the overlay on top.
+    /// </summary>
+    private void ForceToolbarAboveOverlay()
+    {
+        DebugLog.Write($"[App] ForceToolbarAboveOverlay: toolbar={_flyoutToolbar != null}, visible={_flyoutToolbar?.IsVisible}, visibility={_flyoutToolbar?.Visibility}");
+        if (_flyoutToolbar == null) return;
+        var tbHwnd = new System.Windows.Interop.WindowInteropHelper(_flyoutToolbar).Handle;
+        DebugLog.Write($"[App] ForceToolbarAboveOverlay: hwnd={tbHwnd}, Visibility={_flyoutToolbar.Visibility}");
+        if (tbHwnd != IntPtr.Zero)
+        {
+            OverlayWindow.ForceTopmostHwnd(tbHwnd);
+            DebugLog.Write($"[App] ForceToolbarAboveOverlay: DONE, forced hwnd={tbHwnd}");
+        }
     }
     /// <summary>
     /// Loads the application icon from the embedded assembly resource.

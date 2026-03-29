@@ -12,6 +12,8 @@
         <Border x:Name="FrozenBackground" Visibility="Collapsed" />
         <!-- Dark overlay with clip geometry + blur for feathered cutouts -->
         <Border x:Name="OverlayBorder" />
+        <!-- Arrow annotations layer: above spotlight overlay, below drag preview indicators -->
+        <Canvas x:Name="ArrowCanvas" IsHitTestVisible="False" />
         <Canvas x:Name="PreviewCanvas">
             <Border x:Name="DragPreview" Visibility="Collapsed" />
             <!-- Outline preview: shadow + foreground rectangles -->

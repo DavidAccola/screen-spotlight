@@ -15,7 +15,9 @@ public record AppSettings(
     int ToggleKey,
     bool CumulativeSpotlights = true,
     AnchorEdge ToolbarAnchorEdge = AnchorEdge.Right,
-    bool FlyoutToolbarVisible = true);
+    bool FlyoutToolbarVisible = true,
+    ArrowheadStyle ArrowheadStyle = ArrowheadStyle.FilledTriangle,
+    string ArrowColor = "FFFFFF");
 
 public enum PreviewStyle
 {

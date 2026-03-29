@@ -32,12 +32,24 @@ public partial class FlyoutToolbarWindow : Window
     private const int CollapseDurationMs = 200;
     private const int CollapseDelayMs = 300;
 
+    // Accent color for the active tool button highlight
+    private static readonly SolidColorBrush ActiveToolBrush = new(Color.FromRgb(0x5B, 0x9B, 0xD5));
+
     private readonly SettingsService _settings;
     private AnchorEdge _anchorEdge;
     private bool _isExpanded;
-    private bool _spotlightActive;
     private DispatcherTimer? _collapseTimer;
     private bool _lastVisibility;
+
+    /// <summary>
+    /// The currently selected annotation tool. Defaults to Spotlight.
+    /// </summary>
+    public ToolType ActiveTool { get; private set; } = ToolType.Spotlight;
+
+    /// <summary>
+    /// Raised when the user selects a different tool in the toolbar.
+    /// </summary>
+    public event EventHandler<ToolType>? ActiveToolChanged;
 
     // Nub offset along the toolbar face (set by NubOffsetCalculator during drag).
     // This is the distance from the toolbar's start edge to the nub, used when expanded.
@@ -81,7 +93,7 @@ public partial class FlyoutToolbarWindow : Window
         MouseLeave += Window_MouseLeave;
 
         SpotlightButton.Click += SpotlightButton_Click;
-        ArrowButton.Click += ToolButton_Click;
+        ArrowButton.Click += ArrowButton_Click;
         NumbersButton.Click += ToolButton_Click;
         HighlightButton.Click += ToolButton_Click;
         BoxButton.Click += ToolButton_Click;
@@ -100,6 +112,9 @@ public partial class FlyoutToolbarWindow : Window
             ToolbarPanel.Visibility = Visibility.Collapsed;
 
             PositionCollapsed();
+
+            // Highlight the default active tool (Spotlight)
+            HighlightActiveToolButton();
         };
     }
 
@@ -643,10 +658,33 @@ public partial class FlyoutToolbarWindow : Window
 
     private void SpotlightButton_Click(object sender, RoutedEventArgs e)
     {
-        _spotlightActive = !_spotlightActive;
-        SpotlightButton.Background = _spotlightActive
-            ? new SolidColorBrush(Color.FromArgb(0x40, 0xFF, 0xFF, 0xFF))
-            : Brushes.Transparent;
+        SetActiveTool(ToolType.Spotlight);
+    }
+
+    private void ArrowButton_Click(object sender, RoutedEventArgs e)
+    {
+        SetActiveTool(ToolType.Arrow);
+    }
+
+    /// <summary>
+    /// Sets the active tool, updates the visual highlight, and raises ActiveToolChanged.
+    /// </summary>
+    private void SetActiveTool(ToolType tool)
+    {
+        if (ActiveTool == tool) return;
+
+        ActiveTool = tool;
+        HighlightActiveToolButton();
+        ActiveToolChanged?.Invoke(this, tool);
+    }
+
+    /// <summary>
+    /// Applies the highlight background to the active tool button and clears all others.
+    /// </summary>
+    private void HighlightActiveToolButton()
+    {
+        SpotlightButton.Background = ActiveTool == ToolType.Spotlight ? ActiveToolBrush : Brushes.Transparent;
+        ArrowButton.Background = ActiveTool == ToolType.Arrow ? ActiveToolBrush : Brushes.Transparent;
     }
 
     private void ToolButton_Click(object sender, RoutedEventArgs e)

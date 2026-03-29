@@ -36,7 +36,10 @@ public partial class OverlayWindow : Window
         Opacity = 0;
         Loaded += (_, _) =>
         {
-            SetClickThrough(true);
+            // In freeze mode, don't enable click-through — the frozen screenshot
+            // should block clicks from reaching the desktop underneath.
+            if (!WillHaveFrozenBackground)
+                SetClickThrough(true);
             Opacity = 1;
         };
     }
@@ -45,6 +48,12 @@ public partial class OverlayWindow : Window
     private int _featherRadius;
     private SolidColorBrush _overlayBrush;
     private bool _hasFadedIn;
+
+    /// <summary>
+    /// Set to true before Show() when freeze mode is active.
+    /// Prevents click-through so clicks don't pass to the desktop under the frozen screenshot.
+    /// </summary>
+    public bool WillHaveFrozenBackground { get; set; }
 
     /// <summary>
     /// Sets a frozen screenshot as the background behind the dark overlay.
@@ -364,6 +373,55 @@ public partial class OverlayWindow : Window
 
     #endregion
 
+    #region Arrow Rendering
+
+    private System.Windows.Shapes.Path? _arrowPreview;
+
+    /// <summary>
+    /// Adds a finalized arrow Path to the ArrowCanvas.
+    /// The Path persists across spotlight updates since it lives on a separate canvas layer.
+    /// </summary>
+    public void AddArrowVisual(System.Windows.Shapes.Path path)
+    {
+        path.IsHitTestVisible = false;
+        ArrowCanvas.Children.Add(path);
+    }
+
+    /// <summary>
+    /// Shows a live preview arrow on the ArrowCanvas.
+    /// Removes any previous preview first, then adds the new one.
+    /// </summary>
+    public void ShowArrowPreview(System.Windows.Shapes.Path path)
+    {
+        HideArrowPreview();
+        path.IsHitTestVisible = false;
+        _arrowPreview = path;
+        ArrowCanvas.Children.Add(_arrowPreview);
+    }
+
+    /// <summary>
+    /// Removes the current arrow preview from the ArrowCanvas.
+    /// </summary>
+    public void HideArrowPreview()
+    {
+        if (_arrowPreview != null)
+        {
+            ArrowCanvas.Children.Remove(_arrowPreview);
+            _arrowPreview = null;
+        }
+    }
+
+    /// <summary>
+    /// Removes all arrow visuals (finalized and preview) from the ArrowCanvas.
+    /// </summary>
+    public void ClearArrows()
+    {
+        ArrowCanvas.Children.Clear();
+        _arrowPreview = null;
+    }
+
+    #endregion
+
     public void AnimateCutoutFadeIn(Rect cutoutRect)
     {
         var patch = new System.Windows.Shapes.Rectangle
@@ -488,8 +546,22 @@ public partial class OverlayWindow : Window
             SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
     }
 
+    /// <summary>
+    /// Forces a window handle to the top of the topmost z-order without activating it.
+    /// </summary>
+    public static void ForceTopmostHwnd(IntPtr hwnd)
+    {
+        if (hwnd != IntPtr.Zero)
+            SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+    }
+
     public void SetClickThrough(bool enabled)
     {
+        // Never allow click-through while a frozen background is active —
+        // clicks should not pass through to the desktop underneath.
+        if (enabled && WillHaveFrozenBackground)
+            return;
+
         var hwnd = new WindowInteropHelper(this).Handle;
         if (hwnd == IntPtr.Zero)
             return;

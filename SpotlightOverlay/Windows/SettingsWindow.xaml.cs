@@ -1,6 +1,8 @@
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Effects;
@@ -21,6 +23,20 @@ public partial class SettingsWindow : Window
     private bool _isInitializing;
     private System.Windows.Threading.DispatcherTimer? _animTimer;
     private int _animFrame;
+
+    // HSV picker state
+    private double _currentHue;   // 0–360
+    private double _currentSat;   // 0–1
+    private double _currentVal;   // 0–1
+    private bool _isDraggingSv;
+    private bool _isDraggingHue;
+
+    private static readonly (string Hex, string Name)[] PresetColors =
+    {
+        ("FFFFFF", "White"),   ("FF0000", "Red"),     ("FF8000", "Orange"),  ("FFFF00", "Yellow"),
+        ("00FF00", "Green"),   ("00FFFF", "Cyan"),    ("0080FF", "Blue"),    ("8000FF", "Purple"),
+        ("FF00FF", "Magenta"), ("FF69B4", "Pink"),    ("808080", "Gray"),    ("000000", "Black"),
+    };
 
     [DllImport("dwmapi.dll", PreserveSig = true)]
     private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int value, int size);
@@ -78,6 +94,10 @@ public partial class SettingsWindow : Window
         DragStyleCombo.SelectedIndex = (int)_settings.DragStyle;
         BackgroundCombo.SelectedIndex = _settings.FreezeScreen ? 1 : 0;
         SpotlightModeCombo.SelectedIndex = _settings.CumulativeSpotlights ? 0 : 1;
+        ArrowheadStyleCombo.SelectedIndex = (int)_settings.ArrowheadStyle;
+        BuildColorPresetSwatches();
+        UpdateHsvPickerFromColor();
+        UpdateHexDisplay();
         UpdateHotkeyDisplay();
         UpdateToggleHotkeyDisplay();
         UpdateDragStyleLabels();
@@ -512,6 +532,13 @@ public partial class SettingsWindow : Window
             : "Each new spotlight replaces the previous one";
     }
 
+    private void ArrowheadStyleCombo_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        if (_isInitializing || !IsLoaded) return;
+        _settings.ArrowheadStyle = (Models.ArrowheadStyle)ArrowheadStyleCombo.SelectedIndex;
+        _settings.Save();
+    }
+
     private bool _isRecordingHotkey;
 
     private void ResetDefaults_Click(object sender, RoutedEventArgs e)
@@ -527,6 +554,10 @@ public partial class SettingsWindow : Window
         DragStyleCombo.SelectedIndex = (int)_settings.DragStyle;
         BackgroundCombo.SelectedIndex = _settings.FreezeScreen ? 1 : 0;
         SpotlightModeCombo.SelectedIndex = _settings.CumulativeSpotlights ? 0 : 1;
+        ArrowheadStyleCombo.SelectedIndex = (int)_settings.ArrowheadStyle;
+        HighlightSelectedPreset();
+        UpdateHsvPickerFromColor();
+        UpdateHexDisplay();
         UpdateHotkeyDisplay();
         UpdateToggleHotkeyDisplay();
         UpdateDragStyleLabels();
@@ -882,6 +913,256 @@ public partial class SettingsWindow : Window
         _settings.ToggleKey = vk;
         _settings.Save();
         UpdateToggleHotkeyDisplay();
+    }
+
+    // ── Color preset grid ──────────────────────────────────────────
+
+    private void BuildColorPresetSwatches()
+    {
+        ColorPresetGrid.Children.Clear();
+        foreach (var (hex, name) in PresetColors)
+        {
+            var color = (Color)System.Windows.Media.ColorConverter.ConvertFromString("#" + hex);
+            var swatch = new Border
+            {
+                Width = 32,
+                Height = 32,
+                CornerRadius = new CornerRadius(4),
+                Margin = new Thickness(3),
+                Background = new SolidColorBrush(color),
+                BorderThickness = new Thickness(1),
+                BorderBrush = (SolidColorBrush)FindResource("CardBorder"),
+                Cursor = System.Windows.Input.Cursors.Hand,
+                Tag = hex,
+                ToolTip = name,
+            };
+            swatch.MouseLeftButtonDown += ColorSwatch_Click;
+            ColorPresetGrid.Children.Add(swatch);
+        }
+        HighlightSelectedPreset();
+    }
+
+    private void ColorSwatch_Click(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is Border swatch && swatch.Tag is string hex)
+        {
+            _settings.ArrowColor = hex;
+            _settings.Save();
+            HighlightSelectedPreset();
+            UpdateHsvPickerFromColor();
+            UpdateHexDisplay();
+        }
+    }
+
+    private void HighlightSelectedPreset()
+    {
+        var accentBrush = (SolidColorBrush)FindResource("Accent");
+        var borderBrush = (SolidColorBrush)FindResource("CardBorder");
+        foreach (var child in ColorPresetGrid.Children)
+        {
+            if (child is Border swatch && swatch.Tag is string hex)
+            {
+                bool isSelected = string.Equals(hex, _settings.ArrowColor, StringComparison.OrdinalIgnoreCase);
+                swatch.BorderBrush = isSelected ? accentBrush : borderBrush;
+                swatch.BorderThickness = isSelected ? new Thickness(2) : new Thickness(1);
+            }
+        }
+    }
+
+    // ── Hex color input ────────────────────────────────────────────
+
+    private void HexColorInput_LostFocus(object sender, RoutedEventArgs e) => ApplyHexColorInput();
+
+    private void HexColorInput_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (e.Key == System.Windows.Input.Key.Enter) ApplyHexColorInput();
+    }
+
+    private void ApplyHexColorInput()
+    {
+        var text = HexColorInput.Text.Trim();
+        if (text.Length == 6 && IsValidHex(text))
+        {
+            _settings.ArrowColor = text.ToUpperInvariant();
+            _settings.Save();
+            UpdateHsvPickerFromColor();
+            HighlightSelectedPreset();
+            UpdateHexDisplay();
+        }
+        else
+        {
+            HexColorInput.Text = _settings.ArrowColor;
+        }
+    }
+
+    private static bool IsValidHex(string s)
+    {
+        foreach (var c in s)
+        {
+            if (!((c >= '0' && c <= '9') || (c >= 'A' && c <= 'F') || (c >= 'a' && c <= 'f')))
+                return false;
+        }
+        return true;
+    }
+
+    private void UpdateHexDisplay()
+    {
+        HexColorInput.Text = _settings.ArrowColor;
+    }
+
+    // ── HSV Color Picker ───────────────────────────────────────────
+
+    private void SvContainer_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        _isDraggingSv = true;
+        SvContainer.CaptureMouse();
+        UpdateSvFromMouse(e.GetPosition(SvContainer));
+    }
+
+    private void SvContainer_MouseMove(object sender, System.Windows.Input.MouseEventArgs e)
+    {
+        if (_isDraggingSv)
+            UpdateSvFromMouse(e.GetPosition(SvContainer));
+    }
+
+    private void SvContainer_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        _isDraggingSv = false;
+        SvContainer.ReleaseMouseCapture();
+    }
+
+    private void HueBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        _isDraggingHue = true;
+        HueBarBorder.CaptureMouse();
+        UpdateHueFromMouse(e.GetPosition(HueBarBorder));
+    }
+
+    private void HueBar_MouseMove(object sender, System.Windows.Input.MouseEventArgs e)
+    {
+        if (_isDraggingHue)
+            UpdateHueFromMouse(e.GetPosition(HueBarBorder));
+    }
+
+    private void HueBar_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        _isDraggingHue = false;
+        HueBarBorder.ReleaseMouseCapture();
+    }
+
+    private void UpdateSvFromMouse(System.Windows.Point pos)
+    {
+        double w = SvContainer.ActualWidth;
+        double h = SvContainer.ActualHeight;
+        if (w <= 0 || h <= 0) return;
+
+        _currentSat = Math.Clamp(pos.X / w, 0, 1);
+        _currentVal = Math.Clamp(1.0 - pos.Y / h, 0, 1);
+        UpdateColorFromHsv();
+    }
+
+    private void UpdateHueFromMouse(System.Windows.Point pos)
+    {
+        double h = HueBarBorder.ActualHeight;
+        if (h <= 0) return;
+
+        _currentHue = Math.Clamp(pos.Y / h, 0, 1) * 360.0;
+        // Update the SV square's hue layer to reflect the new hue
+        var pureHue = HsvToRgb(_currentHue, 1, 1);
+        SvHueLayer.Background = new SolidColorBrush(pureHue);
+        UpdateColorFromHsv();
+    }
+
+    private void UpdateColorFromHsv()
+    {
+        var color = HsvToRgb(_currentHue, _currentSat, _currentVal);
+        _settings.ArrowColor = $"{color.R:X2}{color.G:X2}{color.B:X2}";
+        _settings.Save();
+        HighlightSelectedPreset();
+        UpdateHsvIndicators();
+        UpdateHexDisplay();
+    }
+
+    private void UpdateHsvPickerFromColor()
+    {
+        var color = (Color)System.Windows.Media.ColorConverter.ConvertFromString("#" + _settings.ArrowColor);
+        var (h, s, v) = RgbToHsv(color);
+        _currentHue = h;
+        _currentSat = s;
+        _currentVal = v;
+
+        // Update the SV square's hue layer
+        var pureHue = HsvToRgb(_currentHue, 1, 1);
+        SvHueLayer.Background = new SolidColorBrush(pureHue);
+        UpdateHsvIndicators();
+    }
+
+    private void UpdateHsvIndicators()
+    {
+        // Position crosshair on SV square
+        double svW = SvContainer.ActualWidth;
+        double svH = SvContainer.ActualHeight;
+        if (svW > 0 && svH > 0)
+        {
+            double cx = _currentSat * svW - 6;   // 6 = half of 12px ellipse
+            double cy = (1.0 - _currentVal) * svH - 6;
+            Canvas.SetLeft(SvCrosshair, cx);
+            Canvas.SetTop(SvCrosshair, cy);
+        }
+
+        // Position indicator on hue bar
+        double hueH = HueBarBorder.ActualHeight;
+        if (hueH > 0)
+        {
+            double hy = (_currentHue / 360.0) * hueH - 2; // 2 = half of 4px indicator
+            Canvas.SetTop(HueIndicator, hy);
+        }
+    }
+
+    // ── HSV ↔ RGB conversion ───────────────────────────────────────
+
+    public static Color HsvToRgb(double h, double s, double v)
+    {
+        h = ((h % 360) + 360) % 360;
+        double c = v * s;
+        double x = c * (1 - Math.Abs((h / 60.0) % 2 - 1));
+        double m = v - c;
+
+        double r, g, b;
+        if (h < 60)       { r = c; g = x; b = 0; }
+        else if (h < 120) { r = x; g = c; b = 0; }
+        else if (h < 180) { r = 0; g = c; b = x; }
+        else if (h < 240) { r = 0; g = x; b = c; }
+        else if (h < 300) { r = x; g = 0; b = c; }
+        else               { r = c; g = 0; b = x; }
+
+        return Color.FromRgb(
+            (byte)Math.Round((r + m) * 255),
+            (byte)Math.Round((g + m) * 255),
+            (byte)Math.Round((b + m) * 255));
+    }
+
+    public static (double H, double S, double V) RgbToHsv(Color c)
+    {
+        double r = c.R / 255.0;
+        double g = c.G / 255.0;
+        double b = c.B / 255.0;
+
+        double max = Math.Max(r, Math.Max(g, b));
+        double min = Math.Min(r, Math.Min(g, b));
+        double delta = max - min;
+
+        double h = 0;
+        if (delta > 0)
+        {
+            if (max == r)      h = 60 * (((g - b) / delta) % 6);
+            else if (max == g) h = 60 * (((b - r) / delta) + 2);
+            else               h = 60 * (((r - g) / delta) + 4);
+        }
+        if (h < 0) h += 360;
+
+        double s = max > 0 ? delta / max : 0;
+        return (h, s, max);
     }
 
 }

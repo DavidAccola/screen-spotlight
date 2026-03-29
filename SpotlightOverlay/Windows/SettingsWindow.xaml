@@ -191,213 +191,396 @@
             <Setter Property="Background" Value="{StaticResource CardBorder}" />
             <Setter Property="Margin" Value="0,8" />
         </Style>
+
+        <!-- TabControl style for dark theme -->
+        <Style TargetType="TabControl">
+            <Setter Property="Background" Value="#1E1E1E" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="0" />
+        </Style>
+        <Style TargetType="TabItem">
+            <Setter Property="Foreground" Value="{StaticResource TextSecondary}" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabItem">
+                        <Border x:Name="TabBorder" Padding="16,8" Margin="0,0,2,0"
+                                Background="Transparent" BorderThickness="0,0,0,2"
+                                BorderBrush="Transparent" Cursor="Hand">
+                            <ContentPresenter x:Name="ContentSite"
+                                              ContentSource="Header"
+                                              HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="TabBorder" Property="BorderBrush" Value="{StaticResource Accent}" />
+                                <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
+                            </Trigger>
+                            <MultiTrigger>
+                                <MultiTrigger.Conditions>
+                                    <Condition Property="IsMouseOver" Value="True" />
+                                    <Condition Property="IsSelected" Value="False" />
+                                </MultiTrigger.Conditions>
+                                <Setter TargetName="TabBorder" Property="Background" Value="#2A2A2A" />
+                            </MultiTrigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Window.Resources>
-    <StackPanel Margin="16">
 
-        <!-- ═══ APPEARANCE section — preview is inside this card ═══ -->
-        <TextBlock Text="APPEARANCE" Style="{StaticResource H1}" />
-        <Border Background="{StaticResource CardBg}" CornerRadius="6"
-                BorderBrush="{StaticResource CardBorder}" BorderThickness="1"
-                Padding="0" Margin="0,0,0,14" ClipToBounds="True">
-            <StackPanel>
-                <!-- Preview canvas at top of card, no side padding -->
-                <Border ClipToBounds="True" Background="#0068BE">
-                    <Canvas x:Name="PreviewArea" Height="110">
-                        <Canvas.Background>
-                            <ImageBrush ImageSource="/assets/background.png"
-                                        Stretch="Uniform"
-                                        AlignmentX="Center" AlignmentY="Center"
-                                        Viewport="-0.02,0.08,1.04,0.84"
-                                        ViewportUnits="RelativeToBoundingBox" />
-                        </Canvas.Background>
-                    </Canvas>
-                </Border>
-                <StackPanel Margin="14,10,14,10">
-                    <!-- Opacity -->
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="130" />
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="46" />
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Grid.Column="0" Text="Transparency" Style="{StaticResource RowLabel}" />
-                        <Slider Grid.Column="1" x:Name="OpacitySlider"
-                                Minimum="10" Maximum="90" TickFrequency="10"
-                                IsSnapToTickEnabled="True" LargeChange="10" SmallChange="1"
-                                VerticalAlignment="Center" Margin="0,0,10,0"
-                                ValueChanged="OpacitySlider_ValueChanged" />
-                        <TextBox Grid.Column="2" x:Name="OpacityTextBox"
-                                 VerticalAlignment="Center" Width="46" TextAlignment="Center"
-                                 LostFocus="OpacityTextBox_LostFocus" KeyDown="OpacityTextBox_KeyDown" />
-                    </Grid>
-                    <Border Style="{StaticResource CardSep}" />
-                    <!-- Feather -->
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="130" />
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="46" />
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Grid.Column="0" Text="Blurred Edges" Style="{StaticResource RowLabel}" />
-                        <Slider Grid.Column="1" x:Name="FeatherSlider"
-                                Minimum="0" Maximum="50" TickFrequency="10"
-                                IsSnapToTickEnabled="False" LargeChange="10" SmallChange="1"
-                                VerticalAlignment="Center" Margin="0,0,10,0"
-                                ValueChanged="FeatherSlider_ValueChanged" />
-                        <TextBox Grid.Column="2" x:Name="FeatherTextBox"
-                                 VerticalAlignment="Center" Width="46" TextAlignment="Center"
-                                 LostFocus="FeatherTextBox_LostFocus" KeyDown="FeatherTextBox_KeyDown" />
-                    </Grid>
-                    <Border Style="{StaticResource CardSep}" />
-                    <!-- Preview Style -->
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="130" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Grid.Column="0" Text="Preview Style" Style="{StaticResource RowLabel}" />
-                        <ComboBox Grid.Column="1" x:Name="PreviewStyleCombo"
-                                  SelectionChanged="PreviewStyleCombo_SelectionChanged">
-                            <ComboBoxItem Content="Outline" />
-                            <ComboBoxItem Content="Crop Marks" />
-                            <ComboBoxItem Content="Half Crop Marks (2/4 corners)" />
-                        </ComboBox>
-                    </Grid>
-                </StackPanel>
-            </StackPanel>
-        </Border>
+    <TabControl Margin="0,8,0,0">
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <!-- GENERAL TAB                                            -->
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <TabItem Header="General" IsSelected="True">
+            <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0">
+                <StackPanel Margin="16,14,16,16">
 
-        <!-- ═══ CAPTURE section ═══ -->
-        <TextBlock Text="BEHAVIOR" Style="{StaticResource H1}" />
-        <Border Background="{StaticResource CardBg}" CornerRadius="6"
-                BorderBrush="{StaticResource CardBorder}" BorderThickness="1"
-                Padding="14,10" Margin="0,0,0,14">
-            <StackPanel>
-                <!-- Drag Mode -->
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="130" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-                    <TextBlock Grid.Column="0" Text="Drag Mode" Style="{StaticResource RowLabel}" />
-                    <ComboBox Grid.Column="1" x:Name="DragStyleCombo"
-                              SelectionChanged="DragStyleCombo_SelectionChanged">
-                        <ComboBoxItem x:Name="DragStyleHold" Content="Hold and Drag" />
-                        <ComboBoxItem x:Name="DragStyleClick" Content="Click to Click" />
-                    </ComboBox>
-                </Grid>
-                <Border Style="{StaticResource CardSep}" />
-                <!-- Background mode -->
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="130" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-                    <TextBlock Grid.Column="0" Text="Background" Style="{StaticResource RowLabel}" />
-                    <ComboBox Grid.Column="1" x:Name="BackgroundCombo"
-                              SelectionChanged="BackgroundCombo_SelectionChanged">
-                        <ComboBoxItem Content="Live background" />
-                        <ComboBoxItem Content="Freeze background" />
-                    </ComboBox>
-                </Grid>
-                <Border Style="{StaticResource CardSep}" />
-                <!-- Spotlight Mode -->
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="130" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-                    <TextBlock Grid.Column="0" Style="{StaticResource RowLabel}">
-                        <Run Text="2"/><Run Text="nd" FontSize="9" BaselineAlignment="TextTop"/><Run Text=" Spotlight"/>
-                    </TextBlock>
-                    <StackPanel Grid.Column="1">
-                        <ComboBox x:Name="SpotlightModeCombo"
-                                  SelectionChanged="SpotlightModeCombo_SelectionChanged">
-                            <ComboBoxItem Content="Stack" />
-                            <ComboBoxItem Content="Replace" />
-                        </ComboBox>
-                        <TextBlock x:Name="SpotlightModeHint" Margin="0,3,0,0"
-                                   Style="{StaticResource HintText}"
-                                   Foreground="{StaticResource TextSecondary}" />
-                    </StackPanel>
-                </Grid>
-            </StackPanel>
-        </Border>
-
-        <!-- ═══ HOTKEYS section ═══ -->
-        <TextBlock Text="HOTKEYS" Style="{StaticResource H1}" />
-        <Border Background="{StaticResource CardBg}" CornerRadius="6"
-                BorderBrush="{StaticResource CardBorder}" BorderThickness="1"
-                Padding="14,10" Margin="0,0,0,14">
-            <StackPanel>
-                <!-- Activation Key -->
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="130" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-                    <TextBlock Grid.Column="0" Text="Activation" Style="{StaticResource RowLabel}" />
-                    <StackPanel Grid.Column="1">
-                        <Border x:Name="HotkeyRecorderBorder"
-                                Background="{StaticResource ControlBg}"
-                                BorderBrush="{StaticResource CardBorder}" BorderThickness="1"
-                                CornerRadius="4" Padding="10,6" Cursor="Hand"
-                                MouseLeftButtonDown="HotkeyRecorder_Click">
-                            <TextBlock x:Name="HotkeyDisplay"
-                                       Foreground="{StaticResource TextPrimary}"
-                                       FontSize="13" Text="Ctrl + Click" />
-                        </Border>
-                        <TextBlock x:Name="HotkeyHint" Margin="0,3,0,0"
-                                   Style="{StaticResource HintText}"
-                                   Text="Click to change, then press a modifier key" />
-                    </StackPanel>
-                </Grid>
-                <Border Style="{StaticResource CardSep}" />
-                <!-- Toggle Hotkey -->
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="130" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-                    <TextBlock Grid.Column="0" Text="Toggle On/Off" Style="{StaticResource RowLabel}" />
-                    <StackPanel Grid.Column="1">
-                        <Border x:Name="ToggleHotkeyBorder"
-                                Background="{StaticResource ControlBg}"
-                                BorderBrush="{StaticResource CardBorder}" BorderThickness="1"
-                                CornerRadius="4" Padding="10,6" Cursor="Hand"
-                                MouseLeftButtonDown="ToggleHotkeyRecorder_Click">
-                            <TextBlock x:Name="ToggleHotkeyDisplay"
-                                       Foreground="{StaticResource TextPrimary}"
-                                       FontSize="13" Text="Ctrl + Shift + Q" />
-                        </Border>
-                        <TextBlock x:Name="ToggleHotkeyHint" Margin="0,3,0,0"
-                                   Style="{StaticResource HintText}"
-                                   Text="Click to change, then press modifier(s) + key" />
-                    </StackPanel>
-                </Grid>
-            </StackPanel>
-        </Border>
-
-        <!-- ═══ Reset ═══ -->
-        <Button Content="Reset to Defaults" Click="ResetDefaults_Click"
-                HorizontalAlignment="Stretch" Padding="0,10"
-                Cursor="Hand" FontSize="13"
-                Foreground="{StaticResource TextSecondary}"
-                Background="Transparent" BorderThickness="0">
-            <Button.Template>
-                <ControlTemplate TargetType="Button">
-                    <Border x:Name="Bd" Background="{StaticResource ControlBg}"
-                            CornerRadius="6" Padding="{TemplateBinding Padding}">
-                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    <!-- ═══ BEHAVIOR section ═══ -->
+                    <TextBlock Text="BEHAVIOR" Style="{StaticResource H1}" />
+                    <Border Background="{StaticResource CardBg}" CornerRadius="6"
+                            BorderBrush="{StaticResource CardBorder}" BorderThickness="1"
+                            Padding="14,10" Margin="0,0,0,14">
+                        <StackPanel>
+                            <!-- Drag Mode -->
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="130" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Drag Mode" Style="{StaticResource RowLabel}" />
+                                <ComboBox Grid.Column="1" x:Name="DragStyleCombo"
+                                          SelectionChanged="DragStyleCombo_SelectionChanged">
+                                    <ComboBoxItem x:Name="DragStyleHold" Content="Hold and Drag" />
+                                    <ComboBoxItem x:Name="DragStyleClick" Content="Click to Click" />
+                                </ComboBox>
+                            </Grid>
+                            <Border Style="{StaticResource CardSep}" />
+                            <!-- Background mode -->
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="130" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Background" Style="{StaticResource RowLabel}" />
+                                <ComboBox Grid.Column="1" x:Name="BackgroundCombo"
+                                          SelectionChanged="BackgroundCombo_SelectionChanged">
+                                    <ComboBoxItem Content="Live background" />
+                                    <ComboBoxItem Content="Freeze background" />
+                                </ComboBox>
+                            </Grid>
+                            <Border Style="{StaticResource CardSep}" />
+                            <!-- Spotlight Mode -->
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="130" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Style="{StaticResource RowLabel}">
+                                    <Run Text="2"/><Run Text="nd" FontSize="9" BaselineAlignment="TextTop"/><Run Text=" Spotlight"/>
+                                </TextBlock>
+                                <StackPanel Grid.Column="1">
+                                    <ComboBox x:Name="SpotlightModeCombo"
+                                              SelectionChanged="SpotlightModeCombo_SelectionChanged">
+                                        <ComboBoxItem Content="Stack" />
+                                        <ComboBoxItem Content="Replace" />
+                                    </ComboBox>
+                                    <TextBlock x:Name="SpotlightModeHint" Margin="0,3,0,0"
+                                               Style="{StaticResource HintText}"
+                                               Foreground="{StaticResource TextSecondary}" />
+                                </StackPanel>
+                            </Grid>
+                        </StackPanel>
                     </Border>
-                    <ControlTemplate.Triggers>
-                        <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource ControlHover}" />
-                        </Trigger>
-                    </ControlTemplate.Triggers>
-                </ControlTemplate>
-            </Button.Template>
-        </Button>
 
-    </StackPanel>
+                    <!-- ═══ HOTKEYS section ═══ -->
+                    <TextBlock Text="HOTKEYS" Style="{StaticResource H1}" />
+                    <Border Background="{StaticResource CardBg}" CornerRadius="6"
+                            BorderBrush="{StaticResource CardBorder}" BorderThickness="1"
+                            Padding="14,10" Margin="0,0,0,14">
+                        <StackPanel>
+                            <!-- Activation Key -->
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="130" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Activation" Style="{StaticResource RowLabel}" />
+                                <StackPanel Grid.Column="1">
+                                    <Border x:Name="HotkeyRecorderBorder"
+                                            Background="{StaticResource ControlBg}"
+                                            BorderBrush="{StaticResource CardBorder}" BorderThickness="1"
+                                            CornerRadius="4" Padding="10,6" Cursor="Hand"
+                                            MouseLeftButtonDown="HotkeyRecorder_Click">
+                                        <TextBlock x:Name="HotkeyDisplay"
+                                                   Foreground="{StaticResource TextPrimary}"
+                                                   FontSize="13" Text="Ctrl + Click" />
+                                    </Border>
+                                    <TextBlock x:Name="HotkeyHint" Margin="0,3,0,0"
+                                               Style="{StaticResource HintText}"
+                                               Text="Click to change, then press a modifier key" />
+                                </StackPanel>
+                            </Grid>
+                            <Border Style="{StaticResource CardSep}" />
+                            <!-- Toggle Hotkey -->
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="130" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Toggle On/Off" Style="{StaticResource RowLabel}" />
+                                <StackPanel Grid.Column="1">
+                                    <Border x:Name="ToggleHotkeyBorder"
+                                            Background="{StaticResource ControlBg}"
+                                            BorderBrush="{StaticResource CardBorder}" BorderThickness="1"
+                                            CornerRadius="4" Padding="10,6" Cursor="Hand"
+                                            MouseLeftButtonDown="ToggleHotkeyRecorder_Click">
+                                        <TextBlock x:Name="ToggleHotkeyDisplay"
+                                                   Foreground="{StaticResource TextPrimary}"
+                                                   FontSize="13" Text="Ctrl + Shift + Q" />
+                                    </Border>
+                                    <TextBlock x:Name="ToggleHotkeyHint" Margin="0,3,0,0"
+                                               Style="{StaticResource HintText}"
+                                               Text="Click to change, then press modifier(s) + key" />
+                                </StackPanel>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- ═══ Reset ═══ -->
+                    <Button Content="Reset to Defaults" Click="ResetDefaults_Click"
+                            HorizontalAlignment="Stretch" Padding="0,10"
+                            Cursor="Hand" FontSize="13"
+                            Foreground="{StaticResource TextSecondary}"
+                            Background="Transparent" BorderThickness="0">
+                        <Button.Template>
+                            <ControlTemplate TargetType="Button">
+                                <Border x:Name="Bd" Background="{StaticResource ControlBg}"
+                                        CornerRadius="6" Padding="{TemplateBinding Padding}">
+                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="Bd" Property="Background" Value="{StaticResource ControlHover}" />
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Button.Template>
+                    </Button>
+
+                </StackPanel>
+            </ScrollViewer>
+        </TabItem>
+
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <!-- SPOTLIGHT TAB                                          -->
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <TabItem Header="Spotlight">
+            <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0">
+                <StackPanel Margin="16,14,16,16">
+
+                    <!-- ═══ APPEARANCE section — preview is inside this card ═══ -->
+                    <TextBlock Text="APPEARANCE" Style="{StaticResource H1}" />
+                    <Border Background="{StaticResource CardBg}" CornerRadius="6"
+                            BorderBrush="{StaticResource CardBorder}" BorderThickness="1"
+                            Padding="0" Margin="0,0,0,14" ClipToBounds="True">
+                        <StackPanel>
+                            <!-- Preview canvas at top of card, no side padding -->
+                            <Border ClipToBounds="True" Background="#0068BE">
+                                <Canvas x:Name="PreviewArea" Height="110">
+                                    <Canvas.Background>
+                                        <ImageBrush ImageSource="/assets/background.png"
+                                                    Stretch="Uniform"
+                                                    AlignmentX="Center" AlignmentY="Center"
+                                                    Viewport="-0.02,0.08,1.04,0.84"
+                                                    ViewportUnits="RelativeToBoundingBox" />
+                                    </Canvas.Background>
+                                </Canvas>
+                            </Border>
+                            <StackPanel Margin="14,10,14,10">
+                                <!-- Opacity -->
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="130" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="46" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Transparency" Style="{StaticResource RowLabel}" />
+                                    <Slider Grid.Column="1" x:Name="OpacitySlider"
+                                            Minimum="10" Maximum="90" TickFrequency="10"
+                                            IsSnapToTickEnabled="True" LargeChange="10" SmallChange="1"
+                                            VerticalAlignment="Center" Margin="0,0,10,0"
+                                            ValueChanged="OpacitySlider_ValueChanged" />
+                                    <TextBox Grid.Column="2" x:Name="OpacityTextBox"
+                                             VerticalAlignment="Center" Width="46" TextAlignment="Center"
+                                             LostFocus="OpacityTextBox_LostFocus" KeyDown="OpacityTextBox_KeyDown" />
+                                </Grid>
+                                <Border Style="{StaticResource CardSep}" />
+                                <!-- Feather -->
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="130" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="46" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Blurred Edges" Style="{StaticResource RowLabel}" />
+                                    <Slider Grid.Column="1" x:Name="FeatherSlider"
+                                            Minimum="0" Maximum="50" TickFrequency="10"
+                                            IsSnapToTickEnabled="False" LargeChange="10" SmallChange="1"
+                                            VerticalAlignment="Center" Margin="0,0,10,0"
+                                            ValueChanged="FeatherSlider_ValueChanged" />
+                                    <TextBox Grid.Column="2" x:Name="FeatherTextBox"
+                                             VerticalAlignment="Center" Width="46" TextAlignment="Center"
+                                             LostFocus="FeatherTextBox_LostFocus" KeyDown="FeatherTextBox_KeyDown" />
+                                </Grid>
+                                <Border Style="{StaticResource CardSep}" />
+                                <!-- Preview Style -->
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="130" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Preview Style" Style="{StaticResource RowLabel}" />
+                                    <ComboBox Grid.Column="1" x:Name="PreviewStyleCombo"
+                                              SelectionChanged="PreviewStyleCombo_SelectionChanged">
+                                        <ComboBoxItem Content="Outline" />
+                                        <ComboBoxItem Content="Crop Marks" />
+                                        <ComboBoxItem Content="Half Crop Marks (2/4 corners)" />
+                                    </ComboBox>
+                                </Grid>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                </StackPanel>
+            </ScrollViewer>
+        </TabItem>
+
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <!-- ARROW TAB                                              -->
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <TabItem Header="Arrow">
+            <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0">
+                <StackPanel Margin="16,14,16,16">
+
+                    <!-- ═══ ARROWHEAD section ═══ -->
+                    <TextBlock Text="ARROWHEAD" Style="{StaticResource H1}" />
+                    <Border Background="{StaticResource CardBg}" CornerRadius="6"
+                            BorderBrush="{StaticResource CardBorder}" BorderThickness="1"
+                            Padding="14,10" Margin="0,0,0,14">
+                        <StackPanel>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="130" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Style" Style="{StaticResource RowLabel}" />
+                                <ComboBox Grid.Column="1" x:Name="ArrowheadStyleCombo"
+                                          SelectionChanged="ArrowheadStyleCombo_SelectionChanged">
+                                    <ComboBoxItem Content="Filled Triangle" />
+                                    <ComboBoxItem Content="Open Triangle" />
+                                    <ComboBoxItem Content="Simple Lines" />
+                                    <ComboBoxItem Content="No Arrowhead" />
+                                </ComboBox>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- ═══ COLOR section ═══ -->
+                    <TextBlock Text="COLOR" Style="{StaticResource H1}" />
+                    <Border Background="{StaticResource CardBg}" CornerRadius="6"
+                            BorderBrush="{StaticResource CardBorder}" BorderThickness="1"
+                            Padding="14,10" Margin="0,0,0,14">
+                        <UniformGrid x:Name="ColorPresetGrid" Rows="3" Columns="4" />
+                    </Border>
+
+                    <!-- ═══ HSV PICKER section ═══ -->
+                    <TextBlock Text="CUSTOM COLOR" Style="{StaticResource H1}" />
+                    <Border Background="{StaticResource CardBg}" CornerRadius="6"
+                            BorderBrush="{StaticResource CardBorder}" BorderThickness="1"
+                            Padding="14,10" Margin="0,0,0,14">
+                        <StackPanel>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="12" />
+                                    <ColumnDefinition Width="24" />
+                                </Grid.ColumnDefinitions>
+
+                                <!-- Saturation/Value square -->
+                                <Grid x:Name="SvContainer" Grid.Column="0" Height="200" Cursor="Cross"
+                                      MouseLeftButtonDown="SvContainer_MouseLeftButtonDown"
+                                      MouseMove="SvContainer_MouseMove"
+                                      MouseLeftButtonUp="SvContainer_MouseLeftButtonUp">
+                                    <!-- Black background for value axis -->
+                                    <Border Background="Black" />
+                                    <!-- Pure hue color layer -->
+                                    <Border x:Name="SvHueLayer" Background="Red" />
+                                    <!-- White-to-transparent horizontal gradient (saturation) -->
+                                    <Border>
+                                        <Border.Background>
+                                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                                <GradientStop Color="White" Offset="0" />
+                                                <GradientStop Color="#00FFFFFF" Offset="1" />
+                                            </LinearGradientBrush>
+                                        </Border.Background>
+                                    </Border>
+                                    <!-- Black-to-transparent vertical gradient (value) -->
+                                    <Border>
+                                        <Border.Background>
+                                            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                                <GradientStop Color="#00000000" Offset="0" />
+                                                <GradientStop Color="Black" Offset="1" />
+                                            </LinearGradientBrush>
+                                        </Border.Background>
+                                    </Border>
+                                    <!-- Crosshair indicator -->
+                                    <Canvas IsHitTestVisible="False">
+                                        <Ellipse x:Name="SvCrosshair" Width="12" Height="12"
+                                                 Stroke="White" StrokeThickness="2" Fill="Transparent" />
+                                    </Canvas>
+                                </Grid>
+
+                                <!-- Hue bar -->
+                                <Border x:Name="HueBarBorder" Grid.Column="2" Width="24" Height="200" Cursor="Hand"
+                                        MouseLeftButtonDown="HueBar_MouseLeftButtonDown"
+                                        MouseMove="HueBar_MouseMove"
+                                        MouseLeftButtonUp="HueBar_MouseLeftButtonUp">
+                                    <Border.Background>
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                            <GradientStop Color="#FFFF0000" Offset="0" />
+                                            <GradientStop Color="#FFFFFF00" Offset="0.167" />
+                                            <GradientStop Color="#FF00FF00" Offset="0.333" />
+                                            <GradientStop Color="#FF00FFFF" Offset="0.5" />
+                                            <GradientStop Color="#FF0000FF" Offset="0.667" />
+                                            <GradientStop Color="#FFFF00FF" Offset="0.833" />
+                                            <GradientStop Color="#FFFF0000" Offset="1" />
+                                        </LinearGradientBrush>
+                                    </Border.Background>
+                                    <Canvas IsHitTestVisible="False">
+                                        <Border x:Name="HueIndicator" Width="24" Height="4"
+                                                Background="White" BorderBrush="Black" BorderThickness="1" />
+                                    </Canvas>
+                                </Border>
+                            </Grid>
+
+                            <!-- Hex color input -->
+                            <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                                <TextBlock Text="#" Foreground="{StaticResource TextSecondary}" FontSize="14"
+                                           VerticalAlignment="Center" Margin="0,0,4,0" />
+                                <TextBox x:Name="HexColorInput" Width="80" FontSize="13"
+                                         MaxLength="6" CharacterCasing="Upper" TextAlignment="Center"
+                                         LostFocus="HexColorInput_LostFocus"
+                                         KeyDown="HexColorInput_KeyDown" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                </StackPanel>
+            </ScrollViewer>
+        </TabItem>
+    </TabControl>
 </Window>

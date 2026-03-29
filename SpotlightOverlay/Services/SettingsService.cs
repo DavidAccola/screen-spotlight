@@ -18,6 +18,8 @@ public class SettingsService
     private const bool DefaultCumulativeSpotlights = true;
     private const AnchorEdge DefaultToolbarAnchorEdge = AnchorEdge.Right;
     private const bool DefaultFlyoutToolbarVisible = true;
+    private const ArrowheadStyle DefaultArrowheadStyle = ArrowheadStyle.FilledTriangle;
+    private const string DefaultArrowColor = "FFFFFF";
     private const string SettingsFileName = "Settings.json";
 
     private readonly string _settingsFilePath;
@@ -34,6 +36,8 @@ public class SettingsService
     public bool CumulativeSpotlights { get; set; } = DefaultCumulativeSpotlights;
     public AnchorEdge ToolbarAnchorEdge { get; set; } = DefaultToolbarAnchorEdge;
     public bool FlyoutToolbarVisible { get; set; } = DefaultFlyoutToolbarVisible;
+    public ArrowheadStyle ArrowheadStyle { get; set; } = DefaultArrowheadStyle;
+    public string ArrowColor { get; set; } = DefaultArrowColor;
 
     /// <summary>Fired after Save() so listeners can react to any setting change.</summary>
     public event EventHandler? SettingsChanged;
@@ -66,6 +70,8 @@ public class SettingsService
         CumulativeSpotlights = DefaultCumulativeSpotlights;
         ToolbarAnchorEdge = DefaultToolbarAnchorEdge;
         FlyoutToolbarVisible = DefaultFlyoutToolbarVisible;
+        ArrowheadStyle = DefaultArrowheadStyle;
+        ArrowColor = DefaultArrowColor;
     }
 
     public void Load()
@@ -93,18 +99,20 @@ public class SettingsService
         CumulativeSpotlights = v.CumulativeSpotlights;
         ToolbarAnchorEdge = v.ToolbarAnchorEdge;
         FlyoutToolbarVisible = v.FlyoutToolbarVisible;
+        ArrowheadStyle = v.ArrowheadStyle;
+        ArrowColor = v.ArrowColor;
     }
 
     public void Save()
     {
-        var json = Serialize(new AppSettings(OverlayOpacity, FeatherRadius, PreviewStyle, DragStyle, FreezeScreen, ActivationModifier, ActivationKey, ToggleModifier, ToggleKey, CumulativeSpotlights, ToolbarAnchorEdge, FlyoutToolbarVisible));
+        var json = Serialize(new AppSettings(OverlayOpacity, FeatherRadius, PreviewStyle, DragStyle, FreezeScreen, ActivationModifier, ActivationKey, ToggleModifier, ToggleKey, CumulativeSpotlights, ToolbarAnchorEdge, FlyoutToolbarVisible, ArrowheadStyle, ArrowColor));
         File.WriteAllText(_settingsFilePath, json);
         SettingsChanged?.Invoke(this, EventArgs.Empty);
     }
 
     public static AppSettings Deserialize(string json) =>
         JsonSerializer.Deserialize<AppSettings>(json)
-        ?? new AppSettings(DefaultOverlayOpacity, DefaultFeatherRadius, DefaultPreviewStyle, DefaultDragStyle, DefaultFreezeScreen, DefaultActivationModifier, DefaultActivationKey, DefaultToggleModifier, DefaultToggleKey, DefaultCumulativeSpotlights, DefaultToolbarAnchorEdge, DefaultFlyoutToolbarVisible);
+        ?? new AppSettings(DefaultOverlayOpacity, DefaultFeatherRadius, DefaultPreviewStyle, DefaultDragStyle, DefaultFreezeScreen, DefaultActivationModifier, DefaultActivationKey, DefaultToggleModifier, DefaultToggleKey, DefaultCumulativeSpotlights, DefaultToolbarAnchorEdge, DefaultFlyoutToolbarVisible, DefaultArrowheadStyle, DefaultArrowColor);
 
     public static string Serialize(AppSettings settings) =>
         JsonSerializer.Serialize(settings);
@@ -121,6 +129,19 @@ public class SettingsService
         var toggleMod = Enum.IsDefined(s.ToggleModifier) ? s.ToggleModifier : DefaultToggleModifier;
         var toggleKey = s.ToggleKey is >= 0x01 and <= 0xFE ? s.ToggleKey : DefaultToggleKey;
         var anchorEdge = Enum.IsDefined(s.ToolbarAnchorEdge) ? s.ToolbarAnchorEdge : DefaultToolbarAnchorEdge;
-        return new AppSettings(opacity, radius, preview, drag, s.FreezeScreen, modifier, activationKey, toggleMod, toggleKey, s.CumulativeSpotlights, anchorEdge, s.FlyoutToolbarVisible);
+        var arrowheadStyle = Enum.IsDefined(s.ArrowheadStyle) ? s.ArrowheadStyle : DefaultArrowheadStyle;
+        var arrowColor = IsValidHexColor(s.ArrowColor) ? s.ArrowColor.ToUpperInvariant() : DefaultArrowColor;
+        return new AppSettings(opacity, radius, preview, drag, s.FreezeScreen, modifier, activationKey, toggleMod, toggleKey, s.CumulativeSpotlights, anchorEdge, s.FlyoutToolbarVisible, arrowheadStyle, arrowColor);
+    }
+
+    private static bool IsValidHexColor(string? color)
+    {
+        if (color is null || color.Length != 6) return false;
+        foreach (var c in color)
+        {
+            if (!((c >= '0' && c <= '9') || (c >= 'A' && c <= 'F') || (c >= 'a' && c <= 'f')))
+                return false;
+        }
+        return true;
     }
 }

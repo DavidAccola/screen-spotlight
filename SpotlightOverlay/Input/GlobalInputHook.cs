@@ -75,6 +75,8 @@ public class GlobalInputHook : IDisposable
     #region Events
     public event EventHandler<DragRectEventArgs>? DragCompleted;
     public event EventHandler<DragRectEventArgs>? DragUpdated;
+    public event EventHandler<ArrowLineEventArgs>? ArrowDragCompleted;
+    public event EventHandler<ArrowLineEventArgs>? ArrowDragUpdated;
     public event EventHandler? DragCancelled;
     public event EventHandler? CtrlReleased;
     public event EventHandler? CtrlPressed;
@@ -86,6 +88,7 @@ public class GlobalInputHook : IDisposable
     public bool IsEnabled { get; set; }
     public bool CanRestore { get; set; }
     public DragStyle DragStyle { get; set; }
+    public ToolType ActiveTool { get; set; } = ToolType.Spotlight;
     public ModifierKey ActivationModifier { get; set; } = ModifierKey.Ctrl;
     public int ActivationKey { get; set; } = 0; // 0 = no key, modifier-only
     public ModifierKey ToggleModifier { get; set; } = ModifierKey.CtrlShift;
@@ -461,25 +464,42 @@ public class GlobalInputHook : IDisposable
 
     private void EmitDragUpdated(int x, int y)
     {
-        double rx = Math.Min(_dragStartPoint.X, x);
-        double ry = Math.Min(_dragStartPoint.Y, y);
-        double rw = Math.Abs(x - _dragStartPoint.X);
-        double rh = Math.Abs(y - _dragStartPoint.Y);
-        if (rw > 1 && rh > 1)
-            DragUpdated?.Invoke(this, new DragRectEventArgs(new System.Windows.Rect(rx, ry, rw, rh), _dragStartPoint));
+        if (ActiveTool == ToolType.Arrow)
+        {
+            var current = new System.Windows.Point(x, y);
+            ArrowDragUpdated?.Invoke(this, new ArrowLineEventArgs(_dragStartPoint, current));
+        }
+        else
+        {
+            double rx = Math.Min(_dragStartPoint.X, x);
+            double ry = Math.Min(_dragStartPoint.Y, y);
+            double rw = Math.Abs(x - _dragStartPoint.X);
+            double rh = Math.Abs(y - _dragStartPoint.Y);
+            if (rw > 1 && rh > 1)
+                DragUpdated?.Invoke(this, new DragRectEventArgs(new System.Windows.Rect(rx, ry, rw, rh), _dragStartPoint));
+        }
     }
 
     private void EmitDragCompleted(int x, int y)
     {
-        double rx = Math.Min(_dragStartPoint.X, x);
-        double ry = Math.Min(_dragStartPoint.Y, y);
-        double rw = Math.Abs(x - _dragStartPoint.X);
-        double rh = Math.Abs(y - _dragStartPoint.Y);
-        if (rw > 1 && rh > 1)
+        if (ActiveTool == ToolType.Arrow)
         {
-            var rect = new System.Windows.Rect(rx, ry, rw, rh);
-            DragCompleted?.Invoke(this, new DragRectEventArgs(rect, _dragStartPoint));
+            var endPoint = new System.Windows.Point(x, y);
+            ArrowDragCompleted?.Invoke(this, new ArrowLineEventArgs(_dragStartPoint, endPoint));
             _hasPendingDrags = true;
+        }
+        else
+        {
+            double rx = Math.Min(_dragStartPoint.X, x);
+            double ry = Math.Min(_dragStartPoint.Y, y);
+            double rw = Math.Abs(x - _dragStartPoint.X);
+            double rh = Math.Abs(y - _dragStartPoint.Y);
+            if (rw > 1 && rh > 1)
+            {
+                var rect = new System.Windows.Rect(rx, ry, rw, rh);
+                DragCompleted?.Invoke(this, new DragRectEventArgs(rect, _dragStartPoint));
+                _hasPendingDrags = true;
+            }
         }
     }
 
