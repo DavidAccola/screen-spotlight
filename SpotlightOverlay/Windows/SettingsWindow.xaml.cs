@@ -8,6 +8,7 @@ using System.Windows.Media;
 using System.Windows.Media.Effects;
 using System.Windows.Media.Imaging;
 using SpotlightOverlay.Input;
+using SpotlightOverlay.Models;
 using SpotlightOverlay.Services;
 using Color = System.Windows.Media.Color;
 using Rectangle = System.Windows.Shapes.Rectangle;
@@ -24,18 +25,18 @@ public partial class SettingsWindow : Window
     private System.Windows.Threading.DispatcherTimer? _animTimer;
     private int _animFrame;
 
-    // HSV picker state
-    private double _currentHue;   // 0–360
-    private double _currentSat;   // 0–1
-    private double _currentVal;   // 0–1
-    private bool _isDraggingSv;
-    private bool _isDraggingHue;
-
+    // HSV picker state (moved to ColorPickerDialog)
+    // Custom color slots state
     private static readonly (string Hex, string Name)[] PresetColors =
     {
-        ("FFFFFF", "White"),   ("FF0000", "Red"),     ("FF8000", "Orange"),  ("FFFF00", "Yellow"),
-        ("00FF00", "Green"),   ("00FFFF", "Cyan"),    ("0080FF", "Blue"),    ("8000FF", "Purple"),
-        ("FF00FF", "Magenta"), ("FF69B4", "Pink"),    ("808080", "Gray"),    ("000000", "Black"),
+        // Row 1: dark/vivid colors (MS Paint top row)
+        ("000000", "Black"),   ("7F7F7F", "Gray"),    ("880015", "Dark Red"), ("FF0000", "Red"),
+        ("FF7F27", "Orange"),  ("FFFF00", "Yellow"),   ("00A651", "Green"),    ("00A2E8", "Sky Blue"),
+        ("3F48CC", "Blue"),    ("A349A4", "Purple"),
+        // Row 2: light/pastel colors (MS Paint bottom row)
+        ("FFFFFF", "White"),   ("C3C3C3", "Light Gray"),("B97A57", "Brown"),   ("FFAEC9", "Pink"),
+        ("FFC90E", "Gold"),    ("EFE4B0", "Tan"),      ("B5E61D", "Lime"),     ("99D9EA", "Light Blue"),
+        ("7092BE", "Slate"),   ("C8BFE7", "Lavender"),
     };
 
     [DllImport("dwmapi.dll", PreserveSig = true)]
@@ -94,17 +95,17 @@ public partial class SettingsWindow : Window
         DragStyleCombo.SelectedIndex = (int)_settings.DragStyle;
         BackgroundCombo.SelectedIndex = _settings.FreezeScreen ? 1 : 0;
         SpotlightModeCombo.SelectedIndex = _settings.CumulativeSpotlights ? 0 : 1;
-        ArrowheadStyleCombo.SelectedIndex = (int)_settings.ArrowheadStyle;
+        ArrowheadStyleCombo_Init();
         BuildColorPresetSwatches();
-        UpdateHsvPickerFromColor();
-        UpdateHexDisplay();
+        LoadCustomColors();
+        BuildCustomColorSlots();
         UpdateHotkeyDisplay();
         UpdateToggleHotkeyDisplay();
         UpdateDragStyleLabels();
 
         _isInitializing = false;
         UpdateSpotlightModeHint();
-        Loaded += (_, _) => UpdatePreview();
+        Loaded += (_, _) => { UpdatePreview(); UpdateArrowPreview(); };
     }
 
     public static void ShowSingleton(SettingsService settings, GlobalInputHook? inputHook = null)
@@ -532,11 +533,123 @@ public partial class SettingsWindow : Window
             : "Each new spotlight replaces the previous one";
     }
 
-    private void ArrowheadStyleCombo_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    // ── Arrow style visual combos ─────────────────────────────────
+
+    private void ArrowheadStyleCombo_Init()
+    {
+        _isInitializing = true;
+        PopulateEndCombo(LeftEndCombo, _settings.ArrowheadStyle, pointLeft: true);
+        PopulateEndCombo(RightEndCombo, _settings.ArrowEndStyle, pointLeft: false);
+        PopulateLineStyleCombo(LineStyleCombo, _settings.ArrowLineStyle);
+        _isInitializing = false;
+    }
+
+    private void PopulateEndCombo(System.Windows.Controls.ComboBox combo, ArrowheadStyle selected, bool pointLeft)
+    {
+        combo.Items.Clear();
+        // Use DataTemplate so WPF creates a fresh Image for both dropdown and selection box
+        combo.ItemTemplate = new DataTemplate();
+        var factory = new FrameworkElementFactory(typeof(System.Windows.Controls.Image));
+        factory.SetBinding(System.Windows.Controls.Image.SourceProperty,
+            new System.Windows.Data.Binding("."));
+        factory.SetValue(System.Windows.Controls.Image.StretchProperty, Stretch.Uniform);
+        factory.SetValue(FrameworkElement.HeightProperty, 20.0);
+        combo.ItemTemplate.VisualTree = factory;
+
+        var styles = new[] {
+            ArrowheadStyle.None,
+            ArrowheadStyle.FilledTriangle,
+            ArrowheadStyle.OpenArrowhead,
+            ArrowheadStyle.Barbed,
+            ArrowheadStyle.DotEnd,
+        };
+        int selectedIndex = 0;
+        for (int i = 0; i < styles.Length; i++)
+        {
+            combo.Items.Add(BuildEndDrawingImage(styles[i], pointLeft));
+            if (styles[i] == selected) selectedIndex = i;
+        }
+        // Store style values for lookup in SelectionChanged
+        combo.Tag = styles;
+        combo.SelectedIndex = selectedIndex;
+    }
+
+    private static DrawingImage BuildEndDrawingImage(ArrowheadStyle style, bool pointLeft)
+    {
+        double w = 40, h = 20;
+        double angle = pointLeft ? Math.PI : 0;
+        var tip = pointLeft ? new System.Windows.Point(6, 10) : new System.Windows.Point(34, 10);
+        var lineEnd = pointLeft ? new System.Windows.Point(34, 10) : new System.Windows.Point(6, 10);
+        var pen = new System.Windows.Media.Pen(System.Windows.Media.Brushes.White, 2) { LineJoin = PenLineJoin.Round };
+
+        var drawingGroup = new DrawingGroup();
+        drawingGroup.Children.Add(new GeometryDrawing(
+            System.Windows.Media.Brushes.Transparent, null,
+            new RectangleGeometry(new Rect(0, 0, w, h))));
+        drawingGroup.Children.Add(new GeometryDrawing(null, pen, new LineGeometry(lineEnd, tip)));
+        var geom = Rendering.ArrowRenderer.BuildArrowheadGeometry(tip, angle, style);
+        if (geom != null && !geom.IsEmpty())
+        {
+            System.Windows.Media.Brush? fill = (style is ArrowheadStyle.FilledTriangle or ArrowheadStyle.Barbed or ArrowheadStyle.DotEnd)
+                ? System.Windows.Media.Brushes.White : null;
+            drawingGroup.Children.Add(new GeometryDrawing(fill, pen, geom));
+        }
+        return new DrawingImage(drawingGroup);
+    }
+
+    private void PopulateLineStyleCombo(System.Windows.Controls.ComboBox combo, ArrowLineStyle selected)
+    {
+        combo.Items.Clear();
+        combo.ItemTemplate = new DataTemplate();
+        var factory = new FrameworkElementFactory(typeof(System.Windows.Controls.Image));
+        factory.SetBinding(System.Windows.Controls.Image.SourceProperty,
+            new System.Windows.Data.Binding("."));
+        factory.SetValue(System.Windows.Controls.Image.StretchProperty, Stretch.Uniform);
+        factory.SetValue(FrameworkElement.HeightProperty, 20.0);
+        combo.ItemTemplate.VisualTree = factory;
+
+        var styles = new[] { ArrowLineStyle.Solid, ArrowLineStyle.Dashed, ArrowLineStyle.Dotted };
+        int selectedIndex = 0;
+        for (int i = 0; i < styles.Length; i++)
+        {
+            combo.Items.Add(BuildLineStyleDrawingImage(styles[i]));
+            if (styles[i] == selected) selectedIndex = i;
+        }
+        combo.Tag = styles;
+        combo.SelectedIndex = selectedIndex;
+    }
+
+    private static DrawingImage BuildLineStyleDrawingImage(ArrowLineStyle style)
+    {
+        double w = 50, h = 20;
+        var pen = new System.Windows.Media.Pen(System.Windows.Media.Brushes.White, 2);
+        if (style == ArrowLineStyle.Dashed)
+            pen.DashStyle = new DashStyle(new double[] { 4, 3 }, 0);
+        else if (style == ArrowLineStyle.Dotted)
+            pen.DashStyle = new DashStyle(new double[] { 1, 2 }, 0);
+
+        var drawingGroup = new DrawingGroup();
+        drawingGroup.Children.Add(new GeometryDrawing(
+            System.Windows.Media.Brushes.Transparent, null,
+            new RectangleGeometry(new Rect(0, 0, w, h))));
+        drawingGroup.Children.Add(new GeometryDrawing(null, pen, new LineGeometry(
+            new System.Windows.Point(4, 10), new System.Windows.Point(46, 10))));
+        return new DrawingImage(drawingGroup);
+    }
+
+    private void ArrowStyleCombo_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
     {
         if (_isInitializing || !IsLoaded) return;
-        _settings.ArrowheadStyle = (Models.ArrowheadStyle)ArrowheadStyleCombo.SelectedIndex;
+
+        if (LeftEndCombo.Tag is ArrowheadStyle[] leftStyles && LeftEndCombo.SelectedIndex >= 0)
+            _settings.ArrowheadStyle = leftStyles[LeftEndCombo.SelectedIndex];
+        if (RightEndCombo.Tag is ArrowheadStyle[] rightStyles && RightEndCombo.SelectedIndex >= 0)
+            _settings.ArrowEndStyle = rightStyles[RightEndCombo.SelectedIndex];
+        if (LineStyleCombo.Tag is ArrowLineStyle[] lineStyles && LineStyleCombo.SelectedIndex >= 0)
+            _settings.ArrowLineStyle = lineStyles[LineStyleCombo.SelectedIndex];
+
         _settings.Save();
+        UpdateArrowPreview();
     }
 
     private bool _isRecordingHotkey;
@@ -554,10 +667,8 @@ public partial class SettingsWindow : Window
         DragStyleCombo.SelectedIndex = (int)_settings.DragStyle;
         BackgroundCombo.SelectedIndex = _settings.FreezeScreen ? 1 : 0;
         SpotlightModeCombo.SelectedIndex = _settings.CumulativeSpotlights ? 0 : 1;
-        ArrowheadStyleCombo.SelectedIndex = (int)_settings.ArrowheadStyle;
+        ArrowheadStyleCombo_Init();
         HighlightSelectedPreset();
-        UpdateHsvPickerFromColor();
-        UpdateHexDisplay();
         UpdateHotkeyDisplay();
         UpdateToggleHotkeyDisplay();
         UpdateDragStyleLabels();
@@ -565,6 +676,7 @@ public partial class SettingsWindow : Window
 
         UpdateSpotlightModeHint();
         UpdatePreview();
+        UpdateArrowPreview();
     }
 
     // ── Hotkey recorder ────────────────────────────────────────────
@@ -925,10 +1037,10 @@ public partial class SettingsWindow : Window
             var color = (Color)System.Windows.Media.ColorConverter.ConvertFromString("#" + hex);
             var swatch = new Border
             {
-                Width = 32,
-                Height = 32,
-                CornerRadius = new CornerRadius(4),
-                Margin = new Thickness(3),
+                Width = 28,
+                Height = 28,
+                CornerRadius = new CornerRadius(14), // circular
+                Margin = new Thickness(2),
                 Background = new SolidColorBrush(color),
                 BorderThickness = new Thickness(1),
                 BorderBrush = (SolidColorBrush)FindResource("CardBorder"),
@@ -949,8 +1061,7 @@ public partial class SettingsWindow : Window
             _settings.ArrowColor = hex;
             _settings.Save();
             HighlightSelectedPreset();
-            UpdateHsvPickerFromColor();
-            UpdateHexDisplay();
+            UpdateArrowPreview();
         }
     }
 
@@ -958,168 +1069,142 @@ public partial class SettingsWindow : Window
     {
         var accentBrush = (SolidColorBrush)FindResource("Accent");
         var borderBrush = (SolidColorBrush)FindResource("CardBorder");
-        foreach (var child in ColorPresetGrid.Children)
+        foreach (var grid in new[] { ColorPresetGrid, CustomColorGrid })
         {
-            if (child is Border swatch && swatch.Tag is string hex)
+            foreach (var child in grid.Children)
             {
-                bool isSelected = string.Equals(hex, _settings.ArrowColor, StringComparison.OrdinalIgnoreCase);
-                swatch.BorderBrush = isSelected ? accentBrush : borderBrush;
-                swatch.BorderThickness = isSelected ? new Thickness(2) : new Thickness(1);
+                if (child is Border swatch && swatch.Tag is string hex)
+                {
+                    bool isSelected = string.Equals(hex, _settings.ArrowColor, StringComparison.OrdinalIgnoreCase);
+                    swatch.BorderBrush = isSelected ? accentBrush : borderBrush;
+                    swatch.BorderThickness = isSelected ? new Thickness(2) : new Thickness(1);
+                }
             }
         }
     }
 
-    // ── Hex color input ────────────────────────────────────────────
+    // ── Custom color slots ─────────────────────────────────────────
 
-    private void HexColorInput_LostFocus(object sender, RoutedEventArgs e) => ApplyHexColorInput();
+    // ── Arrow Preview ──────────────────────────────────────────────
 
-    private void HexColorInput_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    private static readonly Rendering.ArrowRenderer _previewRenderer = new();
+
+    private void UpdateArrowPreview()
     {
-        if (e.Key == System.Windows.Input.Key.Enter) ApplyHexColorInput();
+        if (ArrowPreviewArea == null) return;
+        ArrowPreviewArea.Children.Clear();
+
+        double w = ArrowPreviewArea.ActualWidth > 0 ? ArrowPreviewArea.ActualWidth : 486;
+        double h = ArrowPreviewArea.ActualHeight > 0 ? ArrowPreviewArea.ActualHeight : 80;
+
+        var start = new System.Windows.Point(w * 0.3, h * 0.5);
+        var end = new System.Windows.Point(w * 0.7, h * 0.5);
+
+        var color = ParseHexColor(_settings.ArrowColor);
+        var leftEnd = _settings.ArrowheadStyle;
+        var rightEnd = _settings.ArrowEndStyle;
+        var lineStyle = _settings.ArrowLineStyle;
+
+        var shadow = _previewRenderer.BuildShadowPath(start, end, leftEnd, rightEnd, lineStyle);
+        if (shadow != null) { shadow.IsHitTestVisible = false; ArrowPreviewArea.Children.Add(shadow); }
+
+        var arrow = _previewRenderer.BuildArrowPath(start, end, color, leftEnd, rightEnd, lineStyle);
+        if (arrow != null) { arrow.IsHitTestVisible = false; ArrowPreviewArea.Children.Add(arrow); }
     }
 
-    private void ApplyHexColorInput()
+    private static System.Windows.Media.Color ParseHexColor(string hex)
     {
-        var text = HexColorInput.Text.Trim();
-        if (text.Length == 6 && IsValidHex(text))
+        try
         {
-            _settings.ArrowColor = text.ToUpperInvariant();
-            _settings.Save();
-            UpdateHsvPickerFromColor();
-            HighlightSelectedPreset();
-            UpdateHexDisplay();
+            if (hex.Length == 6)
+            {
+                byte r = Convert.ToByte(hex.Substring(0, 2), 16);
+                byte g = Convert.ToByte(hex.Substring(2, 2), 16);
+                byte b = Convert.ToByte(hex.Substring(4, 2), 16);
+                return System.Windows.Media.Color.FromRgb(r, g, b);
+            }
         }
-        else
+        catch { }
+        return System.Windows.Media.Colors.Red;
+    }
+
+    // ── Custom color slots ─────────────────────────────────────────
+
+    private const int MaxCustomColors = 10;
+    private readonly List<string> _customColors = new();
+
+    private void LoadCustomColors()
+    {
+        _customColors.Clear();
+        if (!string.IsNullOrEmpty(_settings.CustomColors))
         {
-            HexColorInput.Text = _settings.ArrowColor;
+            foreach (var hex in _settings.CustomColors.Split(',', StringSplitOptions.RemoveEmptyEntries))
+            {
+                if (hex.Length == 6 && _customColors.Count < MaxCustomColors)
+                    _customColors.Add(hex.Trim());
+            }
         }
     }
 
-    private static bool IsValidHex(string s)
+    private void SaveCustomColors()
     {
-        foreach (var c in s)
-        {
-            if (!((c >= '0' && c <= '9') || (c >= 'A' && c <= 'F') || (c >= 'a' && c <= 'f')))
-                return false;
-        }
-        return true;
-    }
-
-    private void UpdateHexDisplay()
-    {
-        HexColorInput.Text = _settings.ArrowColor;
-    }
-
-    // ── HSV Color Picker ───────────────────────────────────────────
-
-    private void SvContainer_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-    {
-        _isDraggingSv = true;
-        SvContainer.CaptureMouse();
-        UpdateSvFromMouse(e.GetPosition(SvContainer));
-    }
-
-    private void SvContainer_MouseMove(object sender, System.Windows.Input.MouseEventArgs e)
-    {
-        if (_isDraggingSv)
-            UpdateSvFromMouse(e.GetPosition(SvContainer));
-    }
-
-    private void SvContainer_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
-    {
-        _isDraggingSv = false;
-        SvContainer.ReleaseMouseCapture();
-    }
-
-    private void HueBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-    {
-        _isDraggingHue = true;
-        HueBarBorder.CaptureMouse();
-        UpdateHueFromMouse(e.GetPosition(HueBarBorder));
-    }
-
-    private void HueBar_MouseMove(object sender, System.Windows.Input.MouseEventArgs e)
-    {
-        if (_isDraggingHue)
-            UpdateHueFromMouse(e.GetPosition(HueBarBorder));
-    }
-
-    private void HueBar_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
-    {
-        _isDraggingHue = false;
-        HueBarBorder.ReleaseMouseCapture();
-    }
-
-    private void UpdateSvFromMouse(System.Windows.Point pos)
-    {
-        double w = SvContainer.ActualWidth;
-        double h = SvContainer.ActualHeight;
-        if (w <= 0 || h <= 0) return;
-
-        _currentSat = Math.Clamp(pos.X / w, 0, 1);
-        _currentVal = Math.Clamp(1.0 - pos.Y / h, 0, 1);
-        UpdateColorFromHsv();
-    }
-
-    private void UpdateHueFromMouse(System.Windows.Point pos)
-    {
-        double h = HueBarBorder.ActualHeight;
-        if (h <= 0) return;
-
-        _currentHue = Math.Clamp(pos.Y / h, 0, 1) * 360.0;
-        // Update the SV square's hue layer to reflect the new hue
-        var pureHue = HsvToRgb(_currentHue, 1, 1);
-        SvHueLayer.Background = new SolidColorBrush(pureHue);
-        UpdateColorFromHsv();
-    }
-
-    private void UpdateColorFromHsv()
-    {
-        var color = HsvToRgb(_currentHue, _currentSat, _currentVal);
-        _settings.ArrowColor = $"{color.R:X2}{color.G:X2}{color.B:X2}";
+        _settings.CustomColors = string.Join(",", _customColors);
         _settings.Save();
+    }
+
+    private void BuildCustomColorSlots()
+    {
+        CustomColorGrid.Children.Clear();
+        for (int i = 0; i < MaxCustomColors; i++)
+        {
+            string? hex = i < _customColors.Count ? _customColors[i] : null;
+            var swatch = new Border
+            {
+                Width = 28,
+                Height = 28,
+                CornerRadius = new CornerRadius(14),
+                Margin = new Thickness(2),
+                Background = hex != null
+                    ? new SolidColorBrush((Color)System.Windows.Media.ColorConverter.ConvertFromString("#" + hex))
+                    : System.Windows.Media.Brushes.Transparent,
+                BorderThickness = new Thickness(1),
+                BorderBrush = (SolidColorBrush)FindResource("CardBorder"),
+                Cursor = hex != null ? System.Windows.Input.Cursors.Hand : System.Windows.Input.Cursors.Arrow,
+                Tag = hex,
+            };
+            if (hex != null)
+                swatch.MouseLeftButtonDown += ColorSwatch_Click;
+            CustomColorGrid.Children.Add(swatch);
+        }
+    }
+
+    private void AddCustomColor(string hex)
+    {
+        _customColors.Remove(hex);
+        _customColors.Insert(0, hex);
+        if (_customColors.Count > MaxCustomColors)
+            _customColors.RemoveAt(MaxCustomColors);
+        SaveCustomColors();
+        BuildCustomColorSlots();
         HighlightSelectedPreset();
-        UpdateHsvIndicators();
-        UpdateHexDisplay();
     }
 
-    private void UpdateHsvPickerFromColor()
+    // ── Edit Colors dialog ─────────────────────────────────────────
+
+    private void EditColors_Click(object sender, RoutedEventArgs e)
     {
-        var color = (Color)System.Windows.Media.ColorConverter.ConvertFromString("#" + _settings.ArrowColor);
-        var (h, s, v) = RgbToHsv(color);
-        _currentHue = h;
-        _currentSat = s;
-        _currentVal = v;
-
-        // Update the SV square's hue layer
-        var pureHue = HsvToRgb(_currentHue, 1, 1);
-        SvHueLayer.Background = new SolidColorBrush(pureHue);
-        UpdateHsvIndicators();
-    }
-
-    private void UpdateHsvIndicators()
-    {
-        // Position crosshair on SV square
-        double svW = SvContainer.ActualWidth;
-        double svH = SvContainer.ActualHeight;
-        if (svW > 0 && svH > 0)
+        var dialog = new ColorPickerDialog(_settings.ArrowColor) { Owner = this };
+        if (dialog.ShowDialog() == true && dialog.SelectedHex != null)
         {
-            double cx = _currentSat * svW - 6;   // 6 = half of 12px ellipse
-            double cy = (1.0 - _currentVal) * svH - 6;
-            Canvas.SetLeft(SvCrosshair, cx);
-            Canvas.SetTop(SvCrosshair, cy);
-        }
-
-        // Position indicator on hue bar
-        double hueH = HueBarBorder.ActualHeight;
-        if (hueH > 0)
-        {
-            double hy = (_currentHue / 360.0) * hueH - 2; // 2 = half of 4px indicator
-            Canvas.SetTop(HueIndicator, hy);
+            _settings.ArrowColor = dialog.SelectedHex;
+            _settings.Save();
+            AddCustomColor(dialog.SelectedHex);
+            HighlightSelectedPreset();
+            UpdateArrowPreview();
         }
     }
 
-    // ── HSV ↔ RGB conversion ───────────────────────────────────────
+    // ── HSV ↔ RGB conversion (public static for dialog reuse) ─────
 
     public static Color HsvToRgb(double h, double s, double v)
     {

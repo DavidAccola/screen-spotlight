@@ -18,8 +18,11 @@ public class SettingsService
     private const bool DefaultCumulativeSpotlights = true;
     private const AnchorEdge DefaultToolbarAnchorEdge = AnchorEdge.Right;
     private const bool DefaultFlyoutToolbarVisible = true;
-    private const ArrowheadStyle DefaultArrowheadStyle = ArrowheadStyle.FilledTriangle;
-    private const string DefaultArrowColor = "FFFFFF";
+    private const ArrowheadStyle DefaultArrowheadStyle = ArrowheadStyle.None;
+    private const ArrowheadStyle DefaultArrowEndStyle = ArrowheadStyle.FilledTriangle;
+    private const ArrowLineStyle DefaultArrowLineStyle = ArrowLineStyle.Solid;
+    private const string DefaultArrowColor = "FF0000";
+    private const string DefaultCustomColors = "";
     private const string SettingsFileName = "Settings.json";
 
     private readonly string _settingsFilePath;
@@ -37,7 +40,10 @@ public class SettingsService
     public AnchorEdge ToolbarAnchorEdge { get; set; } = DefaultToolbarAnchorEdge;
     public bool FlyoutToolbarVisible { get; set; } = DefaultFlyoutToolbarVisible;
     public ArrowheadStyle ArrowheadStyle { get; set; } = DefaultArrowheadStyle;
+    public ArrowheadStyle ArrowEndStyle { get; set; } = DefaultArrowEndStyle;
+    public ArrowLineStyle ArrowLineStyle { get; set; } = DefaultArrowLineStyle;
     public string ArrowColor { get; set; } = DefaultArrowColor;
+    public string CustomColors { get; set; } = DefaultCustomColors;
 
     /// <summary>Fired after Save() so listeners can react to any setting change.</summary>
     public event EventHandler? SettingsChanged;
@@ -71,7 +77,10 @@ public class SettingsService
         ToolbarAnchorEdge = DefaultToolbarAnchorEdge;
         FlyoutToolbarVisible = DefaultFlyoutToolbarVisible;
         ArrowheadStyle = DefaultArrowheadStyle;
+        ArrowEndStyle = DefaultArrowEndStyle;
+        ArrowLineStyle = DefaultArrowLineStyle;
         ArrowColor = DefaultArrowColor;
+        CustomColors = DefaultCustomColors;
     }
 
     public void Load()
@@ -100,19 +109,22 @@ public class SettingsService
         ToolbarAnchorEdge = v.ToolbarAnchorEdge;
         FlyoutToolbarVisible = v.FlyoutToolbarVisible;
         ArrowheadStyle = v.ArrowheadStyle;
+        ArrowEndStyle = v.ArrowEndStyle;
+        ArrowLineStyle = v.ArrowLineStyle;
         ArrowColor = v.ArrowColor;
+        CustomColors = v.CustomColors;
     }
 
     public void Save()
     {
-        var json = Serialize(new AppSettings(OverlayOpacity, FeatherRadius, PreviewStyle, DragStyle, FreezeScreen, ActivationModifier, ActivationKey, ToggleModifier, ToggleKey, CumulativeSpotlights, ToolbarAnchorEdge, FlyoutToolbarVisible, ArrowheadStyle, ArrowColor));
+        var json = Serialize(new AppSettings(OverlayOpacity, FeatherRadius, PreviewStyle, DragStyle, FreezeScreen, ActivationModifier, ActivationKey, ToggleModifier, ToggleKey, CumulativeSpotlights, ToolbarAnchorEdge, FlyoutToolbarVisible, ArrowheadStyle, ArrowEndStyle, ArrowLineStyle, ArrowColor, CustomColors));
         File.WriteAllText(_settingsFilePath, json);
         SettingsChanged?.Invoke(this, EventArgs.Empty);
     }
 
     public static AppSettings Deserialize(string json) =>
         JsonSerializer.Deserialize<AppSettings>(json)
-        ?? new AppSettings(DefaultOverlayOpacity, DefaultFeatherRadius, DefaultPreviewStyle, DefaultDragStyle, DefaultFreezeScreen, DefaultActivationModifier, DefaultActivationKey, DefaultToggleModifier, DefaultToggleKey, DefaultCumulativeSpotlights, DefaultToolbarAnchorEdge, DefaultFlyoutToolbarVisible, DefaultArrowheadStyle, DefaultArrowColor);
+        ?? new AppSettings(DefaultOverlayOpacity, DefaultFeatherRadius, DefaultPreviewStyle, DefaultDragStyle, DefaultFreezeScreen, DefaultActivationModifier, DefaultActivationKey, DefaultToggleModifier, DefaultToggleKey, DefaultCumulativeSpotlights, DefaultToolbarAnchorEdge, DefaultFlyoutToolbarVisible, DefaultArrowheadStyle, DefaultArrowEndStyle, DefaultArrowLineStyle, DefaultArrowColor, DefaultCustomColors);
 
     public static string Serialize(AppSettings settings) =>
         JsonSerializer.Serialize(settings);
@@ -130,8 +142,10 @@ public class SettingsService
         var toggleKey = s.ToggleKey is >= 0x01 and <= 0xFE ? s.ToggleKey : DefaultToggleKey;
         var anchorEdge = Enum.IsDefined(s.ToolbarAnchorEdge) ? s.ToolbarAnchorEdge : DefaultToolbarAnchorEdge;
         var arrowheadStyle = Enum.IsDefined(s.ArrowheadStyle) ? s.ArrowheadStyle : DefaultArrowheadStyle;
+        var arrowEndStyle = Enum.IsDefined(s.ArrowEndStyle) ? s.ArrowEndStyle : DefaultArrowEndStyle;
+        var arrowLineStyle = Enum.IsDefined(s.ArrowLineStyle) ? s.ArrowLineStyle : DefaultArrowLineStyle;
         var arrowColor = IsValidHexColor(s.ArrowColor) ? s.ArrowColor.ToUpperInvariant() : DefaultArrowColor;
-        return new AppSettings(opacity, radius, preview, drag, s.FreezeScreen, modifier, activationKey, toggleMod, toggleKey, s.CumulativeSpotlights, anchorEdge, s.FlyoutToolbarVisible, arrowheadStyle, arrowColor);
+        return new AppSettings(opacity, radius, preview, drag, s.FreezeScreen, modifier, activationKey, toggleMod, toggleKey, s.CumulativeSpotlights, anchorEdge, s.FlyoutToolbarVisible, arrowheadStyle, arrowEndStyle, arrowLineStyle, arrowColor, s.CustomColors ?? DefaultCustomColors);
     }
 
     private static bool IsValidHexColor(string? color)

@@ -12,6 +12,7 @@ namespace SpotlightOverlay;
 
 public partial class App : Application
 {
+    private static Mutex? _singleInstanceMutex;
     private SettingsService _settings = null!;
     private SpotlightRenderer _renderer = null!;
     private readonly ArrowRenderer _arrowRenderer = new();
@@ -26,6 +27,14 @@ public partial class App : Application
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+
+        // Single-instance check — exit silently if another instance is already running
+        _singleInstanceMutex = new Mutex(true, "SpotlightOverlay_SingleInstance", out bool createdNew);
+        if (!createdNew)
+        {
+            Shutdown();
+            return;
+        }
 
         // Global exception handlers for debugging silent crashes
         AppDomain.CurrentDomain.UnhandledException += (s, args) =>
@@ -324,9 +333,11 @@ public partial class App : Application
                 var dipEnd = _overlayWindow.PointFromScreen(e.EndPoint);
 
                 var color = ParseArrowColor();
-                var style = _settings.ArrowheadStyle;
+                var leftEnd = _settings.ArrowheadStyle;
+                var rightEnd = _settings.ArrowEndStyle;
+                var lineStyle = _settings.ArrowLineStyle;
 
-                var previewPath = _arrowRenderer.BuildArrowPath(dipStart, dipEnd, color, style);
+                var previewPath = _arrowRenderer.BuildArrowPath(dipStart, dipEnd, color, leftEnd, rightEnd, lineStyle);
                 if (previewPath != null)
                     _overlayWindow.ShowArrowPreview(previewPath);
             }
@@ -355,15 +366,17 @@ public partial class App : Application
                 var dipEnd = _overlayWindow.PointFromScreen(e.EndPoint);
 
                 var color = ParseArrowColor();
-                var style = _settings.ArrowheadStyle;
+                var leftEnd = _settings.ArrowheadStyle;
+                var rightEnd = _settings.ArrowEndStyle;
+                var lineStyle = _settings.ArrowLineStyle;
 
                 // Add shadow path first (renders behind the main arrow)
-                var shadowPath = _arrowRenderer.BuildShadowPath(dipStart, dipEnd, style);
+                var shadowPath = _arrowRenderer.BuildShadowPath(dipStart, dipEnd, leftEnd, rightEnd, lineStyle);
                 if (shadowPath != null)
                     _overlayWindow.AddArrowVisual(shadowPath);
 
                 // Add main arrow path
-                var mainPath = _arrowRenderer.BuildArrowPath(dipStart, dipEnd, color, style);
+                var mainPath = _arrowRenderer.BuildArrowPath(dipStart, dipEnd, color, leftEnd, rightEnd, lineStyle);
                 if (mainPath != null)
                 {
                     _overlayWindow.AddArrowVisual(mainPath);

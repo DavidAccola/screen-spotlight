@@ -9,208 +9,198 @@ namespace SpotlightOverlay.Rendering;
 
 /// <summary>
 /// Stores arrow annotation data and builds WPF Path geometries for rendering.
-/// Each arrow is a line segment with an optional arrowhead at the end point,
-/// plus a dark shadow outline for visibility on any background.
+/// Supports independent left/right endpoint styles and line dash styles.
 /// </summary>
 public class ArrowRenderer
 {
-    // Geometry constants
     private const double LineStrokeWidth = 3.0;
-    private const double ArrowheadLength = 16.0;
-    private const double ArrowheadHalfAngleRad = 15.0 * Math.PI / 180.0; // 15° each side
+    private const double ArrowheadLength = 22.0;
+    private const double ArrowheadHalfAngleRad = 27.5 * Math.PI / 180.0;
     private const double ShadowOffset = 1.0;
     private const double MinDragDistance = 10.0;
 
     private static readonly Color ShadowColor = Color.FromArgb(0xCC, 0x00, 0x00, 0x00);
 
     private readonly List<(Point Start, Point End)> _arrows = new();
-
-    /// <summary>Number of stored arrows.</summary>
     public int ArrowCount => _arrows.Count;
-
-    /// <summary>Read-only view of all stored arrow start/end pairs.</summary>
     public IReadOnlyList<(Point Start, Point End)> Arrows => _arrows.AsReadOnly();
 
-    /// <summary>
-    /// Adds an arrow if the drag distance meets the minimum threshold (10 DIP).
-    /// </summary>
     public void AddArrow(Point start, Point end)
     {
-        if (GetDistance(start, end) < MinDragDistance)
-            return;
+        if (GetDistance(start, end) < MinDragDistance) return;
         _arrows.Add((start, end));
     }
 
-    /// <summary>Removes all stored arrows.</summary>
     public void ClearArrows() => _arrows.Clear();
 
-    /// <summary>
-    /// Computes the angle in radians from start to end (measured from positive X axis).
-    /// </summary>
-    public static double ComputeAngle(Point start, Point end)
+    public static double ComputeAngle(Point start, Point end) =>
+        Math.Atan2(end.Y - start.Y, end.X - start.X);
+
+    // ── Legacy single-style API (used by App.xaml.cs) ──────────────
+
+    public FrameworkElement? BuildArrowPath(Point start, Point end, Color color, ArrowheadStyle style) =>
+        BuildArrowPath(start, end, color, ArrowheadStyle.None, style, ArrowLineStyle.Solid);
+
+    public FrameworkElement? BuildShadowPath(Point start, Point end, ArrowheadStyle style) =>
+        BuildShadowPath(start, end, ArrowheadStyle.None, style, ArrowLineStyle.Solid);
+
+    // ── Full API with left/right ends and line style ───────────────
+
+    public FrameworkElement? BuildArrowPath(Point start, Point end, Color color,
+        ArrowheadStyle leftEnd, ArrowheadStyle rightEnd, ArrowLineStyle lineStyle)
     {
-        return Math.Atan2(end.Y - start.Y, end.X - start.X);
+        if (GetDistance(start, end) < MinDragDistance) return null;
+        return BuildPathForPoints(start, end, color, leftEnd, rightEnd, lineStyle);
     }
 
-    /// <summary>
-    /// Builds a WPF Path element for the arrow with the given color and arrowhead style.
-    /// The Path includes the line shaft and arrowhead geometry.
-    /// Returns null if the drag distance is below the minimum threshold (10 DIP).
-    /// </summary>
-    public Path? BuildArrowPath(Point start, Point end, Color color, ArrowheadStyle style)
+    public FrameworkElement? BuildShadowPath(Point start, Point end,
+        ArrowheadStyle leftEnd, ArrowheadStyle rightEnd, ArrowLineStyle lineStyle)
     {
-        if (GetDistance(start, end) < MinDragDistance)
-            return null;
-
-        return BuildPathForPoints(start, end, color, style);
+        if (GetDistance(start, end) < MinDragDistance) return null;
+        var s = new Point(start.X + ShadowOffset, start.Y + ShadowOffset);
+        var e = new Point(end.X + ShadowOffset, end.Y + ShadowOffset);
+        return BuildPathForPoints(s, e, ShadowColor, leftEnd, rightEnd, lineStyle);
     }
 
-    /// <summary>
-    /// Builds a shadow Path for the arrow (1 DIP offset, #CC000000).
-    /// Returns null if the drag distance is below the minimum threshold.
-    /// </summary>
-    public Path? BuildShadowPath(Point start, Point end, ArrowheadStyle style)
-    {
-        if (GetDistance(start, end) < MinDragDistance)
-            return null;
-
-        var shadowStart = new Point(start.X + ShadowOffset, start.Y + ShadowOffset);
-        var shadowEnd = new Point(end.X + ShadowOffset, end.Y + ShadowOffset);
-        return BuildPathForPoints(shadowStart, shadowEnd, ShadowColor, style);
-    }
-
-    private Path BuildPathForPoints(Point start, Point end, Color color, ArrowheadStyle style)
+    private static FrameworkElement BuildPathForPoints(Point start, Point end, Color color,
+        ArrowheadStyle leftEnd, ArrowheadStyle rightEnd, ArrowLineStyle lineStyle)
     {
         double angle = ComputeAngle(start, end);
         var brush = new SolidColorBrush(color);
 
-        // Build line geometry (shaft)
-        var lineGeometry = new LineGeometry(start, end);
-
-        // Build arrowhead geometry
-        var arrowheadGeometry = BuildArrowheadGeometry(end, angle, style);
-
-        // Combine into geometry group
-        var geometryGroup = new GeometryGroup();
-        geometryGroup.Children.Add(lineGeometry);
-        if (arrowheadGeometry != null && !arrowheadGeometry.IsEmpty())
+        // Shaft line (dashed/dotted applies here only)
+        var shaftPath = new Path
         {
-            geometryGroup.Children.Add(arrowheadGeometry);
-        }
-
-        var path = new Path
-        {
-            Data = geometryGroup,
+            Data = new LineGeometry(start, end),
             Stroke = brush,
             StrokeThickness = LineStrokeWidth,
-            StrokeLineJoin = PenLineJoin.Round,
             StrokeStartLineCap = PenLineCap.Round,
             StrokeEndLineCap = PenLineCap.Round,
         };
+        if (lineStyle == ArrowLineStyle.Dashed)
+            shaftPath.StrokeDashArray = new DoubleCollection { 4, 3 };
+        else if (lineStyle == ArrowLineStyle.Dotted)
+            shaftPath.StrokeDashArray = new DoubleCollection { 1, 2 };
 
-        // FilledTriangle: fill the arrowhead with solid color
-        // (Fill on GeometryGroup only affects closed figures — the LineGeometry has no interior)
-        if (style == ArrowheadStyle.FilledTriangle)
+        // Arrowhead geometries (always solid stroke, no dash)
+        var headGroup = new GeometryGroup();
+        bool needsFill = false;
+
+        var leftGeom = BuildArrowheadGeometry(start, angle + Math.PI, leftEnd);
+        if (leftGeom != null && !leftGeom.IsEmpty())
         {
-            path.Fill = brush;
+            headGroup.Children.Add(leftGeom);
+            if (NeedsFill(leftEnd)) needsFill = true;
         }
 
-        return path;
+        var rightGeom = BuildArrowheadGeometry(end, angle, rightEnd);
+        if (rightGeom != null && !rightGeom.IsEmpty())
+        {
+            headGroup.Children.Add(rightGeom);
+            if (NeedsFill(rightEnd)) needsFill = true;
+        }
+
+        // If no arrowheads, just return the shaft
+        if (headGroup.Children.Count == 0)
+            return shaftPath;
+
+        // Combine shaft + arrowheads in a Canvas
+        var canvas = new System.Windows.Controls.Canvas { IsHitTestVisible = false };
+        shaftPath.IsHitTestVisible = false;
+        canvas.Children.Add(shaftPath);
+
+        var headPath = new Path
+        {
+            Data = headGroup,
+            Stroke = brush,
+            StrokeThickness = LineStrokeWidth,
+            StrokeLineJoin = PenLineJoin.Bevel,
+            IsHitTestVisible = false,
+        };
+        if (needsFill) headPath.Fill = brush;
+        canvas.Children.Add(headPath);
+
+        return canvas;
     }
 
-    /// <summary>
-    /// Builds the arrowhead geometry at the given tip point.
-    /// The angle is the shaft direction in radians (from start toward end).
-    /// Returns null for ArrowheadStyle.None.
-    /// </summary>
+    private static bool NeedsFill(ArrowheadStyle style) =>
+        style is ArrowheadStyle.FilledTriangle or ArrowheadStyle.Barbed or ArrowheadStyle.DotEnd;
+
     public static PathGeometry? BuildArrowheadGeometry(Point tip, double angle, ArrowheadStyle style)
     {
-        switch (style)
+        return style switch
         {
-            case ArrowheadStyle.FilledTriangle:
-            case ArrowheadStyle.OpenTriangle:
-                return BuildTriangleArrowhead(tip, angle);
-
-            case ArrowheadStyle.SimpleLines:
-                return BuildChevronArrowhead(tip, angle);
-
-            case ArrowheadStyle.None:
-            default:
-                return null;
-        }
+            ArrowheadStyle.FilledTriangle => BuildTriangleArrowhead(tip, angle),
+            ArrowheadStyle.OpenArrowhead => BuildChevronArrowhead(tip, angle),
+            ArrowheadStyle.Barbed => BuildBarbedArrowhead(tip, angle),
+            ArrowheadStyle.DotEnd => BuildDotEndGeometry(tip),
+            _ => null,
+        };
     }
 
-    /// <summary>
-    /// Builds a triangular arrowhead (closed polygon) at the tip.
-    /// Used for both FilledTriangle (caller sets Fill) and OpenTriangle (stroke only).
-    /// </summary>
     private static PathGeometry BuildTriangleArrowhead(Point tip, double angle)
     {
-        // Two base points of the triangle, offset back from the tip
-        double backAngle = angle + Math.PI; // reverse direction
-        var left = new Point(
-            tip.X + ArrowheadLength * Math.Cos(backAngle + ArrowheadHalfAngleRad),
-            tip.Y + ArrowheadLength * Math.Sin(backAngle + ArrowheadHalfAngleRad));
-        var right = new Point(
-            tip.X + ArrowheadLength * Math.Cos(backAngle - ArrowheadHalfAngleRad),
-            tip.Y + ArrowheadLength * Math.Sin(backAngle - ArrowheadHalfAngleRad));
-
-        var figure = new PathFigure
-        {
-            StartPoint = tip,
-            IsClosed = true,
-            IsFilled = true,
-        };
-        figure.Segments.Add(new LineSegment(left, true));
-        figure.Segments.Add(new LineSegment(right, true));
-
-        var geometry = new PathGeometry();
-        geometry.Figures.Add(figure);
-        return geometry;
+        double back = angle + Math.PI;
+        var left = new Point(tip.X + ArrowheadLength * Math.Cos(back + ArrowheadHalfAngleRad),
+                             tip.Y + ArrowheadLength * Math.Sin(back + ArrowheadHalfAngleRad));
+        var right = new Point(tip.X + ArrowheadLength * Math.Cos(back - ArrowheadHalfAngleRad),
+                              tip.Y + ArrowheadLength * Math.Sin(back - ArrowheadHalfAngleRad));
+        var fig = new PathFigure { StartPoint = tip, IsClosed = true, IsFilled = true };
+        fig.Segments.Add(new LineSegment(left, true));
+        fig.Segments.Add(new LineSegment(right, true));
+        var g = new PathGeometry(); g.Figures.Add(fig); return g;
     }
 
-    /// <summary>
-    /// Builds a chevron (>) arrowhead — two line segments from the tip backward.
-    /// Not closed, not filled.
-    /// </summary>
     private static PathGeometry BuildChevronArrowhead(Point tip, double angle)
     {
-        double backAngle = angle + Math.PI;
-        var left = new Point(
-            tip.X + ArrowheadLength * Math.Cos(backAngle + ArrowheadHalfAngleRad),
-            tip.Y + ArrowheadLength * Math.Sin(backAngle + ArrowheadHalfAngleRad));
-        var right = new Point(
-            tip.X + ArrowheadLength * Math.Cos(backAngle - ArrowheadHalfAngleRad),
-            tip.Y + ArrowheadLength * Math.Sin(backAngle - ArrowheadHalfAngleRad));
+        double back = angle + Math.PI;
+        var left = new Point(tip.X + ArrowheadLength * Math.Cos(back + ArrowheadHalfAngleRad),
+                             tip.Y + ArrowheadLength * Math.Sin(back + ArrowheadHalfAngleRad));
+        var right = new Point(tip.X + ArrowheadLength * Math.Cos(back - ArrowheadHalfAngleRad),
+                              tip.Y + ArrowheadLength * Math.Sin(back - ArrowheadHalfAngleRad));
+        var arm1 = new PathFigure { StartPoint = left, IsClosed = false, IsFilled = false };
+        arm1.Segments.Add(new LineSegment(tip, true));
+        var arm2 = new PathFigure { StartPoint = tip, IsClosed = false, IsFilled = false };
+        arm2.Segments.Add(new LineSegment(right, true));
+        var g = new PathGeometry(); g.Figures.Add(arm1); g.Figures.Add(arm2); return g;
+    }
 
-        // Left arm: from left point to tip
-        var leftArm = new PathFigure
-        {
-            StartPoint = left,
-            IsClosed = false,
-            IsFilled = false,
-        };
-        leftArm.Segments.Add(new LineSegment(tip, true));
+    private static PathGeometry BuildBarbedArrowhead(Point tip, double angle)
+    {
+        double barbLength = ArrowheadLength;
+        double barbHalfAngle = 30.0 * Math.PI / 180.0; // 60° tip angle
+        double back = angle + Math.PI;
+        
+        var left = new Point(tip.X + barbLength * Math.Cos(back + barbHalfAngle),
+                             tip.Y + barbLength * Math.Sin(back + barbHalfAngle));
+        var right = new Point(tip.X + barbLength * Math.Cos(back - barbHalfAngle),
+                              tip.Y + barbLength * Math.Sin(back - barbHalfAngle));
+        
+        double notchDepth = barbLength * 0.5; // equilateral: notch at midpoint
+        var notch = new Point(tip.X + notchDepth * Math.Cos(back),
+                              tip.Y + notchDepth * Math.Sin(back));
+        
+        var fig = new PathFigure { StartPoint = tip, IsClosed = true, IsFilled = true };
+        fig.Segments.Add(new LineSegment(left, true));
+        fig.Segments.Add(new LineSegment(notch, true));
+        fig.Segments.Add(new LineSegment(right, true));
+        var g = new PathGeometry(); g.Figures.Add(fig); return g;
+    }
 
-        // Right arm: from tip to right point
-        var rightArm = new PathFigure
-        {
-            StartPoint = tip,
-            IsClosed = false,
-            IsFilled = false,
-        };
-        rightArm.Segments.Add(new LineSegment(right, true));
-
-        var geometry = new PathGeometry();
-        geometry.Figures.Add(leftArm);
-        geometry.Figures.Add(rightArm);
-        return geometry;
+    private static PathGeometry BuildDotEndGeometry(Point center)
+    {
+        const double radius = 5.0;
+        var fig = new PathFigure { StartPoint = new Point(center.X - radius, center.Y), IsClosed = true, IsFilled = true };
+        fig.Segments.Add(new ArcSegment(new Point(center.X + radius, center.Y),
+            new System.Windows.Size(radius, radius), 0, true, SweepDirection.Clockwise, true));
+        fig.Segments.Add(new ArcSegment(new Point(center.X - radius, center.Y),
+            new System.Windows.Size(radius, radius), 0, true, SweepDirection.Clockwise, true));
+        var g = new PathGeometry(); g.Figures.Add(fig); return g;
     }
 
     private static double GetDistance(Point a, Point b)
     {
-        double dx = b.X - a.X;
-        double dy = b.Y - a.Y;
+        double dx = b.X - a.X; double dy = b.Y - a.Y;
         return Math.Sqrt(dx * dx + dy * dy);
     }
 }

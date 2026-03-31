@@ -375,27 +375,26 @@ public partial class OverlayWindow : Window
 
     #region Arrow Rendering
 
-    private System.Windows.Shapes.Path? _arrowPreview;
+    private FrameworkElement? _arrowPreview;
 
     /// <summary>
-    /// Adds a finalized arrow Path to the ArrowCanvas.
-    /// The Path persists across spotlight updates since it lives on a separate canvas layer.
+    /// Adds a finalized arrow element to the ArrowCanvas.
     /// </summary>
-    public void AddArrowVisual(System.Windows.Shapes.Path path)
+    public void AddArrowVisual(FrameworkElement element)
     {
-        path.IsHitTestVisible = false;
-        ArrowCanvas.Children.Add(path);
+        element.IsHitTestVisible = false;
+        ArrowCanvas.Children.Add(element);
     }
 
     /// <summary>
     /// Shows a live preview arrow on the ArrowCanvas.
     /// Removes any previous preview first, then adds the new one.
     /// </summary>
-    public void ShowArrowPreview(System.Windows.Shapes.Path path)
+    public void ShowArrowPreview(FrameworkElement element)
     {
         HideArrowPreview();
-        path.IsHitTestVisible = false;
-        _arrowPreview = path;
+        element.IsHitTestVisible = false;
+        _arrowPreview = element;
         ArrowCanvas.Children.Add(_arrowPreview);
     }
 

@@ -16,8 +16,11 @@ public record AppSettings(
     bool CumulativeSpotlights = true,
     AnchorEdge ToolbarAnchorEdge = AnchorEdge.Right,
     bool FlyoutToolbarVisible = true,
-    ArrowheadStyle ArrowheadStyle = ArrowheadStyle.FilledTriangle,
-    string ArrowColor = "FFFFFF");
+    ArrowheadStyle ArrowheadStyle = ArrowheadStyle.None,
+    ArrowheadStyle ArrowEndStyle = ArrowheadStyle.FilledTriangle,
+    ArrowLineStyle ArrowLineStyle = ArrowLineStyle.Solid,
+    string ArrowColor = "FF0000",
+    string CustomColors = "");
 
 public enum PreviewStyle
 {
