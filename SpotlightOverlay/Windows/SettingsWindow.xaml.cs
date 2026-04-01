@@ -99,6 +99,9 @@ public partial class SettingsWindow : Window
         BuildColorPresetSwatches();
         LoadCustomColors();
         BuildCustomColorSlots();
+        InitSizeControls();
+        SyncStyleCheck_Init();
+        SyncSizeCheck_Init();
         UpdateHotkeyDisplay();
         UpdateToggleHotkeyDisplay();
         UpdateDragStyleLabels();
@@ -153,7 +156,6 @@ public partial class SettingsWindow : Window
         PreviewArea.Children.Clear();
         DrawFeatheredOverlay(CutoutFinal);
         DrawStyleIndicators(CutoutFinal);
-        DrawDragStyleLabel();
     }
 
     private void StyleAnimTick(object? sender, EventArgs e)
@@ -180,13 +182,11 @@ public partial class SettingsWindow : Window
             });
 
             DrawStyleIndicators(growing);
-            DrawDragStyleLabel();
         }
         else if (_animFrame <= DragFrames + HoldFrames)
         {
             DrawFeatheredOverlay(CutoutFinal);
             DrawStyleIndicators(CutoutFinal);
-            DrawDragStyleLabel();
         }
         else
         {
@@ -624,9 +624,15 @@ public partial class SettingsWindow : Window
         double w = 50, h = 20;
         var pen = new System.Windows.Media.Pen(System.Windows.Media.Brushes.White, 2);
         if (style == ArrowLineStyle.Dashed)
-            pen.DashStyle = new DashStyle(new double[] { 4, 3 }, 0);
+        {
+            pen.DashStyle = new DashStyle(new double[] { 5, 3 }, 0);
+            pen.DashCap = PenLineCap.Flat;
+        }
         else if (style == ArrowLineStyle.Dotted)
-            pen.DashStyle = new DashStyle(new double[] { 1, 2 }, 0);
+        {
+            pen.DashStyle = new DashStyle(new double[] { 1, 1.5 }, 0);
+            pen.DashCap = PenLineCap.Flat;
+        }
 
         var drawingGroup = new DrawingGroup();
         drawingGroup.Children.Add(new GeometryDrawing(
@@ -648,8 +654,183 @@ public partial class SettingsWindow : Window
         if (LineStyleCombo.Tag is ArrowLineStyle[] lineStyles && LineStyleCombo.SelectedIndex >= 0)
             _settings.ArrowLineStyle = lineStyles[LineStyleCombo.SelectedIndex];
 
+        // Sync end styles if enabled
+        if (_settings.SyncArrowEndStyle && (sender == LeftEndCombo || sender == RightEndCombo))
+        {
+            _isInitializing = true;
+            if (sender == LeftEndCombo)
+            {
+                _settings.ArrowEndStyle = _settings.ArrowheadStyle;
+                if (RightEndCombo.Tag is ArrowheadStyle[] rs)
+                    RightEndCombo.SelectedIndex = Array.IndexOf(rs, _settings.ArrowEndStyle);
+            }
+            else
+            {
+                _settings.ArrowheadStyle = _settings.ArrowEndStyle;
+                if (LeftEndCombo.Tag is ArrowheadStyle[] ls)
+                    LeftEndCombo.SelectedIndex = Array.IndexOf(ls, _settings.ArrowheadStyle);
+            }
+            _isInitializing = false;
+        }
+
         _settings.Save();
+        HighlightSizeToggle();
+        UpdateSyncStyleCheckEnabled();
+        UpdateSyncSizeCheckEnabled();
         UpdateArrowPreview();
+    }
+
+    // ── Size controls ──────────────────────────────────────────────
+
+    private enum SizeTarget { LeftEnd, Line, RightEnd }
+    private SizeTarget _currentSizeTarget = SizeTarget.RightEnd;
+
+    private void InitSizeControls()
+    {
+        // Set visual content for toggle buttons
+        SizeLeftContent.Content = new System.Windows.Controls.Image
+        {
+            Source = BuildEndDrawingImage(ArrowheadStyle.FilledTriangle, true),
+            Stretch = Stretch.Uniform, Height = 20
+        };
+        SizeLineContent.Content = new System.Windows.Controls.Image
+        {
+            Source = BuildLineStyleDrawingImage(ArrowLineStyle.Solid),
+            Stretch = Stretch.Uniform, Height = 20
+        };
+        SizeRightContent.Content = new System.Windows.Controls.Image
+        {
+            Source = BuildEndDrawingImage(ArrowheadStyle.FilledTriangle, false),
+            Stretch = Stretch.Uniform, Height = 20
+        };
+        _currentSizeTarget = SizeTarget.RightEnd;
+        HighlightSizeToggle();
+        UpdateSizeSlider();
+    }
+
+    private void SizeToggle_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        if (sender is Border btn && btn.Tag is string tag && btn.IsEnabled)
+        {
+            _currentSizeTarget = tag switch
+            {
+                "Left" => SizeTarget.LeftEnd,
+                "Line" => SizeTarget.Line,
+                _ => SizeTarget.RightEnd,
+            };
+            HighlightSizeToggle();
+            UpdateSizeSlider();
+        }
+    }
+
+    private void HighlightSizeToggle()
+    {
+        var accent = (SolidColorBrush)FindResource("Accent");
+        var normal = (SolidColorBrush)FindResource("ControlBg");
+        var borderNormal = (SolidColorBrush)FindResource("CardBorder");
+        var disabled = new SolidColorBrush(Color.FromArgb(0x40, 0x38, 0x38, 0x38));
+
+        bool leftEnabled = _settings.ArrowheadStyle != ArrowheadStyle.None;
+        bool rightEnabled = _settings.ArrowEndStyle != ArrowheadStyle.None;
+
+        // If selected target is disabled, fall back to Line
+        if (!leftEnabled && _currentSizeTarget == SizeTarget.LeftEnd)
+        { _currentSizeTarget = SizeTarget.Line; UpdateSizeSlider(); }
+        if (!rightEnabled && _currentSizeTarget == SizeTarget.RightEnd)
+        { _currentSizeTarget = SizeTarget.Line; UpdateSizeSlider(); }
+
+        SizeLeftBtn.IsEnabled = leftEnabled;
+        SizeLeftBtn.Opacity = leftEnabled ? 1.0 : 0.2;
+        SizeLeftBtn.Cursor = leftEnabled ? System.Windows.Input.Cursors.Hand : System.Windows.Input.Cursors.Arrow;
+        SizeRightBtn.IsEnabled = rightEnabled;
+        SizeRightBtn.Opacity = rightEnabled ? 1.0 : 0.2;
+        SizeRightBtn.Cursor = rightEnabled ? System.Windows.Input.Cursors.Hand : System.Windows.Input.Cursors.Arrow;
+
+        SizeLeftBtn.Background = (_currentSizeTarget == SizeTarget.LeftEnd && leftEnabled) ? accent : normal;
+        SizeLeftBtn.BorderBrush = (_currentSizeTarget == SizeTarget.LeftEnd && leftEnabled) ? accent : borderNormal;
+        SizeLineBtn.Background = _currentSizeTarget == SizeTarget.Line ? accent : normal;
+        SizeLineBtn.BorderBrush = _currentSizeTarget == SizeTarget.Line ? accent : borderNormal;
+        SizeRightBtn.Background = (_currentSizeTarget == SizeTarget.RightEnd && rightEnabled) ? accent : normal;
+        SizeRightBtn.BorderBrush = (_currentSizeTarget == SizeTarget.RightEnd && rightEnabled) ? accent : borderNormal;
+    }
+
+    private void SizeRadio_Checked(object sender, RoutedEventArgs e) { }
+
+    private void UpdateSizeSlider()
+    {
+        if (SizeSlider == null) return;
+        _isInitializing = true;
+        switch (_currentSizeTarget)
+        {
+            case SizeTarget.LeftEnd:
+                SizeSlider.Minimum = 8; SizeSlider.Maximum = 60;
+                SizeSlider.Value = _settings.ArrowLeftEndSize;
+                break;
+            case SizeTarget.Line:
+                SizeSlider.Minimum = 1; SizeSlider.Maximum = 12;
+                SizeSlider.Value = _settings.ArrowLineThickness;
+                break;
+            case SizeTarget.RightEnd:
+                SizeSlider.Minimum = 8; SizeSlider.Maximum = 60;
+                SizeSlider.Value = _settings.ArrowRightEndSize;
+                break;
+        }
+        if (SizeTextBox != null)
+            SizeTextBox.Text = ((int)SizeSlider.Value).ToString();
+        _isInitializing = false;
+    }
+
+    private void SizeSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (_isInitializing || !IsLoaded) return;
+        switch (_currentSizeTarget)
+        {
+            case SizeTarget.LeftEnd:
+                _settings.ArrowLeftEndSize = e.NewValue;
+                if (_settings.SyncArrowEndSize) _settings.ArrowRightEndSize = e.NewValue;
+                break;
+            case SizeTarget.Line:
+                _settings.ArrowLineThickness = e.NewValue;
+                break;
+            case SizeTarget.RightEnd:
+                _settings.ArrowRightEndSize = e.NewValue;
+                if (_settings.SyncArrowEndSize) _settings.ArrowLeftEndSize = e.NewValue;
+                break;
+        }
+        _settings.Save();
+        if (SizeTextBox != null)
+            SizeTextBox.Text = ((int)e.NewValue).ToString();
+        UpdateArrowPreview();
+    }
+
+    private void SizeTextBox_LostFocus(object sender, RoutedEventArgs e) => ApplySizeFromTextBox();
+    private void SizeTextBox_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (e.Key == System.Windows.Input.Key.Enter) ApplySizeFromTextBox();
+    }
+
+    private void ApplySizeFromTextBox()
+    {
+        if (int.TryParse(SizeTextBox.Text, out int val))
+        {
+            val = (int)Math.Clamp(val, SizeSlider.Minimum, SizeSlider.Maximum);
+            _isInitializing = true;
+            SizeSlider.Value = val;
+            _isInitializing = false;
+            switch (_currentSizeTarget)
+            {
+                case SizeTarget.LeftEnd: _settings.ArrowLeftEndSize = val; break;
+                case SizeTarget.Line: _settings.ArrowLineThickness = val; break;
+                case SizeTarget.RightEnd: _settings.ArrowRightEndSize = val; break;
+            }
+            _settings.Save();
+            SizeTextBox.Text = val.ToString();
+            UpdateArrowPreview();
+        }
+        else
+        {
+            SizeTextBox.Text = ((int)SizeSlider.Value).ToString();
+        }
     }
 
     private bool _isRecordingHotkey;
@@ -1085,6 +1266,53 @@ public partial class SettingsWindow : Window
 
     // ── Custom color slots ─────────────────────────────────────────
 
+    // ── Sync toggles ──────────────────────────────────────────────
+
+    private void SyncStyleCheck_Init()
+    {
+        SyncStyleCheck.IsChecked = _settings.SyncArrowEndStyle;
+        UpdateSyncStyleCheckEnabled();
+    }
+
+    private void SyncSizeCheck_Init()
+    {
+        SyncSizeCheck.IsChecked = _settings.SyncArrowEndSize;
+        UpdateSyncSizeCheckEnabled();
+    }
+
+    private void SyncStyleCheck_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_isInitializing || !IsLoaded) return;
+        _settings.SyncArrowEndStyle = SyncStyleCheck.IsChecked == true;
+        _settings.Save();
+    }
+
+    private void SyncSizeCheck_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_isInitializing || !IsLoaded) return;
+        _settings.SyncArrowEndSize = SyncSizeCheck.IsChecked == true;
+        _settings.Save();
+    }
+
+    private void UpdateSyncStyleCheckEnabled()
+    {
+        bool hasTwoEnds = _settings.ArrowheadStyle != ArrowheadStyle.None && _settings.ArrowEndStyle != ArrowheadStyle.None;
+        SyncStyleCheck.IsEnabled = hasTwoEnds;
+        SyncStyleCheck.Opacity = hasTwoEnds ? 1.0 : 0.4;
+    }
+
+    private void UpdateSyncSizeCheckEnabled()
+    {
+        bool hasTwoEnds = _settings.ArrowheadStyle != ArrowheadStyle.None && _settings.ArrowEndStyle != ArrowheadStyle.None;
+        SyncSizeCheck.IsEnabled = hasTwoEnds;
+        SyncSizeCheck.Opacity = hasTwoEnds ? 1.0 : 0.4;
+    }
+
+    // Keep old handlers as no-ops for compatibility
+    private void SyncCheck_Changed(object sender, RoutedEventArgs e) { }
+    private void SyncStyleBtn_Click(object sender, System.Windows.Input.MouseButtonEventArgs e) { }
+    private void SyncSizeBtn_Click(object sender, System.Windows.Input.MouseButtonEventArgs e) { }
+
     // ── Arrow Preview ──────────────────────────────────────────────
 
     private static readonly Rendering.ArrowRenderer _previewRenderer = new();
@@ -1105,10 +1333,12 @@ public partial class SettingsWindow : Window
         var rightEnd = _settings.ArrowEndStyle;
         var lineStyle = _settings.ArrowLineStyle;
 
-        var shadow = _previewRenderer.BuildShadowPath(start, end, leftEnd, rightEnd, lineStyle);
+        var shadow = _previewRenderer.BuildShadowPath(start, end, leftEnd, rightEnd, lineStyle,
+            _settings.ArrowLeftEndSize, _settings.ArrowLineThickness, _settings.ArrowRightEndSize);
         if (shadow != null) { shadow.IsHitTestVisible = false; ArrowPreviewArea.Children.Add(shadow); }
 
-        var arrow = _previewRenderer.BuildArrowPath(start, end, color, leftEnd, rightEnd, lineStyle);
+        var arrow = _previewRenderer.BuildArrowPath(start, end, color, leftEnd, rightEnd, lineStyle,
+            _settings.ArrowLeftEndSize, _settings.ArrowLineThickness, _settings.ArrowRightEndSize);
         if (arrow != null) { arrow.IsHitTestVisible = false; ArrowPreviewArea.Children.Add(arrow); }
     }
 

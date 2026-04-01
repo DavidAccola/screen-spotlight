@@ -22,6 +22,11 @@ public class SettingsService
     private const ArrowheadStyle DefaultArrowEndStyle = ArrowheadStyle.FilledTriangle;
     private const ArrowLineStyle DefaultArrowLineStyle = ArrowLineStyle.Solid;
     private const string DefaultArrowColor = "FF0000";
+    private const double DefaultArrowLeftEndSize = 16.0;
+    private const double DefaultArrowLineThickness = 3.0;
+    private const double DefaultArrowRightEndSize = 16.0;
+    private const bool DefaultSyncArrowEndStyle = true;
+    private const bool DefaultSyncArrowEndSize = true;
     private const string DefaultCustomColors = "";
     private const string SettingsFileName = "Settings.json";
 
@@ -43,6 +48,11 @@ public class SettingsService
     public ArrowheadStyle ArrowEndStyle { get; set; } = DefaultArrowEndStyle;
     public ArrowLineStyle ArrowLineStyle { get; set; } = DefaultArrowLineStyle;
     public string ArrowColor { get; set; } = DefaultArrowColor;
+    public double ArrowLeftEndSize { get; set; } = DefaultArrowLeftEndSize;
+    public double ArrowLineThickness { get; set; } = DefaultArrowLineThickness;
+    public double ArrowRightEndSize { get; set; } = DefaultArrowRightEndSize;
+    public bool SyncArrowEndStyle { get; set; } = DefaultSyncArrowEndStyle;
+    public bool SyncArrowEndSize { get; set; } = DefaultSyncArrowEndSize;
     public string CustomColors { get; set; } = DefaultCustomColors;
 
     /// <summary>Fired after Save() so listeners can react to any setting change.</summary>
@@ -80,6 +90,11 @@ public class SettingsService
         ArrowEndStyle = DefaultArrowEndStyle;
         ArrowLineStyle = DefaultArrowLineStyle;
         ArrowColor = DefaultArrowColor;
+        ArrowLeftEndSize = DefaultArrowLeftEndSize;
+        ArrowLineThickness = DefaultArrowLineThickness;
+        ArrowRightEndSize = DefaultArrowRightEndSize;
+        SyncArrowEndStyle = DefaultSyncArrowEndStyle;
+        SyncArrowEndSize = DefaultSyncArrowEndSize;
         CustomColors = DefaultCustomColors;
     }
 
@@ -112,19 +127,24 @@ public class SettingsService
         ArrowEndStyle = v.ArrowEndStyle;
         ArrowLineStyle = v.ArrowLineStyle;
         ArrowColor = v.ArrowColor;
+        ArrowLeftEndSize = v.ArrowLeftEndSize;
+        ArrowLineThickness = v.ArrowLineThickness;
+        ArrowRightEndSize = v.ArrowRightEndSize;
+        SyncArrowEndStyle = v.SyncArrowEndStyle;
+        SyncArrowEndSize = v.SyncArrowEndSize;
         CustomColors = v.CustomColors;
     }
 
     public void Save()
     {
-        var json = Serialize(new AppSettings(OverlayOpacity, FeatherRadius, PreviewStyle, DragStyle, FreezeScreen, ActivationModifier, ActivationKey, ToggleModifier, ToggleKey, CumulativeSpotlights, ToolbarAnchorEdge, FlyoutToolbarVisible, ArrowheadStyle, ArrowEndStyle, ArrowLineStyle, ArrowColor, CustomColors));
+        var json = Serialize(new AppSettings(OverlayOpacity, FeatherRadius, PreviewStyle, DragStyle, FreezeScreen, ActivationModifier, ActivationKey, ToggleModifier, ToggleKey, CumulativeSpotlights, ToolbarAnchorEdge, FlyoutToolbarVisible, ArrowheadStyle, ArrowEndStyle, ArrowLineStyle, ArrowColor, ArrowLeftEndSize, ArrowLineThickness, ArrowRightEndSize, SyncArrowEndStyle, SyncArrowEndSize, CustomColors));
         File.WriteAllText(_settingsFilePath, json);
         SettingsChanged?.Invoke(this, EventArgs.Empty);
     }
 
     public static AppSettings Deserialize(string json) =>
         JsonSerializer.Deserialize<AppSettings>(json)
-        ?? new AppSettings(DefaultOverlayOpacity, DefaultFeatherRadius, DefaultPreviewStyle, DefaultDragStyle, DefaultFreezeScreen, DefaultActivationModifier, DefaultActivationKey, DefaultToggleModifier, DefaultToggleKey, DefaultCumulativeSpotlights, DefaultToolbarAnchorEdge, DefaultFlyoutToolbarVisible, DefaultArrowheadStyle, DefaultArrowEndStyle, DefaultArrowLineStyle, DefaultArrowColor, DefaultCustomColors);
+        ?? new AppSettings(DefaultOverlayOpacity, DefaultFeatherRadius, DefaultPreviewStyle, DefaultDragStyle, DefaultFreezeScreen, DefaultActivationModifier, DefaultActivationKey, DefaultToggleModifier, DefaultToggleKey, DefaultCumulativeSpotlights, DefaultToolbarAnchorEdge, DefaultFlyoutToolbarVisible, DefaultArrowheadStyle, DefaultArrowEndStyle, DefaultArrowLineStyle, DefaultArrowColor, DefaultArrowLeftEndSize, DefaultArrowLineThickness, DefaultArrowRightEndSize, DefaultSyncArrowEndStyle, DefaultSyncArrowEndSize, DefaultCustomColors);
 
     public static string Serialize(AppSettings settings) =>
         JsonSerializer.Serialize(settings);
@@ -145,7 +165,10 @@ public class SettingsService
         var arrowEndStyle = Enum.IsDefined(s.ArrowEndStyle) ? s.ArrowEndStyle : DefaultArrowEndStyle;
         var arrowLineStyle = Enum.IsDefined(s.ArrowLineStyle) ? s.ArrowLineStyle : DefaultArrowLineStyle;
         var arrowColor = IsValidHexColor(s.ArrowColor) ? s.ArrowColor.ToUpperInvariant() : DefaultArrowColor;
-        return new AppSettings(opacity, radius, preview, drag, s.FreezeScreen, modifier, activationKey, toggleMod, toggleKey, s.CumulativeSpotlights, anchorEdge, s.FlyoutToolbarVisible, arrowheadStyle, arrowEndStyle, arrowLineStyle, arrowColor, s.CustomColors ?? DefaultCustomColors);
+        var leftSize = Math.Clamp(s.ArrowLeftEndSize, 8, 60);
+        var lineThick = Math.Clamp(s.ArrowLineThickness, 1, 12);
+        var rightSize = Math.Clamp(s.ArrowRightEndSize, 8, 60);
+        return new AppSettings(opacity, radius, preview, drag, s.FreezeScreen, modifier, activationKey, toggleMod, toggleKey, s.CumulativeSpotlights, anchorEdge, s.FlyoutToolbarVisible, arrowheadStyle, arrowEndStyle, arrowLineStyle, arrowColor, leftSize, lineThick, rightSize, s.SyncArrowEndStyle, s.SyncArrowEndSize, s.CustomColors ?? DefaultCustomColors);
     }
 
     private static bool IsValidHexColor(string? color)

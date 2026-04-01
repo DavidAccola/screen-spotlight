@@ -20,6 +20,11 @@ public record AppSettings(
     ArrowheadStyle ArrowEndStyle = ArrowheadStyle.FilledTriangle,
     ArrowLineStyle ArrowLineStyle = ArrowLineStyle.Solid,
     string ArrowColor = "FF0000",
+    double ArrowLeftEndSize = 16.0,
+    double ArrowLineThickness = 3.0,
+    double ArrowRightEndSize = 16.0,
+    bool SyncArrowEndStyle = true,
+    bool SyncArrowEndSize = true,
     string CustomColors = "");
 
 public enum PreviewStyle

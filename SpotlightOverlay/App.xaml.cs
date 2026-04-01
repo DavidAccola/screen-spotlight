@@ -337,7 +337,8 @@ public partial class App : Application
                 var rightEnd = _settings.ArrowEndStyle;
                 var lineStyle = _settings.ArrowLineStyle;
 
-                var previewPath = _arrowRenderer.BuildArrowPath(dipStart, dipEnd, color, leftEnd, rightEnd, lineStyle);
+                var previewPath = _arrowRenderer.BuildArrowPath(dipStart, dipEnd, color, leftEnd, rightEnd, lineStyle,
+                    _settings.ArrowLeftEndSize, _settings.ArrowLineThickness, _settings.ArrowRightEndSize);
                 if (previewPath != null)
                     _overlayWindow.ShowArrowPreview(previewPath);
             }
@@ -371,12 +372,14 @@ public partial class App : Application
                 var lineStyle = _settings.ArrowLineStyle;
 
                 // Add shadow path first (renders behind the main arrow)
-                var shadowPath = _arrowRenderer.BuildShadowPath(dipStart, dipEnd, leftEnd, rightEnd, lineStyle);
+                var shadowPath = _arrowRenderer.BuildShadowPath(dipStart, dipEnd, leftEnd, rightEnd, lineStyle,
+                    _settings.ArrowLeftEndSize, _settings.ArrowLineThickness, _settings.ArrowRightEndSize);
                 if (shadowPath != null)
                     _overlayWindow.AddArrowVisual(shadowPath);
 
                 // Add main arrow path
-                var mainPath = _arrowRenderer.BuildArrowPath(dipStart, dipEnd, color, leftEnd, rightEnd, lineStyle);
+                var mainPath = _arrowRenderer.BuildArrowPath(dipStart, dipEnd, color, leftEnd, rightEnd, lineStyle,
+                    _settings.ArrowLeftEndSize, _settings.ArrowLineThickness, _settings.ArrowRightEndSize);
                 if (mainPath != null)
                 {
                     _overlayWindow.AddArrowVisual(mainPath);

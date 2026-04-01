@@ -165,7 +165,7 @@
                                           Focusable="False" ClickMode="Press" />
                             <ContentPresenter Content="{TemplateBinding SelectionBoxItem}"
                                               ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
-                                              IsHitTestVisible="False" Margin="6,0,22,0"
+                                              IsHitTestVisible="False" Margin="4,0,4,0"
                                               VerticalAlignment="Center" HorizontalAlignment="Center" />
                             <Popup Placement="Bottom" IsOpen="{TemplateBinding IsDropDownOpen}"
                                    AllowsTransparency="True" Focusable="False" PopupAnimation="Slide">
@@ -190,6 +190,37 @@
             <Setter Property="Height" Value="1" />
             <Setter Property="Background" Value="{StaticResource CardBorder}" />
             <Setter Property="Margin" Value="0,8" />
+        </Style>
+
+        <!-- Dark mode toggle switch -->
+        <Style x:Key="DarkToggle" TargetType="CheckBox">
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="CheckBox">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Grid Width="36" Height="20">
+                                <Border x:Name="Track" CornerRadius="10" Background="#4D4D4D" />
+                                <Border x:Name="Thumb" Width="16" Height="16" CornerRadius="8"
+                                        Background="#999999" HorizontalAlignment="Left" Margin="2,0,0,0" />
+                            </Grid>
+                            <ContentPresenter Margin="8,0,0,0" VerticalAlignment="Center" />
+                        </StackPanel>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Track" Property="Background" Value="{StaticResource Accent}" />
+                                <Setter TargetName="Thumb" Property="Background" Value="White" />
+                                <Setter TargetName="Thumb" Property="HorizontalAlignment" Value="Right" />
+                                <Setter TargetName="Thumb" Property="Margin" Value="0,0,2,0" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Track" Property="Opacity" Value="0.3" />
+                                <Setter TargetName="Thumb" Property="Opacity" Value="0.3" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
 
         <!-- TabControl style for dark theme -->
@@ -485,21 +516,79 @@
                                 <Canvas x:Name="ArrowPreviewArea" Height="80" />
                             </Border>
                             <StackPanel Margin="14,10,14,10">
-                            <!-- Arrowhead: left end, line style, right end -->
+                            <!-- Style + Size share one Grid for perfect column alignment -->
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="90" />
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="3*" />
+                                    <ColumnDefinition Width="4*" />
+                                    <ColumnDefinition Width="3*" />
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Grid.Column="0" Text="Arrowhead" Style="{StaticResource RowLabel}" />
-                                <ComboBox Grid.Column="1" x:Name="LeftEndCombo" Height="36"
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <!-- Row 0: Style combos -->
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Style" Style="{StaticResource RowLabel}" />
+                                <ComboBox Grid.Row="0" Grid.Column="1" x:Name="LeftEndCombo" Height="36"
                                           SelectionChanged="ArrowStyleCombo_SelectionChanged" />
-                                <ComboBox Grid.Column="2" x:Name="LineStyleCombo" Height="36" Width="80" Margin="4,0"
+                                <ComboBox Grid.Row="0" Grid.Column="2" x:Name="LineStyleCombo" Height="36" Margin="4,0"
                                           SelectionChanged="ArrowStyleCombo_SelectionChanged" />
-                                <ComboBox Grid.Column="3" x:Name="RightEndCombo" Height="36"
+                                <ComboBox Grid.Row="0" Grid.Column="3" x:Name="RightEndCombo" Height="36"
                                           SelectionChanged="ArrowStyleCombo_SelectionChanged" />
+                                <!-- Row 1: Sync style toggle -->
+                                <CheckBox x:Name="SyncStyleCheck" Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="3"
+                                          Style="{StaticResource DarkToggle}"
+                                          Content="Keep both arrow ends set to the same style"
+                                          Foreground="{StaticResource TextPrimary}" FontSize="13"
+                                          Margin="0,6,0,0"
+                                          Checked="SyncStyleCheck_Changed" Unchecked="SyncStyleCheck_Changed" />
+                                <!-- Row 2: Divider -->
+                                <Border Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="4"
+                                        Height="1" Background="{StaticResource CardBorder}" Margin="0,8" />
+                                <!-- Row 3: Size toggles -->
+                                <TextBlock Grid.Row="3" Grid.Column="0" Text="Size" Style="{StaticResource RowLabel}" />
+                                <Border x:Name="SizeLeftBtn" Grid.Row="3" Grid.Column="1" Height="36"
+                                        Background="{StaticResource ControlBg}"
+                                        BorderBrush="{StaticResource CardBorder}" BorderThickness="1"
+                                        CornerRadius="4" Cursor="Hand"
+                                        MouseLeftButtonDown="SizeToggle_Click" Tag="Left">
+                                    <ContentPresenter x:Name="SizeLeftContent" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+                                <Border x:Name="SizeLineBtn" Grid.Row="3" Grid.Column="2" Height="36"
+                                        Background="{StaticResource ControlBg}"
+                                        BorderBrush="{StaticResource CardBorder}" BorderThickness="1"
+                                        CornerRadius="4" Cursor="Hand" Margin="4,0"
+                                        MouseLeftButtonDown="SizeToggle_Click" Tag="Line">
+                                    <ContentPresenter x:Name="SizeLineContent" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+                                <Border x:Name="SizeRightBtn" Grid.Row="3" Grid.Column="3" Height="36"
+                                        Background="{StaticResource ControlBg}"
+                                        BorderBrush="{StaticResource CardBorder}" BorderThickness="1"
+                                        CornerRadius="4" Cursor="Hand"
+                                        MouseLeftButtonDown="SizeToggle_Click" Tag="Right">
+                                    <ContentPresenter x:Name="SizeRightContent" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+                                <!-- Row 4: Size sync toggle (under slider) -->
+                                <!-- Row 5: Size slider -->
+                                <Slider Grid.Row="4" Grid.Column="1" Grid.ColumnSpan="3" x:Name="SizeSlider"
+                                        Minimum="8" Maximum="60" TickFrequency="2" IsSnapToTickEnabled="True"
+                                        VerticalAlignment="Center" Margin="0,6,56,0"
+                                        ValueChanged="SizeSlider_ValueChanged" />
+                                <TextBox Grid.Row="4" Grid.Column="3" x:Name="SizeTextBox"
+                                         VerticalAlignment="Center" Width="46" TextAlignment="Center"
+                                         HorizontalAlignment="Right" Margin="0,6,0,0"
+                                         LostFocus="SizeTextBox_LostFocus" KeyDown="SizeTextBox_KeyDown" />
+                                <CheckBox x:Name="SyncSizeCheck" Grid.Row="5" Grid.Column="1" Grid.ColumnSpan="3"
+                                          Style="{StaticResource DarkToggle}"
+                                          Content="Keep both arrow ends the same size"
+                                          Foreground="{StaticResource TextPrimary}" FontSize="13"
+                                          Margin="0,6,0,0"
+                                          Checked="SyncSizeCheck_Changed" Unchecked="SyncSizeCheck_Changed" />
                             </Grid>
                             <Border Style="{StaticResource CardSep}" />
                             <!-- Color -->
