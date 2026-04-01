@@ -459,6 +459,17 @@ public partial class SettingsWindow : Window
         if (e.Key == System.Windows.Input.Key.Enter) ApplyOpacityFromTextBox();
     }
 
+    private void OpacityUp_Click(object sender, RoutedEventArgs e)
+    {
+        var val = Math.Clamp((int)OpacitySlider.Value + 10, 10, 90);
+        OpacitySlider.Value = val;
+    }
+    private void OpacityDown_Click(object sender, RoutedEventArgs e)
+    {
+        var val = Math.Clamp((int)OpacitySlider.Value - 10, 10, 90);
+        OpacitySlider.Value = val;
+    }
+
     private void FeatherSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
         if (_isInitializing) return;
@@ -492,6 +503,17 @@ public partial class SettingsWindow : Window
     private void FeatherTextBox_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
         if (e.Key == System.Windows.Input.Key.Enter) ApplyFeatherFromTextBox();
+    }
+
+    private void FeatherUp_Click(object sender, RoutedEventArgs e)
+    {
+        var val = Math.Clamp((int)FeatherSlider.Value + 1, 0, 50);
+        FeatherSlider.Value = val;
+    }
+    private void FeatherDown_Click(object sender, RoutedEventArgs e)
+    {
+        var val = Math.Clamp((int)FeatherSlider.Value - 1, 0, 50);
+        FeatherSlider.Value = val;
     }
 
     private void PreviewStyleCombo_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
@@ -807,6 +829,17 @@ public partial class SettingsWindow : Window
     private void SizeTextBox_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
         if (e.Key == System.Windows.Input.Key.Enter) ApplySizeFromTextBox();
+    }
+
+    private void SizeUp_Click(object sender, RoutedEventArgs e)
+    {
+        var val = Math.Clamp(SizeSlider.Value + 2, SizeSlider.Minimum, SizeSlider.Maximum);
+        SizeSlider.Value = val;
+    }
+    private void SizeDown_Click(object sender, RoutedEventArgs e)
+    {
+        var val = Math.Clamp(SizeSlider.Value - 2, SizeSlider.Minimum, SizeSlider.Maximum);
+        SizeSlider.Value = val;
     }
 
     private void ApplySizeFromTextBox()

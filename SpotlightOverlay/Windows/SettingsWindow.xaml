@@ -223,6 +223,48 @@
             </Setter>
         </Style>
 
+        <!-- Spinner inline TextBox (no border, transparent) -->
+        <Style x:Key="SpinnerTextBox" TargetType="TextBox">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
+            <Setter Property="CaretBrush" Value="{StaticResource TextPrimary}" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="TextAlignment" Value="Center" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Padding" Value="2" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <ScrollViewer x:Name="PART_ContentHost" Background="Transparent" />
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Dark mode numeric spinner (up/down buttons) -->
+        <Style x:Key="SpinnerBtn" TargetType="RepeatButton">
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{StaticResource TextSecondary}" />
+            <Setter Property="FontSize" Value="8" />
+            <Setter Property="Padding" Value="4,0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RepeatButton">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource ControlHover}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <!-- TabControl style for dark theme -->
         <Style TargetType="TabControl">
             <Setter Property="Background" Value="#1E1E1E" />
@@ -416,7 +458,7 @@
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="130" />
                                         <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="46" />
+                                        <ColumnDefinition Width="76" />
                                     </Grid.ColumnDefinitions>
                                     <TextBlock Grid.Column="0" Text="Transparency" Style="{StaticResource RowLabel}" />
                                     <Slider Grid.Column="1" x:Name="OpacitySlider"
@@ -424,9 +466,24 @@
                                             IsSnapToTickEnabled="True" LargeChange="10" SmallChange="1"
                                             VerticalAlignment="Center" Margin="0,0,10,0"
                                             ValueChanged="OpacitySlider_ValueChanged" />
-                                    <TextBox Grid.Column="2" x:Name="OpacityTextBox"
-                                             VerticalAlignment="Center" Width="46" TextAlignment="Center"
-                                             LostFocus="OpacityTextBox_LostFocus" KeyDown="OpacityTextBox_KeyDown" />
+                                    <Border Grid.Column="2" VerticalAlignment="Center"
+                                            Background="{StaticResource ControlBg}"
+                                            BorderBrush="{StaticResource CardBorder}" BorderThickness="1"
+                                            CornerRadius="4">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="18" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBox Grid.Column="0" x:Name="OpacityTextBox"
+                                                     Style="{StaticResource SpinnerTextBox}"
+                                                     LostFocus="OpacityTextBox_LostFocus" KeyDown="OpacityTextBox_KeyDown" />
+                                            <StackPanel Grid.Column="1">
+                                                <RepeatButton Style="{StaticResource SpinnerBtn}" Content="▲" Click="OpacityUp_Click" />
+                                                <RepeatButton Style="{StaticResource SpinnerBtn}" Content="▼" Click="OpacityDown_Click" />
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
                                 </Grid>
                                 <Border Style="{StaticResource CardSep}" />
                                 <!-- Feather -->
@@ -434,7 +491,7 @@
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="130" />
                                         <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="46" />
+                                        <ColumnDefinition Width="76" />
                                     </Grid.ColumnDefinitions>
                                     <TextBlock Grid.Column="0" Text="Blurred Edges" Style="{StaticResource RowLabel}" />
                                     <Slider Grid.Column="1" x:Name="FeatherSlider"
@@ -442,9 +499,24 @@
                                             IsSnapToTickEnabled="False" LargeChange="10" SmallChange="1"
                                             VerticalAlignment="Center" Margin="0,0,10,0"
                                             ValueChanged="FeatherSlider_ValueChanged" />
-                                    <TextBox Grid.Column="2" x:Name="FeatherTextBox"
-                                             VerticalAlignment="Center" Width="46" TextAlignment="Center"
-                                             LostFocus="FeatherTextBox_LostFocus" KeyDown="FeatherTextBox_KeyDown" />
+                                    <Border Grid.Column="2" VerticalAlignment="Center"
+                                            Background="{StaticResource ControlBg}"
+                                            BorderBrush="{StaticResource CardBorder}" BorderThickness="1"
+                                            CornerRadius="4">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="18" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBox Grid.Column="0" x:Name="FeatherTextBox"
+                                                     Style="{StaticResource SpinnerTextBox}"
+                                                     LostFocus="FeatherTextBox_LostFocus" KeyDown="FeatherTextBox_KeyDown" />
+                                            <StackPanel Grid.Column="1">
+                                                <RepeatButton Style="{StaticResource SpinnerBtn}" Content="▲" Click="FeatherUp_Click" />
+                                                <RepeatButton Style="{StaticResource SpinnerBtn}" Content="▼" Click="FeatherDown_Click" />
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
                                 </Grid>
                                 <Border Style="{StaticResource CardSep}" />
                                 <!-- Preview Style -->
@@ -543,7 +615,7 @@
                                 <!-- Row 1: Sync style toggle -->
                                 <CheckBox x:Name="SyncStyleCheck" Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="3"
                                           Style="{StaticResource DarkToggle}"
-                                          Content="Keep both arrow ends set to the same style"
+                                          Content="Match arrow ends"
                                           Foreground="{StaticResource TextPrimary}" FontSize="13"
                                           Margin="0,6,0,0"
                                           Checked="SyncStyleCheck_Changed" Unchecked="SyncStyleCheck_Changed" />
@@ -579,13 +651,28 @@
                                         Minimum="8" Maximum="60" TickFrequency="2" IsSnapToTickEnabled="True"
                                         VerticalAlignment="Center" Margin="0,6,56,0"
                                         ValueChanged="SizeSlider_ValueChanged" />
-                                <TextBox Grid.Row="4" Grid.Column="3" x:Name="SizeTextBox"
-                                         VerticalAlignment="Center" Width="46" TextAlignment="Center"
-                                         HorizontalAlignment="Right" Margin="0,6,0,0"
-                                         LostFocus="SizeTextBox_LostFocus" KeyDown="SizeTextBox_KeyDown" />
+                                <Border Grid.Row="4" Grid.Column="3" VerticalAlignment="Center"
+                                        HorizontalAlignment="Right" Margin="0,6,0,0"
+                                        Background="{StaticResource ControlBg}"
+                                        BorderBrush="{StaticResource CardBorder}" BorderThickness="1"
+                                        CornerRadius="4" Width="56">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="18" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBox Grid.Column="0" x:Name="SizeTextBox"
+                                                 Style="{StaticResource SpinnerTextBox}"
+                                                 LostFocus="SizeTextBox_LostFocus" KeyDown="SizeTextBox_KeyDown" />
+                                        <StackPanel Grid.Column="1">
+                                            <RepeatButton Style="{StaticResource SpinnerBtn}" Content="▲" Click="SizeUp_Click" />
+                                            <RepeatButton Style="{StaticResource SpinnerBtn}" Content="▼" Click="SizeDown_Click" />
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
                                 <CheckBox x:Name="SyncSizeCheck" Grid.Row="5" Grid.Column="1" Grid.ColumnSpan="3"
                                           Style="{StaticResource DarkToggle}"
-                                          Content="Keep both arrow ends the same size"
+                                          Content="Match arrow ends"
                                           Foreground="{StaticResource TextPrimary}" FontSize="13"
                                           Margin="0,6,0,0"
                                           Checked="SyncSizeCheck_Changed" Unchecked="SyncSizeCheck_Changed" />
