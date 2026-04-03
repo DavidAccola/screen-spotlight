@@ -83,6 +83,7 @@ public class GlobalInputHook : IDisposable
     public event EventHandler? RestoreRequested;
     public event EventHandler? DismissRequested;
     public event EventHandler? ToggleRequested;
+    public event EventHandler? ToggleToolRequested;
     #endregion
 
     public bool IsEnabled { get; set; }
@@ -93,6 +94,8 @@ public class GlobalInputHook : IDisposable
     public int ActivationKey { get; set; } = 0; // 0 = no key, modifier-only
     public ModifierKey ToggleModifier { get; set; } = ModifierKey.CtrlShift;
     public int ToggleKey { get; set; } = 0x51; // VK_Q
+    public ModifierKey ToggleToolModifier { get; set; } = ModifierKey.CtrlShift;
+    public int ToggleToolKey { get; set; } = 0x02; // VK_RBUTTON
     public bool IsRecordingHotkey { get; set; }
     public Action<string>? OnError { get; set; }
 
@@ -192,12 +195,40 @@ public class GlobalInputHook : IDisposable
         };
     }
 
-    /// <summary>Returns true if the VK code is a mouse button (middle, X1, X2).</summary>
-    private static bool IsMouseButtonVk(int vk) => vk is 0x04 or 0x05 or 0x06;
+    /// <summary>Checks if the toggle-tool modifier key(s) are currently held.</summary>
+    private bool IsToggleToolModifierHeld()
+    {
+        return ToggleToolModifier switch
+        {
+            ModifierKey.Ctrl => (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0,
+            ModifierKey.Alt => (GetAsyncKeyState(VK_MENU) & 0x8000) != 0,
+            ModifierKey.Shift => (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0,
+            ModifierKey.CtrlShift => (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0
+                                  && (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0,
+            ModifierKey.CtrlAlt => (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0
+                                 && (GetAsyncKeyState(VK_MENU) & 0x8000) != 0,
+            ModifierKey.None => true,
+            _ => (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0
+        };
+    }
+
+    /// <summary>Checks if the given WM message + mouseData matches the configured toggle-tool mouse button.</summary>
+    private bool IsToggleToolMouseButtonMsg(int msg, uint mouseData)
+    {
+        if (!IsMouseButtonVk(ToggleToolKey)) return false;
+        int expectedDown = MouseVkToDownMsg(ToggleToolKey);
+        if (msg != expectedDown) return false;
+        return IsXButtonMatch(ToggleToolKey, mouseData);
+    }
+
+    /// <summary>Returns true if the VK code is a mouse button (left, right, middle, X1, X2).</summary>
+    private static bool IsMouseButtonVk(int vk) => vk is 0x01 or 0x02 or 0x04 or 0x05 or 0x06;
 
     /// <summary>Returns the WM_*BUTTONDOWN message for the given mouse button VK, or 0 if not a mouse button.</summary>
     private static int MouseVkToDownMsg(int vk) => vk switch
     {
+        0x01 => WM_LBUTTONDOWN,
+        0x02 => WM_RBUTTONDOWN,
         0x04 => WM_MBUTTONDOWN,
         0x05 => WM_XBUTTONDOWN,
         0x06 => WM_XBUTTONDOWN,
@@ -207,6 +238,8 @@ public class GlobalInputHook : IDisposable
     /// <summary>Returns the WM_*BUTTONUP message for the given mouse button VK, or 0 if not a mouse button.</summary>
     private static int MouseVkToUpMsg(int vk) => vk switch
     {
+        0x01 => WM_LBUTTONUP,
+        0x02 => WM_RBUTTONUP,
         0x04 => WM_MBUTTONUP,
         0x05 => WM_XBUTTONUP,
         0x06 => WM_XBUTTONUP,
@@ -313,6 +346,14 @@ public class GlobalInputHook : IDisposable
                 && IsToggleMouseButtonMsg(msg, hs.mouseData) && IsToggleModifierHeld())
             {
                 ToggleRequested?.Invoke(this, EventArgs.Empty);
+                return (IntPtr)1;
+            }
+
+            // Toggle tool via mouse button
+            if (!IsRecordingHotkey && IsMouseButtonVk(ToggleToolKey)
+                && IsToggleToolMouseButtonMsg(msg, hs.mouseData) && IsToggleToolModifierHeld())
+            {
+                ToggleToolRequested?.Invoke(this, EventArgs.Empty);
                 return (IntPtr)1;
             }
         }
@@ -519,6 +560,14 @@ public class GlobalInputHook : IDisposable
             {
                 ToggleRequested?.Invoke(this, EventArgs.Empty);
                 return (IntPtr)1; // eat the key
+            }
+
+            // Toggle tool hotkey — skip if ToggleToolKey is a mouse button
+            if (isKeyDown && !IsRecordingHotkey && !IsMouseButtonVk(ToggleToolKey)
+                && hs.vkCode == (uint)ToggleToolKey && IsToggleToolModifierHeld())
+            {
+                ToggleToolRequested?.Invoke(this, EventArgs.Empty);
+                return (IntPtr)1;
             }
         }
 

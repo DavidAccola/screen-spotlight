@@ -11,10 +11,20 @@ public class SettingsService
     private const PreviewStyle DefaultPreviewStyle = PreviewStyle.Crosshair;
     private const DragStyle DefaultDragStyle = DragStyle.ClickClick;
     private const bool DefaultFreezeScreen = true;
-    private const ModifierKey DefaultActivationModifier = ModifierKey.Ctrl;
+    private const ModifierKey DefaultActivationModifier = ModifierKey.CtrlShift;
     private const int DefaultActivationKey = 0; // 0 = no key, modifier-only
     private const ModifierKey DefaultToggleModifier = ModifierKey.CtrlShift;
     private const int DefaultToggleKey = 0x51; // VK_Q
+    private const ModifierKey DefaultToggleToolModifier = ModifierKey.CtrlShift;
+    private const int DefaultToggleToolKey = 0x02; // VK_RBUTTON (right click = non-dominant by default)
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern int GetSystemMetrics(int nIndex);
+    private const int SM_SWAPBUTTON = 23;
+
+    /// <summary>Returns the non-dominant mouse button VK: right-click (0x02) for right-handed, left-click (0x01) for left-handed.</summary>
+    private static int GetNonDominantMouseButtonVk() =>
+        GetSystemMetrics(SM_SWAPBUTTON) != 0 ? 0x01 : 0x02;
     private const bool DefaultCumulativeSpotlights = true;
     private const AnchorEdge DefaultToolbarAnchorEdge = AnchorEdge.Right;
     private const bool DefaultFlyoutToolbarVisible = true;
@@ -41,7 +51,8 @@ public class SettingsService
     public int ActivationKey { get; set; } = DefaultActivationKey;
     public ModifierKey ToggleModifier { get; set; } = DefaultToggleModifier;
     public int ToggleKey { get; set; } = DefaultToggleKey;
-    public bool CumulativeSpotlights { get; set; } = DefaultCumulativeSpotlights;
+    public ModifierKey ToggleToolModifier { get; set; } = DefaultToggleToolModifier;
+    public int ToggleToolKey { get; set; } = DefaultToggleToolKey;    public bool CumulativeSpotlights { get; set; } = DefaultCumulativeSpotlights;
     public AnchorEdge ToolbarAnchorEdge { get; set; } = DefaultToolbarAnchorEdge;
     public bool FlyoutToolbarVisible { get; set; } = DefaultFlyoutToolbarVisible;
     public ArrowheadStyle ArrowheadStyle { get; set; } = DefaultArrowheadStyle;
@@ -83,6 +94,8 @@ public class SettingsService
         ActivationKey = DefaultActivationKey;
         ToggleModifier = DefaultToggleModifier;
         ToggleKey = DefaultToggleKey;
+        ToggleToolModifier = DefaultToggleToolModifier;
+        ToggleToolKey = GetNonDominantMouseButtonVk();
         CumulativeSpotlights = DefaultCumulativeSpotlights;
         ToolbarAnchorEdge = DefaultToolbarAnchorEdge;
         FlyoutToolbarVisible = DefaultFlyoutToolbarVisible;
@@ -120,6 +133,8 @@ public class SettingsService
         ActivationKey = v.ActivationKey;
         ToggleModifier = v.ToggleModifier;
         ToggleKey = v.ToggleKey;
+        ToggleToolModifier = v.ToggleToolModifier;
+        ToggleToolKey = v.ToggleToolKey;
         CumulativeSpotlights = v.CumulativeSpotlights;
         ToolbarAnchorEdge = v.ToolbarAnchorEdge;
         FlyoutToolbarVisible = v.FlyoutToolbarVisible;
@@ -137,14 +152,14 @@ public class SettingsService
 
     public void Save()
     {
-        var json = Serialize(new AppSettings(OverlayOpacity, FeatherRadius, PreviewStyle, DragStyle, FreezeScreen, ActivationModifier, ActivationKey, ToggleModifier, ToggleKey, CumulativeSpotlights, ToolbarAnchorEdge, FlyoutToolbarVisible, ArrowheadStyle, ArrowEndStyle, ArrowLineStyle, ArrowColor, ArrowLeftEndSize, ArrowLineThickness, ArrowRightEndSize, SyncArrowEndStyle, SyncArrowEndSize, CustomColors));
+        var json = Serialize(new AppSettings(OverlayOpacity, FeatherRadius, PreviewStyle, DragStyle, FreezeScreen, ActivationModifier, ActivationKey, ToggleModifier, ToggleKey, CumulativeSpotlights, ToolbarAnchorEdge, FlyoutToolbarVisible, ArrowheadStyle, ArrowEndStyle, ArrowLineStyle, ArrowColor, ArrowLeftEndSize, ArrowLineThickness, ArrowRightEndSize, SyncArrowEndStyle, SyncArrowEndSize, CustomColors, ToggleToolModifier, ToggleToolKey));
         File.WriteAllText(_settingsFilePath, json);
         SettingsChanged?.Invoke(this, EventArgs.Empty);
     }
 
     public static AppSettings Deserialize(string json) =>
         JsonSerializer.Deserialize<AppSettings>(json)
-        ?? new AppSettings(DefaultOverlayOpacity, DefaultFeatherRadius, DefaultPreviewStyle, DefaultDragStyle, DefaultFreezeScreen, DefaultActivationModifier, DefaultActivationKey, DefaultToggleModifier, DefaultToggleKey, DefaultCumulativeSpotlights, DefaultToolbarAnchorEdge, DefaultFlyoutToolbarVisible, DefaultArrowheadStyle, DefaultArrowEndStyle, DefaultArrowLineStyle, DefaultArrowColor, DefaultArrowLeftEndSize, DefaultArrowLineThickness, DefaultArrowRightEndSize, DefaultSyncArrowEndStyle, DefaultSyncArrowEndSize, DefaultCustomColors);
+        ?? new AppSettings(DefaultOverlayOpacity, DefaultFeatherRadius, DefaultPreviewStyle, DefaultDragStyle, DefaultFreezeScreen, DefaultActivationModifier, DefaultActivationKey, DefaultToggleModifier, DefaultToggleKey, DefaultCumulativeSpotlights, DefaultToolbarAnchorEdge, DefaultFlyoutToolbarVisible, DefaultArrowheadStyle, DefaultArrowEndStyle, DefaultArrowLineStyle, DefaultArrowColor, DefaultArrowLeftEndSize, DefaultArrowLineThickness, DefaultArrowRightEndSize, DefaultSyncArrowEndStyle, DefaultSyncArrowEndSize, DefaultCustomColors, DefaultToggleToolModifier, DefaultToggleToolKey);
 
     public static string Serialize(AppSettings settings) =>
         JsonSerializer.Serialize(settings);
@@ -168,7 +183,9 @@ public class SettingsService
         var leftSize = Math.Clamp(s.ArrowLeftEndSize, 8, 60);
         var lineThick = Math.Clamp(s.ArrowLineThickness, 1, 12);
         var rightSize = Math.Clamp(s.ArrowRightEndSize, 8, 60);
-        return new AppSettings(opacity, radius, preview, drag, s.FreezeScreen, modifier, activationKey, toggleMod, toggleKey, s.CumulativeSpotlights, anchorEdge, s.FlyoutToolbarVisible, arrowheadStyle, arrowEndStyle, arrowLineStyle, arrowColor, leftSize, lineThick, rightSize, s.SyncArrowEndStyle, s.SyncArrowEndSize, s.CustomColors ?? DefaultCustomColors);
+        var toggleToolMod = Enum.IsDefined(s.ToggleToolModifier) ? s.ToggleToolModifier : DefaultToggleToolModifier;
+        var toggleToolKey = s.ToggleToolKey is >= 0x01 and <= 0xFE ? s.ToggleToolKey : DefaultToggleToolKey;
+        return new AppSettings(opacity, radius, preview, drag, s.FreezeScreen, modifier, activationKey, toggleMod, toggleKey, s.CumulativeSpotlights, anchorEdge, s.FlyoutToolbarVisible, arrowheadStyle, arrowEndStyle, arrowLineStyle, arrowColor, leftSize, lineThick, rightSize, s.SyncArrowEndStyle, s.SyncArrowEndSize, s.CustomColors ?? DefaultCustomColors, toggleToolMod, toggleToolKey);
     }
 
     private static bool IsValidHexColor(string? color)

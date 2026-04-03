@@ -68,6 +68,8 @@ public partial class App : Application
         _inputHook.ActivationKey = _settings.ActivationKey;
         _inputHook.ToggleModifier = _settings.ToggleModifier;
         _inputHook.ToggleKey = _settings.ToggleKey;
+        _inputHook.ToggleToolModifier = _settings.ToggleToolModifier;
+        _inputHook.ToggleToolKey = _settings.ToggleToolKey;
         _trayIcon.SetEnabled(true);
         DebugLog.Write($"[App] Startup complete. Hook IsEnabled: {_inputHook.IsEnabled}");
 
@@ -86,7 +88,9 @@ public partial class App : Application
         _inputHook.RestoreRequested += OnRestoreRequested;
         _inputHook.CtrlPressed += OnCtrlPressed;
         _inputHook.ToggleRequested += OnToggleSpotlight;
+        _inputHook.ToggleToolRequested += OnToggleTool;
         _inputHook.ArrowDragUpdated += OnArrowDragUpdated;
+        _inputHook.ArrowDragCompleted += OnArrowDragCompleted;
         _inputHook.ArrowDragCompleted += OnArrowDragCompleted;
 
         // Keep hook in sync when settings change at runtime
@@ -97,6 +101,8 @@ public partial class App : Application
             _inputHook.ActivationKey = _settings.ActivationKey;
             _inputHook.ToggleModifier = _settings.ToggleModifier;
             _inputHook.ToggleKey = _settings.ToggleKey;
+            _inputHook.ToggleToolModifier = _settings.ToggleToolModifier;
+            _inputHook.ToggleToolKey = _settings.ToggleToolKey;
             _trayIcon.SetToolbarVisible(_settings.FlyoutToolbarVisible);
         };
 
@@ -201,6 +207,23 @@ public partial class App : Application
     {
         _inputHook.ActiveTool = tool;
         DebugLog.Write($"[App] ActiveTool changed to {tool}");
+    }
+
+    /// <summary>
+    /// Cycles to the next tool in toolbar order (Spotlight → Arrow → ...).
+    /// </summary>
+    private void OnToggleTool(object? sender, EventArgs e)
+    {
+        Dispatcher.BeginInvoke(() =>
+        {
+            if (_flyoutToolbar == null) return;
+            var allTools = new[] { ToolType.Spotlight, ToolType.Arrow };
+            int current = Array.IndexOf(allTools, _flyoutToolbar.ActiveTool);
+            var next = allTools[(current + 1) % allTools.Length];
+            _flyoutToolbar.SetActiveToolExternal(next);
+            _inputHook.ActiveTool = next;
+            DebugLog.Write($"[App] ToggleTool: switched to {next}");
+        });
     }
 
     /// <summary>

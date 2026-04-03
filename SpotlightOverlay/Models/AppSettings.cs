@@ -25,7 +25,9 @@ public record AppSettings(
     double ArrowRightEndSize = 16.0,
     bool SyncArrowEndStyle = true,
     bool SyncArrowEndSize = true,
-    string CustomColors = "");
+    string CustomColors = "",
+    ModifierKey ToggleToolModifier = ModifierKey.CtrlShift,
+    int ToggleToolKey = 0x02); // VK_RBUTTON (right click = non-dominant by default)
 
 public enum PreviewStyle
 {

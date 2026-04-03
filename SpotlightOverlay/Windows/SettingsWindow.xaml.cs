@@ -104,6 +104,7 @@ public partial class SettingsWindow : Window
         SyncSizeCheck_Init();
         UpdateHotkeyDisplay();
         UpdateToggleHotkeyDisplay();
+        UpdateToggleToolHotkeyDisplay();
         UpdateDragStyleLabels();
 
         _isInitializing = false;
@@ -762,10 +763,10 @@ public partial class SettingsWindow : Window
         { _currentSizeTarget = SizeTarget.Line; UpdateSizeSlider(); }
 
         SizeLeftBtn.IsEnabled = leftEnabled;
-        SizeLeftBtn.Opacity = leftEnabled ? 1.0 : 0.2;
+        SizeLeftBtn.Visibility = leftEnabled ? Visibility.Visible : Visibility.Hidden;
         SizeLeftBtn.Cursor = leftEnabled ? System.Windows.Input.Cursors.Hand : System.Windows.Input.Cursors.Arrow;
         SizeRightBtn.IsEnabled = rightEnabled;
-        SizeRightBtn.Opacity = rightEnabled ? 1.0 : 0.2;
+        SizeRightBtn.Visibility = rightEnabled ? Visibility.Visible : Visibility.Hidden;
         SizeRightBtn.Cursor = rightEnabled ? System.Windows.Input.Cursors.Hand : System.Windows.Input.Cursors.Arrow;
 
         SizeLeftBtn.Background = (_currentSizeTarget == SizeTarget.LeftEnd && leftEnabled) ? accent : normal;
@@ -885,6 +886,7 @@ public partial class SettingsWindow : Window
         HighlightSelectedPreset();
         UpdateHotkeyDisplay();
         UpdateToggleHotkeyDisplay();
+        UpdateToggleToolHotkeyDisplay();
         UpdateDragStyleLabels();
         _isInitializing = false;
 
@@ -1101,6 +1103,8 @@ public partial class SettingsWindow : Window
     public static string VkDisplayName(int vk)
     {
         // Mouse buttons
+        if (vk == 0x01) return "Left Click";
+        if (vk == 0x02) return "Right Click";
         if (vk == 0x04) return "Middle Click";
         if (vk == 0x05) return "Mouse 4";
         if (vk == 0x06) return "Mouse 5";
@@ -1118,7 +1122,7 @@ public partial class SettingsWindow : Window
         };
     }
 
-    private static bool IsMouseButtonVk(int vk) => vk is 0x04 or 0x05 or 0x06;
+    private static bool IsMouseButtonVk(int vk) => vk is 0x01 or 0x02 or 0x04 or 0x05 or 0x06;
 
     private void UpdateToggleHotkeyDisplay()
     {
@@ -1154,6 +1158,141 @@ public partial class SettingsWindow : Window
         if (_inputHook != null) _inputHook.IsRecordingHotkey = false;
         PreviewKeyDown -= ToggleHotkeyRecorder_PreviewKeyDown;
         PreviewMouseDown -= ToggleHotkeyRecorder_PreviewMouseDown;
+    }
+
+    // ── Toggle Tool hotkey recorder ────────────────────────────────
+
+    private bool _isRecordingToggleToolHotkey;
+    private Models.ModifierKey? _pendingToggleToolMod;
+
+    private void UpdateToggleToolHotkeyDisplay()
+    {
+        var parts = new System.Collections.Generic.List<string>();
+        var modDisplay = ModifierDisplayName(_settings.ToggleToolModifier);
+        if (!string.IsNullOrEmpty(modDisplay)) parts.Add(modDisplay);
+        parts.Add(VkDisplayName(_settings.ToggleToolKey));
+        ToggleToolHotkeyDisplay.Text = string.Join(" + ", parts);
+        ToggleToolHotkeyHint.Text = "Click to change — press keys or mouse buttons";
+        ToggleToolHotkeyHint.Foreground = (System.Windows.Media.Brush)FindResource("TextSecondary");
+        ToggleToolHotkeyBorder.BorderBrush = (System.Windows.Media.Brush)FindResource("CardBorder");
+    }
+
+    private void ToggleToolHotkeyRecorder_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        if (_isRecordingToggleToolHotkey) return;
+        _isRecordingToggleToolHotkey = true;
+        _pendingToggleToolMod = null;
+        if (_inputHook != null) _inputHook.IsRecordingHotkey = true;
+        ToggleToolHotkeyDisplay.Text = "Press modifier(s) + key, or a mouse button...";
+        ToggleToolHotkeyHint.Text = "e.g. Ctrl+Shift+Right Click, or Mouse 4";
+        ToggleToolHotkeyBorder.BorderBrush = (System.Windows.Media.Brush)FindResource("Accent");
+        PreviewKeyDown += ToggleToolHotkeyRecorder_PreviewKeyDown;
+        PreviewMouseDown += ToggleToolHotkeyRecorder_PreviewMouseDown;
+        ToggleToolHotkeyBorder.Focusable = true;
+        System.Windows.Input.Keyboard.Focus(ToggleToolHotkeyBorder);
+    }
+
+    private void StopRecordingToggleTool()
+    {
+        _isRecordingToggleToolHotkey = false;
+        _pendingToggleToolMod = null;
+        if (_inputHook != null) _inputHook.IsRecordingHotkey = false;
+        PreviewKeyDown -= ToggleToolHotkeyRecorder_PreviewKeyDown;
+        PreviewMouseDown -= ToggleToolHotkeyRecorder_PreviewMouseDown;
+    }
+
+    private void ToggleToolHotkeyRecorder_PreviewMouseDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        int vk = e.ChangedButton switch
+        {
+            System.Windows.Input.MouseButton.Left => 0x01,
+            System.Windows.Input.MouseButton.Right => 0x02,
+            System.Windows.Input.MouseButton.Middle => 0x04,
+            System.Windows.Input.MouseButton.XButton1 => 0x05,
+            System.Windows.Input.MouseButton.XButton2 => 0x06,
+            _ => 0
+        };
+        if (vk == 0) return;
+
+        e.Handled = true;
+        var mod = ReadPhysicalModifiers() ?? _pendingToggleToolMod ?? Models.ModifierKey.None;
+
+        // Check conflict with activation and toggle
+        if (mod == _settings.ActivationModifier && vk == _settings.ActivationKey)
+        {
+            ToggleToolHotkeyHint.Text = "⚠ Same as Activation hotkey — pick a different combo";
+            ToggleToolHotkeyHint.Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xA8, 0x38));
+            return;
+        }
+        if (mod == _settings.ToggleModifier && vk == _settings.ToggleKey)
+        {
+            ToggleToolHotkeyHint.Text = "⚠ Same as Toggle On/Off hotkey — pick a different combo";
+            ToggleToolHotkeyHint.Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xA8, 0x38));
+            return;
+        }
+
+        StopRecordingToggleTool();
+        _settings.ToggleToolModifier = mod;
+        _settings.ToggleToolKey = vk;
+        _settings.Save();
+        UpdateToggleToolHotkeyDisplay();
+    }
+
+    private void ToggleToolHotkeyRecorder_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        var key = e.Key == System.Windows.Input.Key.System ? e.SystemKey : e.Key;
+        e.Handled = true;
+
+        if (key == System.Windows.Input.Key.Escape)
+        {
+            StopRecordingToggleTool();
+            UpdateToggleToolHotkeyDisplay();
+            return;
+        }
+
+        bool isModifier = key is System.Windows.Input.Key.LeftCtrl or System.Windows.Input.Key.RightCtrl
+            or System.Windows.Input.Key.LeftAlt or System.Windows.Input.Key.RightAlt
+            or System.Windows.Input.Key.LeftShift or System.Windows.Input.Key.RightShift;
+
+        Models.ModifierKey? currentMod = ReadPhysicalModifiers();
+
+        if (isModifier)
+        {
+            _pendingToggleToolMod = currentMod;
+            if (currentMod != null)
+                ToggleToolHotkeyDisplay.Text = ModifierDisplayName(currentMod.Value) + " + ...";
+            return;
+        }
+
+        var mod = currentMod ?? _pendingToggleToolMod;
+        if (mod == null)
+        {
+            ToggleToolHotkeyHint.Text = "⚠ Must include at least one modifier (Ctrl, Alt, Shift)";
+            ToggleToolHotkeyHint.Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xA8, 0x38));
+            return;
+        }
+
+        int vk = System.Windows.Input.KeyInterop.VirtualKeyFromKey(key);
+        if (vk == 0) return;
+
+        if (mod.Value == _settings.ActivationModifier && vk == _settings.ActivationKey)
+        {
+            ToggleToolHotkeyHint.Text = "⚠ Same as Activation hotkey — pick a different combo";
+            ToggleToolHotkeyHint.Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xA8, 0x38));
+            return;
+        }
+        if (mod.Value == _settings.ToggleModifier && vk == _settings.ToggleKey)
+        {
+            ToggleToolHotkeyHint.Text = "⚠ Same as Toggle On/Off hotkey — pick a different combo";
+            ToggleToolHotkeyHint.Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xA8, 0x38));
+            return;
+        }
+
+        StopRecordingToggleTool();
+        _settings.ToggleToolModifier = mod.Value;
+        _settings.ToggleToolKey = vk;
+        _settings.Save();
+        UpdateToggleToolHotkeyDisplay();
     }
 
     private void ToggleHotkeyRecorder_PreviewMouseDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
@@ -1330,15 +1469,13 @@ public partial class SettingsWindow : Window
     private void UpdateSyncStyleCheckEnabled()
     {
         bool hasTwoEnds = _settings.ArrowheadStyle != ArrowheadStyle.None && _settings.ArrowEndStyle != ArrowheadStyle.None;
-        SyncStyleCheck.IsEnabled = hasTwoEnds;
-        SyncStyleCheck.Opacity = hasTwoEnds ? 1.0 : 0.4;
+        SyncStyleCheck.Visibility = hasTwoEnds ? Visibility.Visible : Visibility.Hidden;
     }
 
     private void UpdateSyncSizeCheckEnabled()
     {
         bool hasTwoEnds = _settings.ArrowheadStyle != ArrowheadStyle.None && _settings.ArrowEndStyle != ArrowheadStyle.None;
-        SyncSizeCheck.IsEnabled = hasTwoEnds;
-        SyncSizeCheck.Opacity = hasTwoEnds ? 1.0 : 0.4;
+        SyncSizeCheck.Visibility = hasTwoEnds ? Visibility.Visible : Visibility.Hidden;
     }
 
     // Keep old handlers as no-ops for compatibility

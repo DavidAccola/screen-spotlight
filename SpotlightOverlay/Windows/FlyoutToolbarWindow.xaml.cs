@@ -679,6 +679,17 @@ public partial class FlyoutToolbarWindow : Window
     }
 
     /// <summary>
+    /// Sets the active tool from an external caller (e.g. hotkey), without re-raising ActiveToolChanged.
+    /// </summary>
+    public void SetActiveToolExternal(ToolType tool)
+    {
+        if (ActiveTool == tool) return;
+        ActiveTool = tool;
+        HighlightActiveToolButton();
+        ActiveToolChanged?.Invoke(this, tool);
+    }
+
+    /// <summary>
     /// Applies the highlight background to the active tool button and clears all others.
     /// </summary>
     private void HighlightActiveToolButton()

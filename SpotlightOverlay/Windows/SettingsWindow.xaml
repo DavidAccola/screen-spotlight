@@ -369,11 +369,34 @@
                                             MouseLeftButtonDown="HotkeyRecorder_Click">
                                         <TextBlock x:Name="HotkeyDisplay"
                                                    Foreground="{StaticResource TextPrimary}"
-                                                   FontSize="13" Text="Ctrl + Click" />
+                                                   FontSize="13" Text="Ctrl + Shift + Click" />
                                     </Border>
                                     <TextBlock x:Name="HotkeyHint" Margin="0,3,0,0"
                                                Style="{StaticResource HintText}"
                                                Text="Click to change, then press a modifier key" />
+                                </StackPanel>
+                            </Grid>
+                            <Border Style="{StaticResource CardSep}" />
+                            <!-- Toggle Tool Hotkey -->
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="130" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Toggle tool" Style="{StaticResource RowLabel}" />
+                                <StackPanel Grid.Column="1">
+                                    <Border x:Name="ToggleToolHotkeyBorder"
+                                            Background="{StaticResource ControlBg}"
+                                            BorderBrush="{StaticResource CardBorder}" BorderThickness="1"
+                                            CornerRadius="4" Padding="10,6" Cursor="Hand"
+                                            MouseLeftButtonDown="ToggleToolHotkeyRecorder_Click">
+                                        <TextBlock x:Name="ToggleToolHotkeyDisplay"
+                                                   Foreground="{StaticResource TextPrimary}"
+                                                   FontSize="13" Text="Ctrl + Shift + Right Click" />
+                                    </Border>
+                                    <TextBlock x:Name="ToggleToolHotkeyHint" Margin="0,3,0,0"
+                                               Style="{StaticResource HintText}"
+                                               Text="Click to change — press keys or mouse buttons" />
                                 </StackPanel>
                             </Grid>
                             <Border Style="{StaticResource CardSep}" />
@@ -618,8 +641,7 @@
                                           Content="Match arrow ends"
                                           Foreground="{StaticResource TextPrimary}" FontSize="13"
                                           Margin="0,6,0,0"
-                                          Checked="SyncStyleCheck_Changed" Unchecked="SyncStyleCheck_Changed" />
-                                <!-- Row 2: Divider -->
+                                          Checked="SyncStyleCheck_Changed" Unchecked="SyncStyleCheck_Changed" />                                <!-- Row 2: Divider -->
                                 <Border Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="4"
                                         Height="1" Background="{StaticResource CardBorder}" Margin="0,8" />
                                 <!-- Row 3: Size toggles -->
@@ -685,8 +707,8 @@
                             <!-- Custom color slots: 1 row of 10 -->
                             <UniformGrid x:Name="CustomColorGrid" Rows="1" Columns="10" Margin="0,0,0,8" />
                             <!-- Edit Colors button -->
-                            <Button Content="Edit Colors..." Click="EditColors_Click"
-                                    HorizontalAlignment="Left" Padding="12,6"
+                            <Button Content="Select Custom Color..." Click="EditColors_Click"
+                                    HorizontalAlignment="Right" Padding="12,6"
                                     Cursor="Hand" FontSize="12"
                                     Foreground="{StaticResource TextPrimary}"
                                     Background="Transparent" BorderThickness="0">
