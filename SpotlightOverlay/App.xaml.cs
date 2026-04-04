@@ -91,7 +91,6 @@ public partial class App : Application
         _inputHook.ToggleToolRequested += OnToggleTool;
         _inputHook.ArrowDragUpdated += OnArrowDragUpdated;
         _inputHook.ArrowDragCompleted += OnArrowDragCompleted;
-        _inputHook.ArrowDragCompleted += OnArrowDragCompleted;
 
         // Keep hook in sync when settings change at runtime
         _settings.SettingsChanged += (_, _) =>
@@ -197,6 +196,18 @@ public partial class App : Application
             _overlayWindow?.HideDragPreview();
             _overlayWindow?.HideArrowPreview();
             _cachedScreenshot = null;
+
+            // If there are no finalized shapes, close the overlay entirely
+            // so the user doesn't need a second Esc to dismiss an empty overlay.
+            bool hasFinalized = _renderer.CutoutCount > 0 || _arrowRenderer.ArrowCount > 0;
+            if (!hasFinalized && _overlayWindow != null && !_isDismissed)
+            {
+                DebugLog.Write("[App] DragCancelled with empty overlay — auto-dismissing");
+                _overlayWindow.Close();
+                _overlayWindow = null;
+                _pendingCutouts.Clear();
+                _inputHook.CanRestore = false;
+            }
         });
     }
 

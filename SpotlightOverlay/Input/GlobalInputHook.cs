@@ -353,6 +353,10 @@ public class GlobalInputHook : IDisposable
             if (!IsRecordingHotkey && IsMouseButtonVk(ToggleToolKey)
                 && IsToggleToolMouseButtonMsg(msg, hs.mouseData) && IsToggleToolModifierHeld())
             {
+                // Cancel any in-progress drag so a stray left-click doesn't become a spotlight
+                _isDragging = false;
+                _isClickClickActive = false;
+                _hasPendingDrags = false;
                 ToggleToolRequested?.Invoke(this, EventArgs.Empty);
                 return (IntPtr)1;
             }
@@ -398,8 +402,7 @@ public class GlobalInputHook : IDisposable
             if (IsActivationModifierHeld())
             {
                 _isDragging = true;
-                _dragStartPoint = new System.Windows.Point(hs.pt.x, hs.pt.y);
-                SpotlightOverlay.DebugLog.Write($"[Hook] HoldDrag: start at {hs.pt.x},{hs.pt.y}");
+                _dragStartPoint = new System.Windows.Point(hs.pt.x, hs.pt.y);                SpotlightOverlay.DebugLog.Write($"[Hook] HoldDrag: start at {hs.pt.x},{hs.pt.y}");
                 // Fire CtrlPressed for mouse-button activation so screenshot pre-capture works
                 if (isMouseButtonActivation)
                     CtrlPressed?.Invoke(this, EventArgs.Empty);
@@ -620,25 +623,9 @@ public class GlobalInputHook : IDisposable
             }
             else if (isKeyUp && IsActivationModifierVk(hs.vkCode) && _hasPendingDrags)
             {
-                // For single-key modifiers, the key-up event itself means it's released.
-                // For combo modifiers, check if the other key in the combo is also released.
-                bool released = ActivationModifier switch
-                {
-                    ModifierKey.Ctrl => true,  // key-up for Ctrl = released
-                    ModifierKey.Alt => true,
-                    ModifierKey.Shift => true,
-                    // For combos: releasing either key breaks the combo
-                    ModifierKey.CtrlShift => true,
-                    ModifierKey.CtrlAlt => true,
-                    _ => true
-                };
-                if (released)
-                {
-                    _hasPendingDrags = false;
-                    CtrlReleased?.Invoke(this, EventArgs.Empty);
-                }
-            }
-            else if (isKeyDown && IsActivationModifierVk(hs.vkCode)
+                _hasPendingDrags = false;
+                CtrlReleased?.Invoke(this, EventArgs.Empty);
+            }            else if (isKeyDown && IsActivationModifierVk(hs.vkCode)
                      && !_isDragging && !_isClickClickActive)
             {
                 // Only fire pressed when the full modifier combo is held
