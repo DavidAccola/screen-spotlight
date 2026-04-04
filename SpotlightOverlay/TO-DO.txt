@@ -1,20 +1,5 @@
-ARROW SETTINGS
-
-Settings > Arrow: These buttons currently show as disabled depending on arrow end style selections: Both "Match arrow ends", left arrow end size, right arrow end size
-
-Instead of showing these buttons as grayed out, I want them to not show at all, but I DO want them to still take up space--I don't want the screen to jump around as they show and hide.
-
-Also:
-Move the Edit Colors... button to the right side, not left side. And rename it to Select Custom Color...
-
-GENERAL
-
--I want Activation Hotkey default to be Ctrl+Shift+Click, not Ctrl+Click
--Add a new hotkey, below Activation, but above Toggle On/Of. Call it "Toggle tool". The default hotkey for it is Ctrl+Shift+[Non-dominant click, whether that be left click or right click depending on what the user's non-dominant click is]. This hotkey toggles through the tools, in the order they're shown in in the toolbar. (I have future plans for what shows on the toolbar AND order things show in on the toolbar to be customizable.) Currently, that's just be Spotlight and Arrow, because there are no other tools built out yet.
-
---------------------------
-
-
+BUG FIX/TWEAK
+Currently, if there's no existing "stuff" on the overlay (no existing arrow, spotlight, etc.) and I'm working on creating my first thing (ex. partway through creating a spotlight, meaning I did the ctrl+click to start the drag, but haven't finalized it to create the final thing) hitting Esc cancels the in-progress shape, but doesn't exit the overlay. If there are no existing, finalized shapes and I hit Esc, I want that to both cancel that in-progress thing AND close out the overall overlay. The goal of this tweak: I shouldn't have to hit Esc (cancel the in-progress thing) and Esc again (close the overlay, which is empty of anything in it) in order to return to normal.
 
 --------------------------
 
@@ -34,9 +19,6 @@ APPEARANCE
 -Opacity - Slider to set the intensity of the color of the highlighter
 -Color - Like the color setting Arrow uses. The Gold color should be the default.
 An important thing about the highlight is that if you highlight on top of an existing highlight, it should all still stay the same color, not darker in the overlap.
-
-BUG FIX/TWEAK
-Currently, if there's no existing "stuff" on the overlay (no existing arrow, spotlight, etc.) and I'm working on creating my first thing (ex. partway through creating a spotlight, meaning I did the ctrl+click to start the drag, but haven't finalized it to create the final thing) hitting Esc cancels the in-progress shape, but doesn't exit the overlay. If there are no existing, finalized shapes and I hit Esc, I want that to both cancel that in-progress thing AND close out the overall overlay. The goal of this tweak: I shouldn't have to hit Esc (cancel the in-progress thing) and Esc again (close the overlay, which is empty of anything in it) in order to return to normal.
 
 SETTINGS ENHANCEMENT
 Currently there's one Reset to Defaults button that resets ALL settings and shows only on General tab. I want to rename this Reset All Settings. I want to add a new button to each tab that only resets the settings on THAT tab. I want to put them in a catgory: RESET TO DEFAULTS
