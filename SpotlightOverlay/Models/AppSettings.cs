@@ -27,7 +27,8 @@ public record AppSettings(
     bool SyncArrowEndSize = true,
     string CustomColors = "",
     ModifierKey ToggleToolModifier = ModifierKey.CtrlShift,
-    int ToggleToolKey = 0x02); // VK_RBUTTON (right click = non-dominant by default)
+    int ToggleToolKey = 0x02, // VK_RBUTTON (right click = non-dominant by default)
+    FadeMode FadeMode = FadeMode.Immediately);
 
 public enum PreviewStyle
 {
@@ -63,4 +64,10 @@ public enum AnchorEdge
     Left = 0,
     Right = 1,
     Top = 2
+}
+
+public enum FadeMode
+{
+    Immediately = 0,
+    AfterSpotlight = 1
 }

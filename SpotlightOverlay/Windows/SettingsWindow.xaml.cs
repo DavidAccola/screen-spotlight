@@ -94,6 +94,7 @@ public partial class SettingsWindow : Window
         PreviewStyleCombo.SelectedIndex = (int)_settings.PreviewStyle;
         DragStyleCombo.SelectedIndex = (int)_settings.DragStyle;
         BackgroundCombo.SelectedIndex = _settings.FreezeScreen ? 1 : 0;
+        FadeModeCombo.SelectedIndex = (int)_settings.FadeMode;
         SpotlightModeCombo.SelectedIndex = _settings.CumulativeSpotlights ? 0 : 1;
         ArrowheadStyleCombo_Init();
         BuildColorPresetSwatches();
@@ -540,6 +541,13 @@ public partial class SettingsWindow : Window
         _settings.Save();
     }
 
+    private void FadeModeCombo_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        if (_isInitializing) return;
+        _settings.FadeMode = (Models.FadeMode)FadeModeCombo.SelectedIndex;
+        _settings.Save();
+    }
+
     private void SpotlightModeCombo_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
     {
         if (_isInitializing) return;
@@ -881,6 +889,7 @@ public partial class SettingsWindow : Window
         PreviewStyleCombo.SelectedIndex = (int)_settings.PreviewStyle;
         DragStyleCombo.SelectedIndex = (int)_settings.DragStyle;
         BackgroundCombo.SelectedIndex = _settings.FreezeScreen ? 1 : 0;
+        FadeModeCombo.SelectedIndex = (int)_settings.FadeMode;
         SpotlightModeCombo.SelectedIndex = _settings.CumulativeSpotlights ? 0 : 1;
         ArrowheadStyleCombo_Init();
         HighlightSelectedPreset();

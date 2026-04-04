@@ -345,6 +345,20 @@
                                     <ComboBoxItem Content="Freeze background" />
                                 </ComboBox>
                             </Grid>
+                            <Border Style="{StaticResource CardSep}" />
+                            <!-- Fade screen mode -->
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="130" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Fade screen" Style="{StaticResource RowLabel}" />
+                                <ComboBox Grid.Column="1" x:Name="FadeModeCombo"
+                                          SelectionChanged="FadeModeCombo_SelectionChanged">
+                                    <ComboBoxItem Content="Immediately" />
+                                    <ComboBoxItem Content="After the spotlight" />
+                                </ComboBox>
+                            </Grid>
                         </StackPanel>
                     </Border>
 

@@ -21,7 +21,10 @@ public partial class OverlayWindow : Window
         Left = monitorBounds.Left;
         Top = monitorBounds.Top;
         Width = monitorBounds.Width;
-        Height = monitorBounds.Height;
+        // 1px shorter than the screen — prevents Windows from classifying this as a
+        // fullscreen app, which would trigger Focus Assist / Do Not Disturb auto-activation
+        // and cause the snooze bell icon to briefly appear in the taskbar.
+        Height = monitorBounds.Height - 1;
 
         _overlayOpacity = overlayOpacity;
         _featherRadius = featherRadius;

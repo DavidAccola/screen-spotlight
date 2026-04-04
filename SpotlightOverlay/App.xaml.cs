@@ -317,7 +317,7 @@ public partial class App : Application
         {
             win.SetFrozenBackground(frozenScreenshot);
             // Only fade in the dark overlay for spotlight tool — arrows don't darken the screen
-            if (_inputHook.ActiveTool == ToolType.Spotlight)
+            if (_inputHook.ActiveTool == ToolType.Spotlight && _settings.FadeMode == FadeMode.Immediately)
                 win.FadeInBackground(300);
             win.ForceTopmost();
             DismissStartMenu(monitorBounds);
