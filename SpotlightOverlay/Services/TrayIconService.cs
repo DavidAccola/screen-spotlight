@@ -1,4 +1,5 @@
 using System.Drawing;
+using System.Runtime.InteropServices;
 using System.Windows.Forms;
 
 namespace SpotlightOverlay.Services;
@@ -9,6 +10,9 @@ public class TrayIconService : IDisposable
     private readonly ToolStripMenuItem _toggleItem;
     private readonly ToolStripMenuItem _toolbarToggleItem;
     private bool _disposed;
+
+    [DllImport("user32.dll")]
+    private static extern bool SetForegroundWindow(IntPtr hWnd);
 
     public event EventHandler? ToggleSpotlightRequested;
     public event EventHandler? SettingsRequested;
@@ -34,6 +38,15 @@ public class TrayIconService : IDisposable
         contextMenu.Items.Add(settingsItem);
         contextMenu.Items.Add(_toolbarToggleItem);
         contextMenu.Items.Add(exitItem);
+
+        // Fix: WinForms NotifyIcon context menus don't dismiss properly unless the
+        // app has foreground focus when the menu opens. SetForegroundWindow on the
+        // menu's handle before it shows resolves the "menu stays open" bug.
+        contextMenu.Opening += (s, e) =>
+        {
+            if (contextMenu.Handle != IntPtr.Zero)
+                SetForegroundWindow(contextMenu.Handle);
+        };
 
         _notifyIcon = new NotifyIcon
         {
