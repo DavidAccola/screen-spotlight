@@ -28,7 +28,20 @@ public record AppSettings(
     string CustomColors = "",
     ModifierKey ToggleToolModifier = ModifierKey.CtrlShift,
     int ToggleToolKey = 0x02, // VK_RBUTTON (right click = non-dominant by default)
-    FadeMode FadeMode = FadeMode.Immediately);
+    FadeMode FadeMode = FadeMode.Immediately,
+    string BoxColor = "00B4FF",
+    double BoxLineThickness = 3.0,
+    string HighlightColor = "FFC90E",
+    double HighlightOpacity = 0.5,
+    string StepsFontFamily = "MS Reference Sans Serif, Roboto, MS UI Gothic",
+    double StepsFontSize = 14.0,
+    StepsShape StepsShape = StepsShape.Teardrop,
+    bool StepsOutlineEnabled = true,
+    double StepsSize = 36.0,
+    string StepsFillColor = "E84040",
+    string StepsOutlineColor = "FFFFFF",
+    bool StepsFontBold = false,
+    string StepsFontColor = "FFFFFF");
 
 public enum PreviewStyle
 {

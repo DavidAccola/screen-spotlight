@@ -50,7 +50,9 @@ public class OverlayWindowPropertyTests
                         bool leftMatch = Math.Abs(window.Left - bounds.Left) < tolerance;
                         bool topMatch = Math.Abs(window.Top - bounds.Top) < tolerance;
                         bool widthMatch = Math.Abs(window.Width - bounds.Width) < tolerance;
-                        bool heightMatch = Math.Abs(window.Height - bounds.Height) < tolerance;
+                        // Height is intentionally 1px shorter than the monitor to prevent
+                        // Windows from classifying the window as fullscreen (Focus Assist).
+                        bool heightMatch = Math.Abs(window.Height - (bounds.Height - 1)) < tolerance;
 
                         return leftMatch && topMatch && widthMatch && heightMatch;
                     }

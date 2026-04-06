@@ -39,6 +39,19 @@ public class SettingsService
     private const bool DefaultSyncArrowEndStyle = true;
     private const bool DefaultSyncArrowEndSize = true;
     private const string DefaultCustomColors = "";
+    private const string DefaultBoxColor = "00B4FF";
+    private const double DefaultBoxLineThickness = 3.0;
+    private const string DefaultHighlightColor = "FFC90E";
+    private const double DefaultHighlightOpacity = 0.5;
+    private const string DefaultStepsFontFamily = "MS Reference Sans Serif, Roboto, MS UI Gothic";
+    private const double DefaultStepsFontSize = 14.0;
+    private const StepsShape DefaultStepsShape = StepsShape.Teardrop;
+    private const bool DefaultStepsOutlineEnabled = true;
+    private const double DefaultStepsSize = 36.0;
+    private const string DefaultStepsFillColor = "E84040";
+    private const string DefaultStepsOutlineColor = "FFFFFF";
+    private const bool DefaultStepsFontBold = false;
+    private const string DefaultStepsFontColor = "FFFFFF";
     private const string SettingsFileName = "Settings.json";
 
     private readonly string _settingsFilePath;
@@ -67,6 +80,19 @@ public class SettingsService
     public bool SyncArrowEndStyle { get; set; } = DefaultSyncArrowEndStyle;
     public bool SyncArrowEndSize { get; set; } = DefaultSyncArrowEndSize;
     public string CustomColors { get; set; } = DefaultCustomColors;
+    public string BoxColor { get; set; } = DefaultBoxColor;
+    public double BoxLineThickness { get; set; } = DefaultBoxLineThickness;
+    public string HighlightColor { get; set; } = DefaultHighlightColor;
+    public double HighlightOpacity { get; set; } = DefaultHighlightOpacity;
+    public string StepsFontFamily { get; set; } = DefaultStepsFontFamily;
+    public double StepsFontSize { get; set; } = DefaultStepsFontSize;
+    public StepsShape StepsShape { get; set; } = DefaultStepsShape;
+    public bool StepsOutlineEnabled { get; set; } = DefaultStepsOutlineEnabled;
+    public double StepsSize { get; set; } = DefaultStepsSize;
+    public string StepsFillColor { get; set; } = DefaultStepsFillColor;
+    public string StepsOutlineColor { get; set; } = DefaultStepsOutlineColor;
+    public bool StepsFontBold { get; set; } = DefaultStepsFontBold;
+    public string StepsFontColor { get; set; } = DefaultStepsFontColor;
 
     /// <summary>Fired after Save() so listeners can react to any setting change.</summary>
     public event EventHandler? SettingsChanged;
@@ -112,6 +138,19 @@ public class SettingsService
         SyncArrowEndStyle = DefaultSyncArrowEndStyle;
         SyncArrowEndSize = DefaultSyncArrowEndSize;
         CustomColors = DefaultCustomColors;
+        BoxColor = DefaultBoxColor;
+        BoxLineThickness = DefaultBoxLineThickness;
+        HighlightColor = DefaultHighlightColor;
+        HighlightOpacity = DefaultHighlightOpacity;
+        StepsFontFamily = DefaultStepsFontFamily;
+        StepsFontSize = DefaultStepsFontSize;
+        StepsShape = DefaultStepsShape;
+        StepsOutlineEnabled = DefaultStepsOutlineEnabled;
+        StepsSize = DefaultStepsSize;
+        StepsFillColor = DefaultStepsFillColor;
+        StepsOutlineColor = DefaultStepsOutlineColor;
+        StepsFontBold = DefaultStepsFontBold;
+        StepsFontColor = DefaultStepsFontColor;
     }
 
     public void Load()
@@ -152,18 +191,31 @@ public class SettingsService
         SyncArrowEndStyle = v.SyncArrowEndStyle;
         SyncArrowEndSize = v.SyncArrowEndSize;
         CustomColors = v.CustomColors;
+        BoxColor = v.BoxColor;
+        BoxLineThickness = v.BoxLineThickness;
+        HighlightColor = v.HighlightColor;
+        HighlightOpacity = v.HighlightOpacity;
+        StepsFontFamily = v.StepsFontFamily;
+        StepsFontSize = v.StepsFontSize;
+        StepsShape = v.StepsShape;
+        StepsOutlineEnabled = v.StepsOutlineEnabled;
+        StepsSize = v.StepsSize;
+        StepsFillColor = v.StepsFillColor;
+        StepsOutlineColor = v.StepsOutlineColor;
+        StepsFontBold = v.StepsFontBold;
+        StepsFontColor = v.StepsFontColor;
     }
 
     public void Save()
     {
-        var json = Serialize(new AppSettings(OverlayOpacity, FeatherRadius, PreviewStyle, DragStyle, FreezeScreen, ActivationModifier, ActivationKey, ToggleModifier, ToggleKey, CumulativeSpotlights, ToolbarAnchorEdge, FlyoutToolbarVisible, ArrowheadStyle, ArrowEndStyle, ArrowLineStyle, ArrowColor, ArrowLeftEndSize, ArrowLineThickness, ArrowRightEndSize, SyncArrowEndStyle, SyncArrowEndSize, CustomColors, ToggleToolModifier, ToggleToolKey, FadeMode));
+        var json = Serialize(new AppSettings(OverlayOpacity, FeatherRadius, PreviewStyle, DragStyle, FreezeScreen, ActivationModifier, ActivationKey, ToggleModifier, ToggleKey, CumulativeSpotlights, ToolbarAnchorEdge, FlyoutToolbarVisible, ArrowheadStyle, ArrowEndStyle, ArrowLineStyle, ArrowColor, ArrowLeftEndSize, ArrowLineThickness, ArrowRightEndSize, SyncArrowEndStyle, SyncArrowEndSize, CustomColors, ToggleToolModifier, ToggleToolKey, FadeMode, BoxColor, BoxLineThickness, HighlightColor, HighlightOpacity, StepsFontFamily, StepsFontSize, StepsShape, StepsOutlineEnabled, StepsSize, StepsFillColor, StepsOutlineColor, StepsFontBold, StepsFontColor));
         File.WriteAllText(_settingsFilePath, json);
         SettingsChanged?.Invoke(this, EventArgs.Empty);
     }
 
     public static AppSettings Deserialize(string json) =>
         JsonSerializer.Deserialize<AppSettings>(json)
-        ?? new AppSettings(DefaultOverlayOpacity, DefaultFeatherRadius, DefaultPreviewStyle, DefaultDragStyle, DefaultFreezeScreen, DefaultActivationModifier, DefaultActivationKey, DefaultToggleModifier, DefaultToggleKey, DefaultCumulativeSpotlights, DefaultToolbarAnchorEdge, DefaultFlyoutToolbarVisible, DefaultArrowheadStyle, DefaultArrowEndStyle, DefaultArrowLineStyle, DefaultArrowColor, DefaultArrowLeftEndSize, DefaultArrowLineThickness, DefaultArrowRightEndSize, DefaultSyncArrowEndStyle, DefaultSyncArrowEndSize, DefaultCustomColors, DefaultToggleToolModifier, DefaultToggleToolKey, DefaultFadeMode);
+        ?? new AppSettings(DefaultOverlayOpacity, DefaultFeatherRadius, DefaultPreviewStyle, DefaultDragStyle, DefaultFreezeScreen, DefaultActivationModifier, DefaultActivationKey, DefaultToggleModifier, DefaultToggleKey, DefaultCumulativeSpotlights, DefaultToolbarAnchorEdge, DefaultFlyoutToolbarVisible, DefaultArrowheadStyle, DefaultArrowEndStyle, DefaultArrowLineStyle, DefaultArrowColor, DefaultArrowLeftEndSize, DefaultArrowLineThickness, DefaultArrowRightEndSize, DefaultSyncArrowEndStyle, DefaultSyncArrowEndSize, DefaultCustomColors, DefaultToggleToolModifier, DefaultToggleToolKey, DefaultFadeMode, DefaultBoxColor, DefaultBoxLineThickness, DefaultHighlightColor, DefaultHighlightOpacity, DefaultStepsFontFamily, DefaultStepsFontSize, DefaultStepsShape, DefaultStepsOutlineEnabled, DefaultStepsSize, DefaultStepsFillColor, DefaultStepsOutlineColor, DefaultStepsFontBold, DefaultStepsFontColor);
 
     public static string Serialize(AppSettings settings) =>
         JsonSerializer.Serialize(settings);
@@ -190,7 +242,22 @@ public class SettingsService
         var toggleToolMod = Enum.IsDefined(s.ToggleToolModifier) ? s.ToggleToolModifier : DefaultToggleToolModifier;
         var toggleToolKey = s.ToggleToolKey is >= 0x01 and <= 0xFE ? s.ToggleToolKey : DefaultToggleToolKey;
         var fadeMode = Enum.IsDefined(s.FadeMode) ? s.FadeMode : DefaultFadeMode;
-        return new AppSettings(opacity, radius, preview, drag, s.FreezeScreen, modifier, activationKey, toggleMod, toggleKey, s.CumulativeSpotlights, anchorEdge, s.FlyoutToolbarVisible, arrowheadStyle, arrowEndStyle, arrowLineStyle, arrowColor, leftSize, lineThick, rightSize, s.SyncArrowEndStyle, s.SyncArrowEndSize, s.CustomColors ?? DefaultCustomColors, toggleToolMod, toggleToolKey, fadeMode);
+        var boxColor = IsValidHexColor(s.BoxColor) ? s.BoxColor.ToUpperInvariant() : DefaultBoxColor;
+        var boxLineThick = (double.IsNaN(s.BoxLineThickness) || double.IsInfinity(s.BoxLineThickness))
+            ? DefaultBoxLineThickness : Math.Clamp(s.BoxLineThickness, 1.0, 12.0);
+        var highlightColor = IsValidHexColor(s.HighlightColor) ? s.HighlightColor.ToUpperInvariant() : DefaultHighlightColor;
+        var highlightOpacity = (double.IsNaN(s.HighlightOpacity) || double.IsInfinity(s.HighlightOpacity))
+            ? DefaultHighlightOpacity : Math.Clamp(s.HighlightOpacity, 0.1, 0.9);
+        var stepsFontFamily = string.IsNullOrEmpty(s.StepsFontFamily) ? DefaultStepsFontFamily : s.StepsFontFamily;
+        var stepsFontSize = (double.IsNaN(s.StepsFontSize) || double.IsInfinity(s.StepsFontSize) || s.StepsFontSize < 8 || s.StepsFontSize > 48)
+            ? DefaultStepsFontSize : s.StepsFontSize;
+        var stepsShape = Enum.IsDefined(s.StepsShape) ? s.StepsShape : DefaultStepsShape;
+        var stepsSize = (double.IsNaN(s.StepsSize) || double.IsInfinity(s.StepsSize))
+            ? DefaultStepsSize : Math.Clamp(s.StepsSize, 16, 72);
+        var stepsFillColor = IsValidHexColor(s.StepsFillColor) ? s.StepsFillColor.ToUpperInvariant() : DefaultStepsFillColor;
+        var stepsOutlineColor = IsValidHexColor(s.StepsOutlineColor) ? s.StepsOutlineColor.ToUpperInvariant() : DefaultStepsOutlineColor;
+        var stepsFontColor = IsValidHexColor(s.StepsFontColor) ? s.StepsFontColor.ToUpperInvariant() : DefaultStepsFontColor;
+        return new AppSettings(opacity, radius, preview, drag, s.FreezeScreen, modifier, activationKey, toggleMod, toggleKey, s.CumulativeSpotlights, anchorEdge, s.FlyoutToolbarVisible, arrowheadStyle, arrowEndStyle, arrowLineStyle, arrowColor, leftSize, lineThick, rightSize, s.SyncArrowEndStyle, s.SyncArrowEndSize, s.CustomColors ?? DefaultCustomColors, toggleToolMod, toggleToolKey, fadeMode, boxColor, boxLineThick, highlightColor, highlightOpacity, stepsFontFamily, stepsFontSize, stepsShape, s.StepsOutlineEnabled, stepsSize, stepsFillColor, stepsOutlineColor, s.StepsFontBold, stepsFontColor);
     }
 
     private static bool IsValidHexColor(string? color)

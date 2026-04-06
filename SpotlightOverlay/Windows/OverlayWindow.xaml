@@ -14,6 +14,10 @@
         <Border x:Name="OverlayBorder" />
         <!-- Arrow annotations layer: above spotlight overlay, below drag preview indicators -->
         <Canvas x:Name="ArrowCanvas" IsHitTestVisible="False" />
+        <!-- Highlight annotations layer: composited as a group via Opacity for non-overlap behavior -->
+        <Canvas x:Name="HighlightCanvas" IsHitTestVisible="False" />
+        <!-- Steps annotations layer: rendered above highlights -->
+        <Canvas x:Name="StepsCanvas" IsHitTestVisible="False" />
         <Canvas x:Name="PreviewCanvas">
             <Border x:Name="DragPreview" Visibility="Collapsed" />
             <!-- Outline preview: shadow + foreground rectangles -->

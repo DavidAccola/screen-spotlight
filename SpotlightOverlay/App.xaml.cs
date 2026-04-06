@@ -16,6 +16,9 @@ public partial class App : Application
     private SettingsService _settings = null!;
     private SpotlightRenderer _renderer = null!;
     private readonly ArrowRenderer _arrowRenderer = new();
+    private readonly BoxRenderer _boxRenderer = new();
+    private readonly HighlightRenderer _highlightRenderer = new();
+    private readonly StepsRenderer _stepsRenderer = new();
     private GlobalInputHook _inputHook = null!;
     private TrayIconService _trayIcon = null!;
     private FlyoutToolbarWindow? _flyoutToolbar;
@@ -91,6 +94,12 @@ public partial class App : Application
         _inputHook.ToggleToolRequested += OnToggleTool;
         _inputHook.ArrowDragUpdated += OnArrowDragUpdated;
         _inputHook.ArrowDragCompleted += OnArrowDragCompleted;
+        _inputHook.BoxDragUpdated += OnBoxDragUpdated;
+        _inputHook.BoxDragCompleted += OnBoxDragCompleted;
+        _inputHook.HighlightDragUpdated += OnHighlightDragUpdated;
+        _inputHook.HighlightDragCompleted += OnHighlightDragCompleted;
+        _inputHook.StepsDragUpdated += OnStepsDragUpdated;
+        _inputHook.StepsPlaced += OnStepsPlaced;
 
         // Keep hook in sync when settings change at runtime
         _settings.SettingsChanged += (_, _) =>
@@ -195,11 +204,14 @@ public partial class App : Application
         {
             _overlayWindow?.HideDragPreview();
             _overlayWindow?.HideArrowPreview();
+            _overlayWindow?.HideBoxPreview();
+            _overlayWindow?.HideHighlightPreview();
+            _overlayWindow?.HideStepsPreview();
             _cachedScreenshot = null;
 
             // If there are no finalized shapes, close the overlay entirely
             // so the user doesn't need a second Esc to dismiss an empty overlay.
-            bool hasFinalized = _renderer.CutoutCount > 0 || _arrowRenderer.ArrowCount > 0;
+            bool hasFinalized = _renderer.CutoutCount > 0 || _arrowRenderer.ArrowCount > 0 || _boxRenderer.BoxCount > 0 || _highlightRenderer.HighlightCount > 0 || _stepsRenderer.StepCount > 0;
             if (!hasFinalized && _overlayWindow != null && !_isDismissed)
             {
                 DebugLog.Write("[App] DragCancelled with empty overlay — auto-dismissing");
@@ -228,7 +240,7 @@ public partial class App : Application
         Dispatcher.BeginInvoke(() =>
         {
             if (_flyoutToolbar == null) return;
-            var allTools = new[] { ToolType.Spotlight, ToolType.Arrow };
+            var allTools = new[] { ToolType.Spotlight, ToolType.Arrow, ToolType.Box, ToolType.Highlight, ToolType.Steps };
             int current = Array.IndexOf(allTools, _flyoutToolbar.ActiveTool);
             var next = allTools[(current + 1) % allTools.Length];
             _flyoutToolbar.SetActiveToolExternal(next);
@@ -341,10 +353,15 @@ public partial class App : Application
         if (!_isDismissed || _overlayWindow == null) return;
 
         DebugLog.Write("[App] New drag while dismissed — clearing old state");
+        _overlayWindow.ClearBoxes();
+        _overlayWindow.ClearSteps();
         _overlayWindow.Close();
         _overlayWindow = null;
         _renderer.ClearCutouts();
         _arrowRenderer.ClearArrows();
+        _boxRenderer.ClearBoxes();
+        _highlightRenderer.ClearHighlights();
+        _stepsRenderer.ClearSteps();
         _pendingCutouts.Clear();
         _isDismissed = false;
         _inputHook.CanRestore = false;
@@ -431,9 +448,266 @@ public partial class App : Application
     }
 
     /// <summary>
-    /// Parses the ArrowColor hex string from settings into a WPF Color.
-    /// Falls back to white if parsing fails.
+    /// Handles live box drag updates: shows a preview rectangle on the overlay.
     /// </summary>
+    private void OnBoxDragUpdated(object? sender, DragRectEventArgs e)
+    {
+        Dispatcher.BeginInvoke(() =>
+        {
+            try
+            {
+                ClearDismissedState();
+
+                if (!EnsureOverlayWindow(e.DragStartPoint)) return;
+
+                var dipRect = ScreenRectToWindowDip(e.ScreenRect);
+                var color = ParseBoxColor();
+
+                var shadowPath = _boxRenderer.BuildShadowPath(dipRect, _settings.BoxLineThickness);
+                if (shadowPath != null)
+                    _overlayWindow!.ShowBoxPreview(shadowPath);
+
+                var mainPath = _boxRenderer.BuildBoxPath(dipRect, color, _settings.BoxLineThickness);
+                if (mainPath != null)
+                    _overlayWindow!.ShowBoxPreview(mainPath);
+            }
+            catch (Exception ex)
+            {
+                DebugLog.Write($"[App] ERROR in BoxDragUpdated: {ex}");
+            }
+        });
+    }
+
+    /// <summary>
+    /// Handles a completed box drag: adds the finalized box (shadow + main) to the overlay.
+    /// </summary>
+    private void OnBoxDragCompleted(object? sender, DragRectEventArgs e)
+    {
+        DebugLog.Write($"[App] OnBoxDragCompleted: ScreenRect={e.ScreenRect}");
+        Dispatcher.BeginInvoke(() =>
+        {
+            try
+            {
+                if (_overlayWindow == null) return;
+
+                _overlayWindow.HideBoxPreview();
+
+                var dipRect = ScreenRectToWindowDip(e.ScreenRect);
+                var color = ParseBoxColor();
+
+                // Add shadow first (renders behind the main box)
+                var shadowPath = _boxRenderer.BuildShadowPath(dipRect, _settings.BoxLineThickness);
+                if (shadowPath != null)
+                    _overlayWindow.AddBoxVisual(shadowPath);
+
+                // Add main box path
+                var mainPath = _boxRenderer.BuildBoxPath(dipRect, color, _settings.BoxLineThickness);
+                if (mainPath != null)
+                {
+                    _overlayWindow.AddBoxVisual(mainPath);
+                    _boxRenderer.AddBox(dipRect);
+                }
+
+                // Note: do NOT call FadeInBackground() — boxes render on transparent overlay like arrows.
+            }
+            catch (Exception ex)
+            {
+                DebugLog.Write($"[App] ERROR in BoxDragCompleted: {ex}");
+            }
+        });
+    }
+
+    /// <summary>
+    /// Parses the BoxColor hex string from settings into a WPF Color.
+    /// Falls back to a cyan-blue if parsing fails.
+    /// </summary>
+    private System.Windows.Media.Color ParseBoxColor()
+    {
+        try
+        {
+            var hex = _settings.BoxColor;
+            if (hex.Length == 6)
+            {
+                byte r = Convert.ToByte(hex.Substring(0, 2), 16);
+                byte g = Convert.ToByte(hex.Substring(2, 2), 16);
+                byte b = Convert.ToByte(hex.Substring(4, 2), 16);
+                return System.Windows.Media.Color.FromRgb(r, g, b);
+            }
+        }
+        catch { }
+        return System.Windows.Media.Color.FromRgb(0x00, 0xB4, 0xFF);
+    }
+    private System.Windows.Media.Color ParseHighlightColor()
+    {
+        try
+        {
+            var hex = _settings.HighlightColor;
+            if (hex.Length == 6)
+            {
+                byte r = Convert.ToByte(hex.Substring(0, 2), 16);
+                byte g = Convert.ToByte(hex.Substring(2, 2), 16);
+                byte b = Convert.ToByte(hex.Substring(4, 2), 16);
+                return System.Windows.Media.Color.FromRgb(r, g, b);
+            }
+        }
+        catch { }
+        return System.Windows.Media.Color.FromRgb(0xFF, 0xC9, 0x0E);
+    }
+
+    private System.Windows.Media.Color ParseStepsFillColor()
+    {
+        try
+        {
+            var hex = _settings.StepsFillColor;
+            if (hex.Length == 6)
+            {
+                byte r = Convert.ToByte(hex.Substring(0, 2), 16);
+                byte g = Convert.ToByte(hex.Substring(2, 2), 16);
+                byte b = Convert.ToByte(hex.Substring(4, 2), 16);
+                return System.Windows.Media.Color.FromRgb(r, g, b);
+            }
+        }
+        catch { }
+        return System.Windows.Media.Color.FromRgb(0xE8, 0x40, 0x40);
+    }
+
+    private System.Windows.Media.Color ParseStepsOutlineColor()
+    {
+        try
+        {
+            var hex = _settings.StepsOutlineColor;
+            if (hex.Length == 6)
+            {
+                byte r = Convert.ToByte(hex.Substring(0, 2), 16);
+                byte g = Convert.ToByte(hex.Substring(2, 2), 16);
+                byte b = Convert.ToByte(hex.Substring(4, 2), 16);
+                return System.Windows.Media.Color.FromRgb(r, g, b);
+            }
+        }
+        catch { }
+        return System.Windows.Media.Colors.White;
+    }
+
+    private void OnHighlightDragUpdated(object? sender, DragRectEventArgs e)
+    {
+        Dispatcher.BeginInvoke(() =>
+        {
+            try
+            {
+                ClearDismissedState();
+                if (!EnsureOverlayWindow(e.DragStartPoint)) return;
+                _overlayWindow!.SetHighlightOpacity(_settings.HighlightOpacity);
+                var dipRect = ScreenRectToWindowDip(e.ScreenRect);
+                var color = ParseHighlightColor();
+                var previewPath = _highlightRenderer.BuildHighlightPath(dipRect, color);
+                if (previewPath != null)
+                    _overlayWindow.ShowHighlightPreview(previewPath);
+            }
+            catch (Exception ex) { DebugLog.Write($"[App] ERROR in HighlightDragUpdated: {ex}"); }
+        });
+    }
+
+    private void OnHighlightDragCompleted(object? sender, DragRectEventArgs e)
+    {
+        DebugLog.Write($"[App] OnHighlightDragCompleted: ScreenRect={e.ScreenRect}");
+        Dispatcher.BeginInvoke(() =>
+        {
+            try
+            {
+                if (_overlayWindow == null) return;
+                _overlayWindow.HideHighlightPreview();
+                _overlayWindow.SetHighlightOpacity(_settings.HighlightOpacity);
+                var dipRect = ScreenRectToWindowDip(e.ScreenRect);
+                var color = ParseHighlightColor();
+                var mainPath = _highlightRenderer.BuildHighlightPath(dipRect, color);
+                if (mainPath != null)
+                {
+                    _overlayWindow.AddHighlightVisual(mainPath);
+                    _highlightRenderer.AddHighlight(dipRect);
+                }
+            }
+            catch (Exception ex) { DebugLog.Write($"[App] ERROR in HighlightDragCompleted: {ex}"); }
+        });
+    }
+
+    private void OnStepsDragUpdated(object? sender, StepsPlacedEventArgs e)
+    {
+        Dispatcher.BeginInvoke(() =>
+        {
+            try
+            {
+                ClearDismissedState();
+                if (!EnsureOverlayWindow(e.AnchorPoint)) return;
+
+                var anchorDip = _overlayWindow!.PointFromScreen(e.AnchorPoint);
+                var releaseDip = _overlayWindow.PointFromScreen(e.ReleasePoint);
+
+                double tailAngleRad = (e.AnchorPoint == e.ReleasePoint)
+                    ? 0
+                    : Math.Atan2(releaseDip.Y - anchorDip.Y, releaseDip.X - anchorDip.X);
+
+                var fillColor = ParseStepsFillColor();
+                var outlineColor = ParseStepsOutlineColor();
+                var options = new StepsRenderOptions(
+                    _settings.StepsShape,
+                    _settings.StepsOutlineEnabled,
+                    _settings.StepsSize,
+                    fillColor,
+                    outlineColor,
+                    _settings.StepsFontFamily,
+                    _settings.StepsFontSize);
+
+                var visual = _stepsRenderer.BuildStepVisual(anchorDip, tailAngleRad, _stepsRenderer.NextStepNumber, options);
+                _overlayWindow.ShowStepsPreview(visual);
+            }
+            catch (Exception ex)
+            {
+                DebugLog.Write($"[App] ERROR in StepsDragUpdated: {ex}");
+            }
+        });
+    }
+
+    private void OnStepsPlaced(object? sender, StepsPlacedEventArgs e)
+    {
+        DebugLog.Write($"[App] OnStepsPlaced: Anchor={e.AnchorPoint}, Release={e.ReleasePoint}");
+        Dispatcher.BeginInvoke(() =>
+        {
+            try
+            {
+                if (_overlayWindow == null) return;
+
+                _overlayWindow.HideStepsPreview();
+
+                var anchorDip = _overlayWindow.PointFromScreen(e.AnchorPoint);
+                var releaseDip = _overlayWindow.PointFromScreen(e.ReleasePoint);
+
+                double tailAngleRad = (e.AnchorPoint == e.ReleasePoint)
+                    ? 0
+                    : Math.Atan2(releaseDip.Y - anchorDip.Y, releaseDip.X - anchorDip.X);
+
+                var fillColor = ParseStepsFillColor();
+                var outlineColor = ParseStepsOutlineColor();
+                var options = new StepsRenderOptions(
+                    _settings.StepsShape,
+                    _settings.StepsOutlineEnabled,
+                    _settings.StepsSize,
+                    fillColor,
+                    outlineColor,
+                    _settings.StepsFontFamily,
+                    _settings.StepsFontSize);
+
+                int stepNumber = _stepsRenderer.NextStepNumber;
+                var visual = _stepsRenderer.BuildStepVisual(anchorDip, tailAngleRad, stepNumber, options);
+                _overlayWindow.AddStepVisual(visual);
+                _stepsRenderer.AddStep(anchorDip, tailAngleRad, stepNumber, options);
+            }
+            catch (Exception ex)
+            {
+                DebugLog.Write($"[App] ERROR in StepsPlaced: {ex}");
+            }
+        });
+    }
+
     private System.Windows.Media.Color ParseArrowColor()
     {
         try

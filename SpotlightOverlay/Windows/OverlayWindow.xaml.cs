@@ -379,6 +379,8 @@ public partial class OverlayWindow : Window
     #region Arrow Rendering
 
     private FrameworkElement? _arrowPreview;
+    private FrameworkElement? _boxPreview;
+    private readonly List<FrameworkElement> _boxVisuals = new();
 
     /// <summary>
     /// Adds a finalized arrow element to the ArrowCanvas.
@@ -420,6 +422,166 @@ public partial class OverlayWindow : Window
     {
         ArrowCanvas.Children.Clear();
         _arrowPreview = null;
+    }
+
+    /// <summary>
+    /// Adds a finalized box element to the ArrowCanvas.
+    /// </summary>
+    public void AddBoxVisual(FrameworkElement element)
+    {
+        element.IsHitTestVisible = false;
+        _boxVisuals.Add(element);
+        ArrowCanvas.Children.Add(element);
+    }
+
+    /// <summary>
+    /// Shows a live preview box on the ArrowCanvas.
+    /// Removes any previous box preview first, then adds the new one.
+    /// </summary>
+    public void ShowBoxPreview(FrameworkElement element)
+    {
+        HideBoxPreview();
+        element.IsHitTestVisible = false;
+        _boxPreview = element;
+        ArrowCanvas.Children.Add(_boxPreview);
+    }
+
+    /// <summary>
+    /// Removes the current box preview from the ArrowCanvas.
+    /// </summary>
+    public void HideBoxPreview()
+    {
+        if (_boxPreview != null)
+        {
+            ArrowCanvas.Children.Remove(_boxPreview);
+            _boxPreview = null;
+        }
+    }
+
+    /// <summary>
+    /// Removes all committed box visuals from the ArrowCanvas without affecting arrow visuals.
+    /// </summary>
+    public void ClearBoxes()
+    {
+        foreach (var visual in _boxVisuals)
+            ArrowCanvas.Children.Remove(visual);
+        _boxVisuals.Clear();
+        HideBoxPreview();
+    }
+
+    #endregion
+
+    #region Highlight Rendering
+
+    private FrameworkElement? _highlightPreview;
+    private readonly List<FrameworkElement> _highlightVisuals = new();
+
+    /// <summary>
+    /// Adds a finalized highlight element to the HighlightCanvas.
+    /// </summary>
+    public void AddHighlightVisual(FrameworkElement element)
+    {
+        element.IsHitTestVisible = false;
+        _highlightVisuals.Add(element);
+        HighlightCanvas.Children.Add(element);
+    }
+
+    /// <summary>
+    /// Shows a live preview highlight on the HighlightCanvas.
+    /// Removes any previous preview first, then adds the new one.
+    /// </summary>
+    public void ShowHighlightPreview(FrameworkElement element)
+    {
+        HideHighlightPreview();
+        element.IsHitTestVisible = false;
+        _highlightPreview = element;
+        HighlightCanvas.Children.Add(_highlightPreview);
+    }
+
+    /// <summary>
+    /// Removes the current highlight preview from the HighlightCanvas.
+    /// </summary>
+    public void HideHighlightPreview()
+    {
+        if (_highlightPreview != null)
+        {
+            HighlightCanvas.Children.Remove(_highlightPreview);
+            _highlightPreview = null;
+        }
+    }
+
+    /// <summary>
+    /// Removes all committed highlight visuals from the HighlightCanvas.
+    /// </summary>
+    public void ClearHighlights()
+    {
+        foreach (var visual in _highlightVisuals)
+            HighlightCanvas.Children.Remove(visual);
+        _highlightVisuals.Clear();
+        HideHighlightPreview();
+    }
+
+    /// <summary>
+    /// Sets the opacity of the HighlightCanvas so all highlights composite as one flat layer.
+    /// This is the key to non-overlap behavior: overlapping rects inside the canvas
+    /// don't accumulate alpha — the whole canvas blends as a single unit.
+    /// </summary>
+    public void SetHighlightOpacity(double opacity)
+    {
+        HighlightCanvas.Opacity = Math.Clamp(opacity, 0.0, 1.0);
+    }
+
+    #endregion
+
+    #region Steps Rendering
+
+    private FrameworkElement? _stepsPreview;
+    private readonly List<FrameworkElement> _stepsVisuals = new();
+
+    /// <summary>
+    /// Adds a finalized step element to the StepsCanvas.
+    /// </summary>
+    public void AddStepVisual(FrameworkElement element)
+    {
+        element.IsHitTestVisible = false;
+        _stepsVisuals.Add(element);
+        StepsCanvas.Children.Add(element);
+    }
+
+    /// <summary>
+    /// Shows a live preview step on the StepsCanvas.
+    /// Removes any previous preview first, then adds the new one.
+    /// </summary>
+    public void ShowStepsPreview(FrameworkElement element)
+    {
+        HideStepsPreview();
+        element.IsHitTestVisible = false;
+        _stepsPreview = element;
+        StepsCanvas.Children.Add(_stepsPreview);
+    }
+
+    /// <summary>
+    /// Removes the current steps preview from the StepsCanvas.
+    /// </summary>
+    public void HideStepsPreview()
+    {
+        if (_stepsPreview != null)
+        {
+            StepsCanvas.Children.Remove(_stepsPreview);
+            _stepsPreview = null;
+        }
+    }
+
+    /// <summary>
+    /// Removes all committed step visuals from the StepsCanvas and hides the preview.
+    /// Does NOT remove other tool visuals.
+    /// </summary>
+    public void ClearSteps()
+    {
+        foreach (var visual in _stepsVisuals)
+            StepsCanvas.Children.Remove(visual);
+        _stepsVisuals.Clear();
+        HideStepsPreview();
     }
 
     #endregion

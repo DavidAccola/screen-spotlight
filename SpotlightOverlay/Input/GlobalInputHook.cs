@@ -77,6 +77,12 @@ public class GlobalInputHook : IDisposable
     public event EventHandler<DragRectEventArgs>? DragUpdated;
     public event EventHandler<ArrowLineEventArgs>? ArrowDragCompleted;
     public event EventHandler<ArrowLineEventArgs>? ArrowDragUpdated;
+    public event EventHandler<DragRectEventArgs>? BoxDragCompleted;
+    public event EventHandler<DragRectEventArgs>? BoxDragUpdated;
+    public event EventHandler<DragRectEventArgs>? HighlightDragCompleted;
+    public event EventHandler<DragRectEventArgs>? HighlightDragUpdated;
+    public event EventHandler<StepsPlacedEventArgs>? StepsPlaced;
+    public event EventHandler<StepsPlacedEventArgs>? StepsDragUpdated;
     public event EventHandler? DragCancelled;
     public event EventHandler? CtrlReleased;
     public event EventHandler? CtrlPressed;
@@ -221,25 +227,21 @@ public class GlobalInputHook : IDisposable
         return IsXButtonMatch(ToggleToolKey, mouseData);
     }
 
-    /// <summary>Returns true if the VK code is a mouse button (left, right, middle, X1, X2).</summary>
-    private static bool IsMouseButtonVk(int vk) => vk is 0x01 or 0x02 or 0x04 or 0x05 or 0x06;
+    /// <summary>Returns true if the VK code is a configurable mouse button (middle, X1, X2). Left/right are not configurable.</summary>
+    private static bool IsMouseButtonVk(int vk) => vk is 0x04 or 0x05 or 0x06;
 
-    /// <summary>Returns the WM_*BUTTONDOWN message for the given mouse button VK, or 0 if not a mouse button.</summary>
+    /// <summary>Returns the WM_*BUTTONDOWN message for the given mouse button VK, or 0 if not a configurable mouse button.</summary>
     private static int MouseVkToDownMsg(int vk) => vk switch
     {
-        0x01 => WM_LBUTTONDOWN,
-        0x02 => WM_RBUTTONDOWN,
         0x04 => WM_MBUTTONDOWN,
         0x05 => WM_XBUTTONDOWN,
         0x06 => WM_XBUTTONDOWN,
         _ => 0
     };
 
-    /// <summary>Returns the WM_*BUTTONUP message for the given mouse button VK, or 0 if not a mouse button.</summary>
+    /// <summary>Returns the WM_*BUTTONUP message for the given mouse button VK, or 0 if not a configurable mouse button.</summary>
     private static int MouseVkToUpMsg(int vk) => vk switch
     {
-        0x01 => WM_LBUTTONUP,
-        0x02 => WM_RBUTTONUP,
         0x04 => WM_MBUTTONUP,
         0x05 => WM_XBUTTONUP,
         0x06 => WM_XBUTTONUP,
@@ -513,6 +515,29 @@ public class GlobalInputHook : IDisposable
             var current = new System.Windows.Point(x, y);
             ArrowDragUpdated?.Invoke(this, new ArrowLineEventArgs(_dragStartPoint, current));
         }
+        else if (ActiveTool == ToolType.Box)
+        {
+            double rx = Math.Min(_dragStartPoint.X, x);
+            double ry = Math.Min(_dragStartPoint.Y, y);
+            double rw = Math.Abs(x - _dragStartPoint.X);
+            double rh = Math.Abs(y - _dragStartPoint.Y);
+            if (rw > 1 && rh > 1)
+                BoxDragUpdated?.Invoke(this, new DragRectEventArgs(new System.Windows.Rect(rx, ry, rw, rh), _dragStartPoint));
+        }
+        else if (ActiveTool == ToolType.Highlight)
+        {
+            double rx = Math.Min(_dragStartPoint.X, x);
+            double ry = Math.Min(_dragStartPoint.Y, y);
+            double rw = Math.Abs(x - _dragStartPoint.X);
+            double rh = Math.Abs(y - _dragStartPoint.Y);
+            if (rw > 1 && rh > 1)
+                HighlightDragUpdated?.Invoke(this, new DragRectEventArgs(new System.Windows.Rect(rx, ry, rw, rh), _dragStartPoint));
+        }
+        else if (ActiveTool == ToolType.Steps)
+        {
+            var current = new System.Windows.Point(x, y);
+            StepsDragUpdated?.Invoke(this, new StepsPlacedEventArgs(_dragStartPoint, current));
+        }
         else
         {
             double rx = Math.Min(_dragStartPoint.X, x);
@@ -530,6 +555,38 @@ public class GlobalInputHook : IDisposable
         {
             var endPoint = new System.Windows.Point(x, y);
             ArrowDragCompleted?.Invoke(this, new ArrowLineEventArgs(_dragStartPoint, endPoint));
+            _hasPendingDrags = true;
+        }
+        else if (ActiveTool == ToolType.Box)
+        {
+            double rx = Math.Min(_dragStartPoint.X, x);
+            double ry = Math.Min(_dragStartPoint.Y, y);
+            double rw = Math.Abs(x - _dragStartPoint.X);
+            double rh = Math.Abs(y - _dragStartPoint.Y);
+            if (rw > 1 && rh > 1)
+            {
+                var rect = new System.Windows.Rect(rx, ry, rw, rh);
+                BoxDragCompleted?.Invoke(this, new DragRectEventArgs(rect, _dragStartPoint));
+                _hasPendingDrags = true;
+            }
+        }
+        else if (ActiveTool == ToolType.Highlight)
+        {
+            double rx = Math.Min(_dragStartPoint.X, x);
+            double ry = Math.Min(_dragStartPoint.Y, y);
+            double rw = Math.Abs(x - _dragStartPoint.X);
+            double rh = Math.Abs(y - _dragStartPoint.Y);
+            if (rw > 1 && rh > 1)
+            {
+                var rect = new System.Windows.Rect(rx, ry, rw, rh);
+                HighlightDragCompleted?.Invoke(this, new DragRectEventArgs(rect, _dragStartPoint));
+                _hasPendingDrags = true;
+            }
+        }
+        else if (ActiveTool == ToolType.Steps)
+        {
+            var releasePoint = new System.Windows.Point(x, y);
+            StepsPlaced?.Invoke(this, new StepsPlacedEventArgs(_dragStartPoint, releasePoint));
             _hasPendingDrags = true;
         }
         else

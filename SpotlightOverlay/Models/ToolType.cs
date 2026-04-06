@@ -6,5 +6,8 @@ namespace SpotlightOverlay.Models;
 public enum ToolType
 {
     Spotlight = 0,
-    Arrow = 1
+    Arrow = 1,
+    Box = 2,
+    Highlight = 3,
+    Steps = 4
 }

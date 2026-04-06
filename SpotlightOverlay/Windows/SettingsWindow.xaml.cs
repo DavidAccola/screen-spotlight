@@ -108,9 +108,43 @@ public partial class SettingsWindow : Window
         UpdateToggleToolHotkeyDisplay();
         UpdateDragStyleLabels();
 
+        BoxSizeSlider.Value = _settings.BoxLineThickness;
+        BoxSizeTextBox.Text = ((int)_settings.BoxLineThickness).ToString();
+        BuildBoxColorPresetSwatches();
+        BuildBoxCustomColorSlots();
+
+        HighlightOpacitySlider.Value = (int)(_settings.HighlightOpacity * 100);
+        HighlightOpacityTextBox.Text = ((int)(_settings.HighlightOpacity * 100)).ToString() + "%";
+        BuildHighlightColorPresetSwatches();
+        BuildHighlightCustomColorSlots();
+
+        // Steps tab initialization
+        BuildStepsFontFamilyCombo();
+        StepsFontSizeTextBox.Text = ((int)_settings.StepsFontSize).ToString();
+        StepsSizeSlider.Value = _settings.StepsSize;
+        StepsSizeTextBox.Text = ((int)_settings.StepsSize).ToString();
+        StepsOutlineEnabledCheck.IsChecked = _settings.StepsOutlineEnabled;
+        HighlightStepsShapeToggle();
+        HighlightStepsBoldBtn();
+        HighlightStepsColorTab();
+        BuildStepsFillColorPresetSwatches();
+        BuildStepsFillCustomColorSlots();
+        BuildStepsOutlineColorPresetSwatches();
+        BuildStepsOutlineCustomColorSlots();
+        BuildStepsFontColorPresetSwatches();
+        BuildStepsFontCustomColorSlots();
+
         _isInitializing = false;
         UpdateSpotlightModeHint();
-        Loaded += (_, _) => { UpdatePreview(); UpdateArrowPreview(); };
+        Loaded += (_, _) =>
+        {
+            UpdatePreview(); UpdateArrowPreview(); UpdateBoxPreview(); UpdateHighlightPreview();
+            UpdateStepsPreview();
+            ArrowPreviewArea.SizeChanged += (_, _) => UpdateArrowPreview();
+            BoxPreviewArea.SizeChanged += (_, _) => UpdateBoxPreview();
+            HighlightPreviewArea.SizeChanged += (_, _) => UpdateHighlightPreview();
+            StepsPreviewArea.SizeChanged += (_, _) => UpdateStepsPreview();
+        };
     }
 
     public static void ShowSingleton(SettingsService settings, GlobalInputHook? inputHook = null)
@@ -902,6 +936,9 @@ public partial class SettingsWindow : Window
         UpdateSpotlightModeHint();
         UpdatePreview();
         UpdateArrowPreview();
+        UpdateBoxPreview();
+        UpdateBoxPreview();
+        UpdateHighlightPreview();
     }
 
     // ── Hotkey recorder ────────────────────────────────────────────
@@ -1439,7 +1476,7 @@ public partial class SettingsWindow : Window
                 {
                     bool isSelected = string.Equals(hex, _settings.ArrowColor, StringComparison.OrdinalIgnoreCase);
                     swatch.BorderBrush = isSelected ? accentBrush : borderBrush;
-                    swatch.BorderThickness = isSelected ? new Thickness(2) : new Thickness(1);
+                    swatch.BorderThickness = isSelected ? new Thickness(3) : new Thickness(1);
                 }
             }
         }
@@ -1596,6 +1633,11 @@ public partial class SettingsWindow : Window
         SaveCustomColors();
         BuildCustomColorSlots();
         HighlightSelectedPreset();
+        BuildBoxCustomColorSlots();
+        BuildHighlightCustomColorSlots();
+        BuildStepsFillCustomColorSlots();
+        BuildStepsOutlineCustomColorSlots();
+        BuildStepsFontCustomColorSlots();
     }
 
     // ── Edit Colors dialog ─────────────────────────────────────────
@@ -1610,6 +1652,914 @@ public partial class SettingsWindow : Window
             AddCustomColor(dialog.SelectedHex);
             HighlightSelectedPreset();
             UpdateArrowPreview();
+        }
+    }
+
+    // ── Box tab ────────────────────────────────────────────────────
+
+    private static readonly Rendering.BoxRenderer _boxPreviewRenderer = new();
+
+    private void UpdateBoxPreview()
+    {
+        if (BoxPreviewArea == null) return;
+        BoxPreviewArea.Children.Clear();
+
+        double w = BoxPreviewArea.ActualWidth > 0 ? BoxPreviewArea.ActualWidth : 486;
+        double h = BoxPreviewArea.ActualHeight > 0 ? BoxPreviewArea.ActualHeight : 80;
+
+        // Match arrow preview span: x from 30% to 70% of width, y from 20% to 80% of height
+        var rect = new Rect(w * 0.3, h * 0.2, w * 0.4, h * 0.6);
+        var color = ParseHexColor(_settings.BoxColor);
+
+        var shadow = _boxPreviewRenderer.BuildShadowPath(rect, _settings.BoxLineThickness);
+        if (shadow != null) { shadow.IsHitTestVisible = false; BoxPreviewArea.Children.Add(shadow); }
+
+        var box = _boxPreviewRenderer.BuildBoxPath(rect, color, _settings.BoxLineThickness);
+        if (box != null) { box.IsHitTestVisible = false; BoxPreviewArea.Children.Add(box); }
+    }
+
+    private void BoxSizeSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (_isInitializing || !IsLoaded) return;
+        var val = Math.Clamp(e.NewValue, 1, 12);
+        _settings.BoxLineThickness = val;
+        _settings.Save();
+        if (BoxSizeTextBox != null) BoxSizeTextBox.Text = ((int)val).ToString();
+        UpdateBoxPreview();
+    }
+
+    private void ApplyBoxSizeFromTextBox()
+    {
+        if (int.TryParse(BoxSizeTextBox.Text, out int val))
+        {
+            val = Math.Clamp(val, 1, 12);
+            _isInitializing = true;
+            BoxSizeSlider.Value = val;
+            _isInitializing = false;
+            _settings.BoxLineThickness = val;
+            _settings.Save();
+            BoxSizeTextBox.Text = val.ToString();
+            UpdateBoxPreview();
+        }
+        else
+        {
+            BoxSizeTextBox.Text = ((int)_settings.BoxLineThickness).ToString();
+        }
+    }
+
+    private void BoxSizeTextBox_LostFocus(object sender, RoutedEventArgs e) => ApplyBoxSizeFromTextBox();
+    private void BoxSizeTextBox_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (e.Key == System.Windows.Input.Key.Enter) ApplyBoxSizeFromTextBox();
+    }
+
+    private void BoxSizeUp_Click(object sender, RoutedEventArgs e)
+    {
+        BoxSizeSlider.Value = Math.Clamp(BoxSizeSlider.Value + 1, 1, 12);
+    }
+    private void BoxSizeDown_Click(object sender, RoutedEventArgs e)
+    {
+        BoxSizeSlider.Value = Math.Clamp(BoxSizeSlider.Value - 1, 1, 12);
+    }
+
+    private void BuildBoxColorPresetSwatches()
+    {
+        BoxColorPresetGrid.Children.Clear();
+        foreach (var (hex, name) in PresetColors)
+        {
+            var color = (Color)System.Windows.Media.ColorConverter.ConvertFromString("#" + hex);
+            var swatch = new Border
+            {
+                Width = 28, Height = 28,
+                CornerRadius = new CornerRadius(14),
+                Margin = new Thickness(2),
+                Background = new SolidColorBrush(color),
+                BorderThickness = new Thickness(1),
+                BorderBrush = (SolidColorBrush)FindResource("CardBorder"),
+                Cursor = System.Windows.Input.Cursors.Hand,
+                Tag = hex,
+                ToolTip = name,
+            };
+            swatch.MouseLeftButtonDown += BoxColorSwatch_Click;
+            BoxColorPresetGrid.Children.Add(swatch);
+        }
+        HighlightSelectedBoxPreset();
+    }
+
+    private void BoxColorSwatch_Click(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is Border swatch && swatch.Tag is string hex)
+        {
+            _settings.BoxColor = hex;
+            _settings.Save();
+            HighlightSelectedBoxPreset();
+            UpdateBoxPreview();
+        }
+    }
+
+    private void HighlightSelectedBoxPreset()
+    {
+        var accentBrush = (SolidColorBrush)FindResource("Accent");
+        var borderBrush = (SolidColorBrush)FindResource("CardBorder");
+        foreach (var grid in new[] { BoxColorPresetGrid, BoxCustomColorGrid })
+        {
+            foreach (var child in grid.Children)
+            {
+                if (child is Border swatch && swatch.Tag is string hex)
+                {
+                    bool isSelected = string.Equals(hex, _settings.BoxColor, StringComparison.OrdinalIgnoreCase);
+                    swatch.BorderBrush = isSelected ? accentBrush : borderBrush;
+                    swatch.BorderThickness = isSelected ? new Thickness(3) : new Thickness(1);
+                }
+            }
+        }
+    }
+
+    private void BuildBoxCustomColorSlots()
+    {
+        BoxCustomColorGrid.Children.Clear();
+        for (int i = 0; i < MaxCustomColors; i++)
+        {
+            string? hex = i < _customColors.Count ? _customColors[i] : null;
+            var swatch = new Border
+            {
+                Width = 28, Height = 28,
+                CornerRadius = new CornerRadius(14),
+                Margin = new Thickness(2),
+                Background = hex != null
+                    ? new SolidColorBrush((Color)System.Windows.Media.ColorConverter.ConvertFromString("#" + hex))
+                    : System.Windows.Media.Brushes.Transparent,
+                BorderThickness = new Thickness(1),
+                BorderBrush = (SolidColorBrush)FindResource("CardBorder"),
+                Cursor = hex != null ? System.Windows.Input.Cursors.Hand : System.Windows.Input.Cursors.Arrow,
+                Tag = hex,
+            };
+            if (hex != null)
+                swatch.MouseLeftButtonDown += BoxColorSwatch_Click;
+            BoxCustomColorGrid.Children.Add(swatch);
+        }
+        HighlightSelectedBoxPreset();
+    }
+
+    private void BoxEditColors_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new ColorPickerDialog(_settings.BoxColor) { Owner = this };
+        if (dialog.ShowDialog() == true && dialog.SelectedHex != null)
+        {
+            _settings.BoxColor = dialog.SelectedHex;
+            _settings.Save();
+            // Share custom color storage with Arrow tab
+            _customColors.Remove(dialog.SelectedHex);
+            _customColors.Insert(0, dialog.SelectedHex);
+            if (_customColors.Count > MaxCustomColors)
+                _customColors.RemoveAt(MaxCustomColors);
+            SaveCustomColors();
+            BuildCustomColorSlots();
+            HighlightSelectedPreset();
+            BuildBoxCustomColorSlots();
+            HighlightSelectedBoxPreset();
+            BuildStepsFillCustomColorSlots();
+            BuildStepsOutlineCustomColorSlots();
+            UpdateBoxPreview();
+        }
+    }
+
+    // ── Highlight tab ──────────────────────────────────────────────
+
+    private static readonly Rendering.HighlightRenderer _highlightPreviewRenderer = new();
+
+    private void UpdateHighlightPreview()
+    {
+        if (HighlightPreviewArea == null) return;
+        HighlightPreviewArea.Children.Clear();
+
+        double w = HighlightPreviewArea.ActualWidth > 0 ? HighlightPreviewArea.ActualWidth : 486;
+        double h = HighlightPreviewArea.ActualHeight > 0 ? HighlightPreviewArea.ActualHeight : 80;
+
+        var color = ParseHexColor(_settings.HighlightColor);
+
+        // Two side-by-side examples, each occupying half the canvas
+        DrawHighlightExample(w * 0.0, w * 0.5, h, "Abcdefghijklm",
+            System.Windows.Media.Brushes.White, System.Windows.Media.Brushes.Black, color);
+        DrawHighlightExample(w * 0.5, w * 0.5, h, "Nopqrstuvwxyz",
+            new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x1E)),
+            System.Windows.Media.Brushes.White, color);
+    }
+
+    private void DrawHighlightExample(double offsetX, double panelW, double h,
+        string text, System.Windows.Media.Brush bgBrush, System.Windows.Media.Brush fgBrush, Color highlightColor)
+    {
+        // Panel background
+        var bg = new System.Windows.Shapes.Rectangle
+        {
+            Width = panelW, Height = h,
+            Fill = bgBrush, IsHitTestVisible = false
+        };
+        Canvas.SetLeft(bg, offsetX);
+        Canvas.SetTop(bg, 0);
+        HighlightPreviewArea.Children.Add(bg);
+
+        // Highlight rect: same proportions as box preview (30–70% of panel width, 20–80% of height)
+        double hlX = offsetX + panelW * 0.3;
+        double hlY = h * 0.2;
+        double hlW = panelW * 0.4;
+        double hlH = h * 0.6;
+
+        // Text band: 1/3 of highlight height, 5/4 of highlight width, centered on highlight
+        double tbH = hlH / 3.0;
+        double tbW = hlW * 1.25;
+        double tbX = hlX + (hlW - tbW) / 2.0;
+        double tbY = hlY + (hlH - tbH) / 2.0;
+
+        var textBg = new System.Windows.Shapes.Rectangle
+        {
+            Width = tbW, Height = tbH,
+            Fill = bgBrush, IsHitTestVisible = false
+        };
+        Canvas.SetLeft(textBg, tbX);
+        Canvas.SetTop(textBg, tbY);
+        HighlightPreviewArea.Children.Add(textBg);
+
+        var tb = new TextBlock
+        {
+            Text = text,
+            Foreground = fgBrush,
+            FontSize = tbH * 0.55,
+            IsHitTestVisible = false,
+            Width = tbW,
+            TextAlignment = TextAlignment.Center
+        };
+        tb.Measure(new Size(tbW, tbH));
+        Canvas.SetLeft(tb, tbX);
+        Canvas.SetTop(tb, tbY + (tbH - tb.DesiredSize.Height) / 2.0);
+        HighlightPreviewArea.Children.Add(tb);
+
+        // Highlight fill on top
+        var hlRect = new Rect(hlX, hlY, hlW, hlH);
+        var fill = _highlightPreviewRenderer.BuildHighlightPath(hlRect, highlightColor);
+        if (fill != null)
+        {
+            fill.IsHitTestVisible = false;
+            fill.Opacity = _settings.HighlightOpacity;
+            HighlightPreviewArea.Children.Add(fill);
+        }
+    }
+
+    private void HighlightOpacitySlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (_isInitializing || !IsLoaded) return;
+        var pct = (int)Math.Clamp(e.NewValue, 10, 90);
+        _settings.HighlightOpacity = pct / 100.0;
+        _settings.Save();
+        if (HighlightOpacityTextBox != null) HighlightOpacityTextBox.Text = pct.ToString() + "%";
+        UpdateHighlightPreview();
+    }
+
+    private void ApplyHighlightOpacityFromTextBox()
+    {
+        var text = HighlightOpacityTextBox.Text.TrimEnd('%', ' ');
+        if (int.TryParse(text, out int pct))
+        {
+            pct = Math.Clamp(pct, 10, 90);
+            _isInitializing = true;
+            HighlightOpacitySlider.Value = pct;
+            _isInitializing = false;
+            _settings.HighlightOpacity = pct / 100.0;
+            _settings.Save();
+            HighlightOpacityTextBox.Text = pct.ToString() + "%";
+            UpdateHighlightPreview();
+        }
+        else
+        {
+            HighlightOpacityTextBox.Text = ((int)(_settings.HighlightOpacity * 100)).ToString() + "%";
+        }
+    }
+
+    private void HighlightOpacityTextBox_LostFocus(object sender, RoutedEventArgs e) => ApplyHighlightOpacityFromTextBox();
+    private void HighlightOpacityTextBox_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (e.Key == System.Windows.Input.Key.Enter) ApplyHighlightOpacityFromTextBox();
+    }
+
+    private void HighlightOpacityUp_Click(object sender, RoutedEventArgs e)
+    {
+        HighlightOpacitySlider.Value = Math.Clamp(HighlightOpacitySlider.Value + 10, 10, 90);
+    }
+    private void HighlightOpacityDown_Click(object sender, RoutedEventArgs e)
+    {
+        HighlightOpacitySlider.Value = Math.Clamp(HighlightOpacitySlider.Value - 10, 10, 90);
+    }
+
+    private void BuildHighlightColorPresetSwatches()
+    {
+        HighlightColorPresetGrid.Children.Clear();
+        foreach (var (hex, name) in PresetColors)
+        {
+            var color = (Color)System.Windows.Media.ColorConverter.ConvertFromString("#" + hex);
+            var swatch = new Border
+            {
+                Width = 28, Height = 28,
+                CornerRadius = new CornerRadius(14),
+                Margin = new Thickness(2),
+                Background = new SolidColorBrush(color),
+                BorderThickness = new Thickness(1),
+                BorderBrush = (SolidColorBrush)FindResource("CardBorder"),
+                Cursor = System.Windows.Input.Cursors.Hand,
+                Tag = hex,
+                ToolTip = name,
+            };
+            swatch.MouseLeftButtonDown += HighlightColorSwatch_Click;
+            HighlightColorPresetGrid.Children.Add(swatch);
+        }
+        HighlightSelectedHighlightPreset();
+    }
+
+    private void HighlightColorSwatch_Click(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is Border swatch && swatch.Tag is string hex)
+        {
+            _settings.HighlightColor = hex;
+            _settings.Save();
+            HighlightSelectedHighlightPreset();
+            UpdateHighlightPreview();
+        }
+    }
+
+    private void HighlightSelectedHighlightPreset()
+    {
+        var accentBrush = (SolidColorBrush)FindResource("Accent");
+        var borderBrush = (SolidColorBrush)FindResource("CardBorder");
+        foreach (var grid in new[] { HighlightColorPresetGrid, HighlightCustomColorGrid })
+        {
+            foreach (var child in grid.Children)
+            {
+                if (child is Border swatch && swatch.Tag is string hex)
+                {
+                    bool isSelected = string.Equals(hex, _settings.HighlightColor, StringComparison.OrdinalIgnoreCase);
+                    swatch.BorderBrush = isSelected ? accentBrush : borderBrush;
+                    swatch.BorderThickness = isSelected ? new Thickness(3) : new Thickness(1);
+                }
+            }
+        }
+    }
+
+    private void BuildHighlightCustomColorSlots()
+    {
+        HighlightCustomColorGrid.Children.Clear();
+        for (int i = 0; i < MaxCustomColors; i++)
+        {
+            string? hex = i < _customColors.Count ? _customColors[i] : null;
+            var swatch = new Border
+            {
+                Width = 28, Height = 28,
+                CornerRadius = new CornerRadius(14),
+                Margin = new Thickness(2),
+                Background = hex != null
+                    ? new SolidColorBrush((Color)System.Windows.Media.ColorConverter.ConvertFromString("#" + hex))
+                    : System.Windows.Media.Brushes.Transparent,
+                BorderThickness = new Thickness(1),
+                BorderBrush = (SolidColorBrush)FindResource("CardBorder"),
+                Cursor = hex != null ? System.Windows.Input.Cursors.Hand : System.Windows.Input.Cursors.Arrow,
+                Tag = hex,
+            };
+            if (hex != null)
+                swatch.MouseLeftButtonDown += HighlightColorSwatch_Click;
+            HighlightCustomColorGrid.Children.Add(swatch);
+        }
+        HighlightSelectedHighlightPreset();
+    }
+
+    private void HighlightEditColors_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new ColorPickerDialog(_settings.HighlightColor) { Owner = this };
+        if (dialog.ShowDialog() == true && dialog.SelectedHex != null)
+        {
+            _settings.HighlightColor = dialog.SelectedHex;
+            _settings.Save();
+            _customColors.Remove(dialog.SelectedHex);
+            _customColors.Insert(0, dialog.SelectedHex);
+            if (_customColors.Count > MaxCustomColors)
+                _customColors.RemoveAt(MaxCustomColors);
+            SaveCustomColors();
+            BuildCustomColorSlots();
+            HighlightSelectedPreset();
+            BuildBoxCustomColorSlots();
+            HighlightSelectedBoxPreset();
+            BuildHighlightCustomColorSlots();
+            HighlightSelectedHighlightPreset();
+            BuildStepsFillCustomColorSlots();
+            BuildStepsOutlineCustomColorSlots();
+            UpdateHighlightPreview();
+        }
+    }
+
+    // ── Steps tab ──────────────────────────────────────────────────
+
+    private static readonly Rendering.StepsRenderer _stepsPreviewRenderer = new();
+
+    private void UpdateStepsPreview()
+    {
+        if (StepsPreviewArea == null) return;
+        StepsPreviewArea.Children.Clear();
+
+        double w = StepsPreviewArea.ActualWidth > 0 ? StepsPreviewArea.ActualWidth : 486;
+        double h = StepsPreviewArea.ActualHeight > 0 ? StepsPreviewArea.ActualHeight : 80;
+
+        var fillColor    = ParseHexColor(_settings.StepsFillColor);
+        var outlineColor = ParseHexColor(_settings.StepsOutlineColor);
+        var fontColor    = ParseHexColor(_settings.StepsFontColor);
+        var options = new Rendering.StepsRenderOptions(
+            _settings.StepsShape,
+            _settings.StepsOutlineEnabled,
+            _settings.StepsSize,
+            fillColor,
+            outlineColor,
+            _settings.StepsFontFamily,
+            _settings.StepsFontSize,
+            _settings.StepsFontBold,
+            fontColor);
+
+        // Show steps 1-4 pointed right, down, left, up — evenly spaced
+        double[] angles = { 0, Math.PI / 2, Math.PI, -Math.PI / 2 };
+        double spacing = w / 5.0;
+        for (int i = 0; i < 4; i++)
+        {
+            var anchorDip = new System.Windows.Point(spacing * (i + 1), h / 2);
+            var visual = _stepsPreviewRenderer.BuildStepVisual(anchorDip, angles[i], i + 1, options);
+            visual.IsHitTestVisible = false;
+            StepsPreviewArea.Children.Add(visual);
+        }
+    }
+
+    private static readonly HashSet<string> _excludedFonts = new(StringComparer.OrdinalIgnoreCase)
+    {
+        // Symbol-only fonts
+        "Bookshelf Symbol 7", "Marlett", "MS Outlook", "MS Reference Specialty",
+        "MT Extra", "Segoe Fluent Icons", "Segoe MDL2 Assets", "Webdings",
+        "Wingdings", "Wingdings 2", "Wingdings 3",
+        // Duplicates / variants
+        "Cambria", "Cascadia Mono", "Microsoft PhagsPa", "Microsoft YaHei",
+        "MingLiU_HKSCS-ExtB", "MingLiU_MSCS_ExtB", "Niagara Engraved",
+        "Nirmala Text", "Segoe Print", "Segoe UI Emoji", "Segoe UI Historic",
+        "Segoe UI Symbol", "Segoe UI Variable Display", "Segoe UI Variable Small",
+        "Segoe UI Variable Text", "SimSun-ExtB", "SimSun-ExtG",
+        "Sitka Display", "Sitka Heading", "Sitka Subheading", "Sitka Text"
+    };
+
+    private void BuildStepsFontFamilyCombo()
+    {
+        _isInitializing = true;
+        StepsFontFamilyCombo.Items.Clear();
+
+        // Get all system font families, sorted by name, excluding symbol/duplicate fonts
+        var fonts = System.Windows.Media.Fonts.SystemFontFamilies
+            .Select(f => f.Source)
+            .Where(n => !_excludedFonts.Contains(n))
+            .OrderBy(n => n)
+            .ToList();
+
+        int selectedIndex = 0;
+        for (int i = 0; i < fonts.Count; i++)
+        {
+            var fontName = fonts[i];
+            if (string.Equals(fontName, _settings.StepsFontFamily, StringComparison.OrdinalIgnoreCase))
+                selectedIndex = i;
+
+            // Each item: "1234567890 - FontName" rendered in that font
+            var panel = new StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal };
+            panel.Children.Add(new TextBlock
+            {
+                Text = $"1234567890",
+                FontFamily = new System.Windows.Media.FontFamily(fontName),
+                FontSize = 13,
+                Foreground = (System.Windows.Media.Brush)FindResource("TextPrimary"),
+                VerticalAlignment = VerticalAlignment.Center
+            });
+            panel.Children.Add(new TextBlock
+            {
+                Text = $" — {fontName}",
+                FontSize = 12,
+                Foreground = (System.Windows.Media.Brush)FindResource("TextSecondary"),
+                VerticalAlignment = VerticalAlignment.Center
+            });
+            panel.Tag = fontName;
+
+            StepsFontFamilyCombo.Items.Add(panel);
+        }
+
+        StepsFontFamilyCombo.SelectedIndex = selectedIndex;
+        _isInitializing = false;
+    }
+
+    private void StepsFontFamilyCombo_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        if (_isInitializing || !IsLoaded) return;
+        if (StepsFontFamilyCombo.SelectedItem is StackPanel panel && panel.Tag is string fontName)
+        {
+            _settings.StepsFontFamily = fontName;
+            _settings.Save();
+            UpdateStepsPreview();
+        }
+    }
+
+    private void ApplyStepsFontSizeFromTextBox()
+    {
+        if (int.TryParse(StepsFontSizeTextBox.Text, out int val))
+        {
+            val = Math.Clamp(val, 8, 48);
+            _settings.StepsFontSize = val;
+            _settings.Save();
+            StepsFontSizeTextBox.Text = val.ToString();
+            UpdateStepsPreview();
+        }
+        else { StepsFontSizeTextBox.Text = ((int)_settings.StepsFontSize).ToString(); }
+    }
+
+    private void StepsFontSizeTextBox_LostFocus(object sender, RoutedEventArgs e) => ApplyStepsFontSizeFromTextBox();
+    private void StepsFontSizeTextBox_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (e.Key == System.Windows.Input.Key.Enter) ApplyStepsFontSizeFromTextBox();
+    }
+
+    private void StepsFontSizeUp_Click(object sender, RoutedEventArgs e)
+    {
+        var val = Math.Clamp((int)_settings.StepsFontSize + 1, 8, 48);
+        _settings.StepsFontSize = val;
+        _settings.Save();
+        StepsFontSizeTextBox.Text = val.ToString();
+        UpdateStepsPreview();
+    }
+
+    private void StepsFontSizeDown_Click(object sender, RoutedEventArgs e)
+    {
+        var val = Math.Clamp((int)_settings.StepsFontSize - 1, 8, 48);
+        _settings.StepsFontSize = val;
+        _settings.Save();
+        StepsFontSizeTextBox.Text = val.ToString();
+        UpdateStepsPreview();
+    }
+
+    private void StepsShapeToggle_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        if (sender is Border btn && btn.Tag is string tag)
+        {
+            _settings.StepsShape = tag == "Circle" ? Models.StepsShape.Circle : Models.StepsShape.Teardrop;
+            _settings.Save();
+            HighlightStepsShapeToggle();
+            UpdateStepsPreview();
+        }
+    }
+
+    private void HighlightStepsShapeToggle()
+    {
+        var accent = (SolidColorBrush)FindResource("Accent");
+        var normal = (SolidColorBrush)FindResource("ControlBg");
+        var borderNormal = (SolidColorBrush)FindResource("CardBorder");
+        bool isTeardrop = _settings.StepsShape == Models.StepsShape.Teardrop;
+        StepsShapeTeardropBtn.Background = isTeardrop ? accent : normal;
+        StepsShapeTeardropBtn.BorderBrush = isTeardrop ? accent : borderNormal;
+        StepsShapeCircleBtn.Background = !isTeardrop ? accent : normal;
+        StepsShapeCircleBtn.BorderBrush = !isTeardrop ? accent : borderNormal;
+    }
+
+    private void StepsBoldBtn_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        if (_isInitializing) return;
+        _settings.StepsFontBold = !_settings.StepsFontBold;
+        _settings.Save();
+        HighlightStepsBoldBtn();
+        UpdateStepsPreview();
+    }
+
+    private void HighlightStepsBoldBtn()
+    {
+        var accent = (SolidColorBrush)FindResource("Accent");
+        var normal = (SolidColorBrush)FindResource("ControlBg");
+        var borderNormal = (SolidColorBrush)FindResource("CardBorder");
+        StepsBoldBtn.Background = _settings.StepsFontBold ? accent : normal;
+        StepsBoldBtn.BorderBrush = _settings.StepsFontBold ? accent : borderNormal;
+    }
+
+    // "Fill" | "Outline" | "Font"
+    private string _stepsColorTab = "Fill";
+
+    private void StepsColorTab_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        if (sender is Border btn && btn.Tag is string tag)
+        {
+            _stepsColorTab = tag;
+            HighlightStepsColorTab();
+        }
+    }
+
+    private void HighlightStepsColorTab()
+    {
+        var accent = (SolidColorBrush)FindResource("Accent");
+        var normal = (SolidColorBrush)FindResource("ControlBg");
+        var borderNormal = (SolidColorBrush)FindResource("CardBorder");
+
+        StepsColorFillBtn.Background    = _stepsColorTab == "Fill"    ? accent : normal;
+        StepsColorFillBtn.BorderBrush   = _stepsColorTab == "Fill"    ? accent : borderNormal;
+        StepsColorOutlineBtn.Background = _stepsColorTab == "Outline" ? accent : normal;
+        StepsColorOutlineBtn.BorderBrush= _stepsColorTab == "Outline" ? accent : borderNormal;
+        StepsColorFontBtn.Background    = _stepsColorTab == "Font"    ? accent : normal;
+        StepsColorFontBtn.BorderBrush   = _stepsColorTab == "Font"    ? accent : borderNormal;
+
+        StepsFillColorPanel.Visibility    = _stepsColorTab == "Fill"    ? Visibility.Visible : Visibility.Collapsed;
+        StepsOutlineColorPanel.Visibility = _stepsColorTab == "Outline" ? Visibility.Visible : Visibility.Collapsed;
+        StepsFontColorPanel.Visibility    = _stepsColorTab == "Font"    ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void StepsOutlineEnabledCheck_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_isInitializing) return;
+        _settings.StepsOutlineEnabled = StepsOutlineEnabledCheck.IsChecked == true;
+        _settings.Save();
+        UpdateStepsPreview();
+    }
+
+    private void StepsSizeSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (_isInitializing || !IsLoaded) return;
+        var val = Math.Clamp(e.NewValue, 16, 72);
+        _settings.StepsSize = val;
+        _settings.Save();
+        if (StepsSizeTextBox != null) StepsSizeTextBox.Text = ((int)val).ToString();
+        UpdateStepsPreview();
+    }
+
+    private void ApplyStepsSizeFromTextBox()
+    {
+        if (int.TryParse(StepsSizeTextBox.Text, out int val))
+        {
+            val = Math.Clamp(val, 16, 72);
+            _isInitializing = true;
+            StepsSizeSlider.Value = val;
+            _isInitializing = false;
+            _settings.StepsSize = val;
+            _settings.Save();
+            StepsSizeTextBox.Text = val.ToString();
+            UpdateStepsPreview();
+        }
+        else { StepsSizeTextBox.Text = ((int)_settings.StepsSize).ToString(); }
+    }
+
+    private void StepsSizeTextBox_LostFocus(object sender, RoutedEventArgs e) => ApplyStepsSizeFromTextBox();
+    private void StepsSizeTextBox_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (e.Key == System.Windows.Input.Key.Enter) ApplyStepsSizeFromTextBox();
+    }
+
+    private void StepsSizeUp_Click(object sender, RoutedEventArgs e)
+    {
+        StepsSizeSlider.Value = Math.Clamp(StepsSizeSlider.Value + 1, 16, 72);
+    }
+
+    private void StepsSizeDown_Click(object sender, RoutedEventArgs e)
+    {
+        StepsSizeSlider.Value = Math.Clamp(StepsSizeSlider.Value - 1, 16, 72);
+    }
+
+    private void BuildStepsFillColorPresetSwatches()
+    {
+        StepsFillColorPresetGrid.Children.Clear();
+        foreach (var (hex, name) in PresetColors)
+        {
+            var color = (Color)System.Windows.Media.ColorConverter.ConvertFromString("#" + hex);
+            var swatch = new Border
+            {
+                Width = 28, Height = 28, CornerRadius = new CornerRadius(14), Margin = new Thickness(2),
+                Background = new SolidColorBrush(color), BorderThickness = new Thickness(1),
+                BorderBrush = (SolidColorBrush)FindResource("CardBorder"),
+                Cursor = System.Windows.Input.Cursors.Hand, Tag = hex, ToolTip = name,
+            };
+            swatch.MouseLeftButtonDown += StepsFillColorSwatch_Click;
+            StepsFillColorPresetGrid.Children.Add(swatch);
+        }
+        HighlightSelectedStepsFillPreset();
+    }
+
+    private void StepsFillColorSwatch_Click(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is Border swatch && swatch.Tag is string hex)
+        {
+            _settings.StepsFillColor = hex;
+            _settings.Save();
+            HighlightSelectedStepsFillPreset();
+            UpdateStepsPreview();
+        }
+    }
+
+    private void HighlightSelectedStepsFillPreset()
+    {
+        var accentBrush = (SolidColorBrush)FindResource("Accent");
+        var borderBrush = (SolidColorBrush)FindResource("CardBorder");
+        foreach (var grid in new[] { StepsFillColorPresetGrid, StepsFillCustomColorGrid })
+        {
+            foreach (var child in grid.Children)
+            {
+                if (child is Border swatch && swatch.Tag is string hex)
+                {
+                    bool isSelected = string.Equals(hex, _settings.StepsFillColor, StringComparison.OrdinalIgnoreCase);
+                    swatch.BorderBrush = isSelected ? accentBrush : borderBrush;
+                    swatch.BorderThickness = isSelected ? new Thickness(3) : new Thickness(1);
+                }
+            }
+        }
+    }
+
+    private void BuildStepsFillCustomColorSlots()
+    {
+        StepsFillCustomColorGrid.Children.Clear();
+        for (int i = 0; i < MaxCustomColors; i++)
+        {
+            string? hex = i < _customColors.Count ? _customColors[i] : null;
+            var swatch = new Border
+            {
+                Width = 28, Height = 28, CornerRadius = new CornerRadius(14), Margin = new Thickness(2),
+                Background = hex != null ? new SolidColorBrush((Color)System.Windows.Media.ColorConverter.ConvertFromString("#" + hex)) : System.Windows.Media.Brushes.Transparent,
+                BorderThickness = new Thickness(1), BorderBrush = (SolidColorBrush)FindResource("CardBorder"),
+                Cursor = hex != null ? System.Windows.Input.Cursors.Hand : System.Windows.Input.Cursors.Arrow, Tag = hex,
+            };
+            if (hex != null) swatch.MouseLeftButtonDown += StepsFillColorSwatch_Click;
+            StepsFillCustomColorGrid.Children.Add(swatch);
+        }
+        HighlightSelectedStepsFillPreset();
+    }
+
+    private void StepsFillEditColors_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new ColorPickerDialog(_settings.StepsFillColor) { Owner = this };
+        if (dialog.ShowDialog() == true && dialog.SelectedHex != null)
+        {
+            _settings.StepsFillColor = dialog.SelectedHex;
+            _settings.Save();
+            AddCustomColor(dialog.SelectedHex);
+            BuildStepsFillCustomColorSlots();
+            HighlightSelectedStepsFillPreset();
+            UpdateStepsPreview();
+        }
+    }
+
+    private void BuildStepsOutlineColorPresetSwatches()
+    {
+        StepsOutlineColorPresetGrid.Children.Clear();
+        foreach (var (hex, name) in PresetColors)
+        {
+            var color = (Color)System.Windows.Media.ColorConverter.ConvertFromString("#" + hex);
+            var swatch = new Border
+            {
+                Width = 28, Height = 28, CornerRadius = new CornerRadius(14), Margin = new Thickness(2),
+                Background = new SolidColorBrush(color), BorderThickness = new Thickness(1),
+                BorderBrush = (SolidColorBrush)FindResource("CardBorder"),
+                Cursor = System.Windows.Input.Cursors.Hand, Tag = hex, ToolTip = name,
+            };
+            swatch.MouseLeftButtonDown += StepsOutlineColorSwatch_Click;
+            StepsOutlineColorPresetGrid.Children.Add(swatch);
+        }
+        HighlightSelectedStepsOutlinePreset();
+    }
+
+    private void StepsOutlineColorSwatch_Click(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is Border swatch && swatch.Tag is string hex)
+        {
+            _settings.StepsOutlineColor = hex;
+            _settings.Save();
+            HighlightSelectedStepsOutlinePreset();
+            UpdateStepsPreview();
+        }
+    }
+
+    private void HighlightSelectedStepsOutlinePreset()
+    {
+        var accentBrush = (SolidColorBrush)FindResource("Accent");
+        var borderBrush = (SolidColorBrush)FindResource("CardBorder");
+        foreach (var grid in new[] { StepsOutlineColorPresetGrid, StepsOutlineCustomColorGrid })
+        {
+            foreach (var child in grid.Children)
+            {
+                if (child is Border swatch && swatch.Tag is string hex)
+                {
+                    bool isSelected = string.Equals(hex, _settings.StepsOutlineColor, StringComparison.OrdinalIgnoreCase);
+                    swatch.BorderBrush = isSelected ? accentBrush : borderBrush;
+                    swatch.BorderThickness = isSelected ? new Thickness(3) : new Thickness(1);
+                }
+            }
+        }
+    }
+
+    private void BuildStepsOutlineCustomColorSlots()
+    {
+        StepsOutlineCustomColorGrid.Children.Clear();
+        for (int i = 0; i < MaxCustomColors; i++)
+        {
+            string? hex = i < _customColors.Count ? _customColors[i] : null;
+            var swatch = new Border
+            {
+                Width = 28, Height = 28, CornerRadius = new CornerRadius(14), Margin = new Thickness(2),
+                Background = hex != null ? new SolidColorBrush((Color)System.Windows.Media.ColorConverter.ConvertFromString("#" + hex)) : System.Windows.Media.Brushes.Transparent,
+                BorderThickness = new Thickness(1), BorderBrush = (SolidColorBrush)FindResource("CardBorder"),
+                Cursor = hex != null ? System.Windows.Input.Cursors.Hand : System.Windows.Input.Cursors.Arrow, Tag = hex,
+            };
+            if (hex != null) swatch.MouseLeftButtonDown += StepsOutlineColorSwatch_Click;
+            StepsOutlineCustomColorGrid.Children.Add(swatch);
+        }
+        HighlightSelectedStepsOutlinePreset();
+    }
+
+    private void StepsOutlineEditColors_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new ColorPickerDialog(_settings.StepsOutlineColor) { Owner = this };
+        if (dialog.ShowDialog() == true && dialog.SelectedHex != null)
+        {
+            _settings.StepsOutlineColor = dialog.SelectedHex;
+            _settings.Save();
+            AddCustomColor(dialog.SelectedHex);
+            BuildStepsOutlineCustomColorSlots();
+            HighlightSelectedStepsOutlinePreset();
+            UpdateStepsPreview();
+        }
+    }
+
+    private void BuildStepsFontColorPresetSwatches()
+    {
+        StepsFontColorPresetGrid.Children.Clear();
+        foreach (var (hex, name) in PresetColors)
+        {
+            var color = (Color)System.Windows.Media.ColorConverter.ConvertFromString("#" + hex);
+            var swatch = new Border
+            {
+                Width = 28, Height = 28, CornerRadius = new CornerRadius(14), Margin = new Thickness(2),
+                Background = new SolidColorBrush(color), BorderThickness = new Thickness(1),
+                BorderBrush = (SolidColorBrush)FindResource("CardBorder"),
+                Cursor = System.Windows.Input.Cursors.Hand, Tag = hex, ToolTip = name,
+            };
+            swatch.MouseLeftButtonDown += StepsFontColorSwatch_Click;
+            StepsFontColorPresetGrid.Children.Add(swatch);
+        }
+        HighlightSelectedStepsFontPreset();
+    }
+
+    private void StepsFontColorSwatch_Click(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is Border swatch && swatch.Tag is string hex)
+        {
+            _settings.StepsFontColor = hex;
+            _settings.Save();
+            HighlightSelectedStepsFontPreset();
+            UpdateStepsPreview();
+        }
+    }
+
+    private void HighlightSelectedStepsFontPreset()
+    {
+        var accentBrush = (SolidColorBrush)FindResource("Accent");
+        var borderBrush = (SolidColorBrush)FindResource("CardBorder");
+        foreach (var grid in new[] { StepsFontColorPresetGrid, StepsFontCustomColorGrid })
+        {
+            foreach (var child in grid.Children)
+            {
+                if (child is Border swatch && swatch.Tag is string hex)
+                {
+                    bool isSelected = string.Equals(hex, _settings.StepsFontColor, StringComparison.OrdinalIgnoreCase);
+                    swatch.BorderBrush = isSelected ? accentBrush : borderBrush;
+                    swatch.BorderThickness = isSelected ? new Thickness(3) : new Thickness(1);
+                }
+            }
+        }
+    }
+
+    private void BuildStepsFontCustomColorSlots()
+    {
+        StepsFontCustomColorGrid.Children.Clear();
+        for (int i = 0; i < MaxCustomColors; i++)
+        {
+            string? hex = i < _customColors.Count ? _customColors[i] : null;
+            var swatch = new Border
+            {
+                Width = 28, Height = 28, CornerRadius = new CornerRadius(14), Margin = new Thickness(2),
+                Background = hex != null ? new SolidColorBrush((Color)System.Windows.Media.ColorConverter.ConvertFromString("#" + hex)) : System.Windows.Media.Brushes.Transparent,
+                BorderThickness = new Thickness(1), BorderBrush = (SolidColorBrush)FindResource("CardBorder"),
+                Cursor = hex != null ? System.Windows.Input.Cursors.Hand : System.Windows.Input.Cursors.Arrow, Tag = hex,
+            };
+            if (hex != null) swatch.MouseLeftButtonDown += StepsFontColorSwatch_Click;
+            StepsFontCustomColorGrid.Children.Add(swatch);
+        }
+        HighlightSelectedStepsFontPreset();
+    }
+
+    private void StepsFontEditColors_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new ColorPickerDialog(_settings.StepsFontColor) { Owner = this };
+        if (dialog.ShowDialog() == true && dialog.SelectedHex != null)
+        {
+            _settings.StepsFontColor = dialog.SelectedHex;
+            _settings.Save();
+            AddCustomColor(dialog.SelectedHex);
+            BuildStepsFontCustomColorSlots();
+            HighlightSelectedStepsFontPreset();
+            UpdateStepsPreview();
         }
     }
 

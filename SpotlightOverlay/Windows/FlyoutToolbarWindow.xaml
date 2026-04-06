@@ -106,12 +106,12 @@
                     </StackPanel>
                 </Button>
 
-                <Button x:Name="NumbersButton"
-                        AutomationProperties.Name="Numbers"
+                <Button x:Name="BoxButton"
+                        AutomationProperties.Name="Box"
                         Style="{StaticResource ToolbarButton}">
                     <StackPanel HorizontalAlignment="Center">
-                        <TextBlock Text="&#x1F522;" FontSize="18" HorizontalAlignment="Center" />
-                        <TextBlock Text="Numbers" FontSize="10" HorizontalAlignment="Center" Margin="0,2,0,0" />
+                        <TextBlock Text="&#x25A2;" FontSize="18" HorizontalAlignment="Center" />
+                        <TextBlock Text="Box" FontSize="10" HorizontalAlignment="Center" Margin="0,2,0,0" />
                     </StackPanel>
                 </Button>
 
@@ -124,12 +124,12 @@
                     </StackPanel>
                 </Button>
 
-                <Button x:Name="BoxButton"
-                        AutomationProperties.Name="Box"
+                <Button x:Name="StepsButton"
+                        AutomationProperties.Name="Steps"
                         Style="{StaticResource ToolbarButton}">
                     <StackPanel HorizontalAlignment="Center">
-                        <TextBlock Text="&#x25A2;" FontSize="18" HorizontalAlignment="Center" />
-                        <TextBlock Text="Box" FontSize="10" HorizontalAlignment="Center" Margin="0,2,0,0" />
+                        <TextBlock Text="&#x1F4CD;" FontSize="18" HorizontalAlignment="Center" />
+                        <TextBlock Text="Steps" FontSize="10" HorizontalAlignment="Center" Margin="0,2,0,0" />
                     </StackPanel>
                 </Button>
 

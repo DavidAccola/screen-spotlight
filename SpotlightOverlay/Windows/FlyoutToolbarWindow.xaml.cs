@@ -94,9 +94,9 @@ public partial class FlyoutToolbarWindow : Window
 
         SpotlightButton.Click += SpotlightButton_Click;
         ArrowButton.Click += ArrowButton_Click;
-        NumbersButton.Click += ToolButton_Click;
-        HighlightButton.Click += ToolButton_Click;
-        BoxButton.Click += ToolButton_Click;
+        StepsButton.Click += StepsButton_Click;
+        HighlightButton.Click += HighlightButton_Click;
+        BoxButton.Click += BoxButton_Click;
         SettingsButton.Click += SettingsButton_Click;
 
         _settings.SettingsChanged += OnSettingsChanged;
@@ -666,6 +666,12 @@ public partial class FlyoutToolbarWindow : Window
         SetActiveTool(ToolType.Arrow);
     }
 
+    private void BoxButton_Click(object sender, RoutedEventArgs e) => SetActiveTool(ToolType.Box);
+
+    private void HighlightButton_Click(object sender, RoutedEventArgs e) => SetActiveTool(ToolType.Highlight);
+
+    private void StepsButton_Click(object sender, RoutedEventArgs e) => SetActiveTool(ToolType.Steps);
+
     /// <summary>
     /// Sets the active tool, updates the visual highlight, and raises ActiveToolChanged.
     /// </summary>
@@ -696,6 +702,9 @@ public partial class FlyoutToolbarWindow : Window
     {
         SpotlightButton.Background = ActiveTool == ToolType.Spotlight ? ActiveToolBrush : Brushes.Transparent;
         ArrowButton.Background = ActiveTool == ToolType.Arrow ? ActiveToolBrush : Brushes.Transparent;
+        BoxButton.Background = ActiveTool == ToolType.Box ? ActiveToolBrush : Brushes.Transparent;
+        HighlightButton.Background = ActiveTool == ToolType.Highlight ? ActiveToolBrush : Brushes.Transparent;
+        StepsButton.Background = ActiveTool == ToolType.Steps ? ActiveToolBrush : Brushes.Transparent;
     }
 
     private void ToolButton_Click(object sender, RoutedEventArgs e)
