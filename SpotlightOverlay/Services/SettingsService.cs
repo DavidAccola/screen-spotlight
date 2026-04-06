@@ -39,7 +39,7 @@ public class SettingsService
     private const bool DefaultSyncArrowEndStyle = true;
     private const bool DefaultSyncArrowEndSize = true;
     private const string DefaultCustomColors = "";
-    private const string DefaultBoxColor = "00B4FF";
+    private const string DefaultBoxColor = "00A651";
     private const double DefaultBoxLineThickness = 3.0;
     private const string DefaultHighlightColor = "FFC90E";
     private const double DefaultHighlightOpacity = 0.5;
@@ -48,9 +48,9 @@ public class SettingsService
     private const StepsShape DefaultStepsShape = StepsShape.Teardrop;
     private const bool DefaultStepsOutlineEnabled = true;
     private const double DefaultStepsSize = 36.0;
-    private const string DefaultStepsFillColor = "E84040";
+    private const string DefaultStepsFillColor = "3F48CC";
     private const string DefaultStepsOutlineColor = "FFFFFF";
-    private const bool DefaultStepsFontBold = false;
+    private const bool DefaultStepsFontBold = true;
     private const string DefaultStepsFontColor = "FFFFFF";
     private const string SettingsFileName = "Settings.json";
 
@@ -108,6 +108,72 @@ public class SettingsService
     public void ResetToDefaults()
     {
         SetDefaults();
+        Save();
+    }
+
+    public void ResetGeneralSettings()
+    {
+        DragStyle = DefaultDragStyle;
+        FreezeScreen = DefaultFreezeScreen;
+        FadeMode = DefaultFadeMode;
+        ActivationModifier = DefaultActivationModifier;
+        ActivationKey = DefaultActivationKey;
+        ToggleModifier = DefaultToggleModifier;
+        ToggleKey = DefaultToggleKey;
+        ToggleToolModifier = DefaultToggleToolModifier;
+        ToggleToolKey = GetNonDominantMouseButtonVk();
+        Save();
+    }
+
+    public void ResetSpotlightSettings()
+    {
+        OverlayOpacity = DefaultOverlayOpacity;
+        FeatherRadius = DefaultFeatherRadius;
+        PreviewStyle = DefaultPreviewStyle;
+        CumulativeSpotlights = DefaultCumulativeSpotlights;
+        CustomColors = DefaultCustomColors;
+        Save();
+    }
+
+    public void ResetArrowSettings()
+    {
+        ArrowheadStyle = DefaultArrowheadStyle;
+        ArrowEndStyle = DefaultArrowEndStyle;
+        ArrowLineStyle = DefaultArrowLineStyle;
+        ArrowColor = DefaultArrowColor;
+        ArrowLeftEndSize = DefaultArrowLeftEndSize;
+        ArrowLineThickness = DefaultArrowLineThickness;
+        ArrowRightEndSize = DefaultArrowRightEndSize;
+        SyncArrowEndStyle = DefaultSyncArrowEndStyle;
+        SyncArrowEndSize = DefaultSyncArrowEndSize;
+        Save();
+    }
+
+    public void ResetBoxSettings()
+    {
+        BoxColor = DefaultBoxColor;
+        BoxLineThickness = DefaultBoxLineThickness;
+        Save();
+    }
+
+    public void ResetHighlightSettings()
+    {
+        HighlightColor = DefaultHighlightColor;
+        HighlightOpacity = DefaultHighlightOpacity;
+        Save();
+    }
+
+    public void ResetStepsSettings()
+    {
+        StepsFontFamily = DefaultStepsFontFamily;
+        StepsFontSize = DefaultStepsFontSize;
+        StepsShape = DefaultStepsShape;
+        StepsOutlineEnabled = DefaultStepsOutlineEnabled;
+        StepsSize = DefaultStepsSize;
+        StepsFillColor = DefaultStepsFillColor;
+        StepsOutlineColor = DefaultStepsOutlineColor;
+        StepsFontBold = DefaultStepsFontBold;
+        StepsFontColor = DefaultStepsFontColor;
         Save();
     }
 

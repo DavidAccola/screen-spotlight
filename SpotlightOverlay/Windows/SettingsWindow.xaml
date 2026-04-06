@@ -440,7 +440,26 @@
                     </Border>
 
                     <!-- ═══ Reset ═══ -->
-                    <Button Content="Reset to Defaults" Click="ResetDefaults_Click"
+                    <Button Content="Reset General Settings" Click="ResetGeneralSettings_Click"
+                            HorizontalAlignment="Stretch" Padding="0,10"
+                            Cursor="Hand" FontSize="13"
+                            Foreground="{StaticResource TextSecondary}"
+                            Background="Transparent" BorderThickness="0" Margin="0,0,0,6">
+                        <Button.Template>
+                            <ControlTemplate TargetType="Button">
+                                <Border x:Name="Bd" Background="{StaticResource ControlBg}"
+                                        CornerRadius="6" Padding="{TemplateBinding Padding}">
+                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="Bd" Property="Background" Value="{StaticResource ControlHover}" />
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Button.Template>
+                    </Button>
+                    <Button Content="Reset All Settings" Click="ResetDefaults_Click"
                             HorizontalAlignment="Stretch" Padding="0,10"
                             Cursor="Hand" FontSize="13"
                             Foreground="{StaticResource TextSecondary}"
@@ -603,6 +622,26 @@
                         </StackPanel>
                     </Border>
 
+                    <Button Content="Reset Spotlight Settings" Click="ResetSpotlightSettings_Click"
+                            HorizontalAlignment="Stretch" Padding="0,10"
+                            Cursor="Hand" FontSize="13"
+                            Foreground="{StaticResource TextSecondary}"
+                            Background="Transparent" BorderThickness="0">
+                        <Button.Template>
+                            <ControlTemplate TargetType="Button">
+                                <Border x:Name="Bd" Background="{StaticResource ControlBg}"
+                                        CornerRadius="6" Padding="{TemplateBinding Padding}">
+                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="Bd" Property="Background" Value="{StaticResource ControlHover}" />
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Button.Template>
+                    </Button>
+
                 </StackPanel>
             </ScrollViewer>
         </TabItem>
@@ -622,7 +661,7 @@
                         <StackPanel>
                             <!-- Arrow preview at top of card -->
                             <Border ClipToBounds="True" Background="#001A30">
-                                <Canvas x:Name="ArrowPreviewArea" Height="80" />
+                                <Canvas x:Name="ArrowPreviewArea" Height="110" />
                             </Border>
                             <StackPanel Margin="14,10,14,10">
                             <!-- Style + Size share one Grid for perfect column alignment -->
@@ -744,6 +783,26 @@
                         </StackPanel>
                     </Border>
 
+                    <Button Content="Reset Arrow Settings" Click="ResetArrowSettings_Click"
+                            HorizontalAlignment="Stretch" Padding="0,10"
+                            Cursor="Hand" FontSize="13"
+                            Foreground="{StaticResource TextSecondary}"
+                            Background="Transparent" BorderThickness="0">
+                        <Button.Template>
+                            <ControlTemplate TargetType="Button">
+                                <Border x:Name="Bd" Background="{StaticResource ControlBg}"
+                                        CornerRadius="6" Padding="{TemplateBinding Padding}">
+                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="Bd" Property="Background" Value="{StaticResource ControlHover}" />
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Button.Template>
+                    </Button>
+
                 </StackPanel>
             </ScrollViewer>
         </TabItem>
@@ -762,7 +821,7 @@
                         <StackPanel>
                             <!-- Box preview at top of card -->
                             <Border ClipToBounds="True" Background="#001A30">
-                                <Canvas x:Name="BoxPreviewArea" Height="80" />
+                                <Canvas x:Name="BoxPreviewArea" Height="110" />
                             </Border>
                             <StackPanel Margin="14,10,14,10">
                                 <!-- Size row -->
@@ -829,6 +888,26 @@
                         </StackPanel>
                     </Border>
 
+                    <Button Content="Reset Box Settings" Click="ResetBoxSettings_Click"
+                            HorizontalAlignment="Stretch" Padding="0,10"
+                            Cursor="Hand" FontSize="13"
+                            Foreground="{StaticResource TextSecondary}"
+                            Background="Transparent" BorderThickness="0">
+                        <Button.Template>
+                            <ControlTemplate TargetType="Button">
+                                <Border x:Name="Bd" Background="{StaticResource ControlBg}"
+                                        CornerRadius="6" Padding="{TemplateBinding Padding}">
+                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="Bd" Property="Background" Value="{StaticResource ControlHover}" />
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Button.Template>
+                    </Button>
+
                 </StackPanel>
             </ScrollViewer>
         </TabItem>
@@ -847,7 +926,7 @@
                         <StackPanel>
                             <!-- Highlight preview at top of card — plain dark background, no image -->
                             <Border ClipToBounds="True" Background="#1A1A1A">
-                                <Canvas x:Name="HighlightPreviewArea" Height="80" />
+                                <Canvas x:Name="HighlightPreviewArea" Height="110" />
                             </Border>
                             <StackPanel Margin="14,10,14,10">
                                 <!-- Opacity row -->
@@ -913,6 +992,26 @@
                             </StackPanel>
                         </StackPanel>
                     </Border>
+
+                    <Button Content="Reset Highlight Settings" Click="ResetHighlightSettings_Click"
+                            HorizontalAlignment="Stretch" Padding="0,10"
+                            Cursor="Hand" FontSize="13"
+                            Foreground="{StaticResource TextSecondary}"
+                            Background="Transparent" BorderThickness="0">
+                        <Button.Template>
+                            <ControlTemplate TargetType="Button">
+                                <Border x:Name="Bd" Background="{StaticResource ControlBg}"
+                                        CornerRadius="6" Padding="{TemplateBinding Padding}">
+                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="Bd" Property="Background" Value="{StaticResource ControlHover}" />
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Button.Template>
+                    </Button>
 
                 </StackPanel>
             </ScrollViewer>
@@ -1006,9 +1105,8 @@
                                                    FontSize="13" Foreground="{StaticResource TextPrimary}" />
                                     </Border>
                                 </Grid>
-                                <Border Style="{StaticResource CardSep}" />
-                                <!-- Outline toggle — grouped with Shape -->
-                                <Grid>
+                                <!-- Outline toggle — grouped with Shape, no divider -->
+                                <Grid Margin="0,4,0,0">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="90" />
                                         <ColumnDefinition Width="*" />
@@ -1165,6 +1263,26 @@
                             </StackPanel>
                         </StackPanel>
                     </Border>
+
+                    <Button Content="Reset Steps Settings" Click="ResetStepsSettings_Click"
+                            HorizontalAlignment="Stretch" Padding="0,10"
+                            Cursor="Hand" FontSize="13"
+                            Foreground="{StaticResource TextSecondary}"
+                            Background="Transparent" BorderThickness="0">
+                        <Button.Template>
+                            <ControlTemplate TargetType="Button">
+                                <Border x:Name="Bd" Background="{StaticResource ControlBg}"
+                                        CornerRadius="6" Padding="{TemplateBinding Padding}">
+                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="Bd" Property="Background" Value="{StaticResource ControlHover}" />
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Button.Template>
+                    </Button>
 
                 </StackPanel>
             </ScrollViewer>

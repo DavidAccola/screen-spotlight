@@ -96,6 +96,7 @@ public class GlobalInputHook : IDisposable
     public bool CanRestore { get; set; }
     public DragStyle DragStyle { get; set; }
     public ToolType ActiveTool { get; set; } = ToolType.Spotlight;
+    public StepsShape StepsShape { get; set; } = StepsShape.Teardrop;
     public ModifierKey ActivationModifier { get; set; } = ModifierKey.Ctrl;
     public int ActivationKey { get; set; } = 0; // 0 = no key, modifier-only
     public ModifierKey ToggleModifier { get; set; } = ModifierKey.CtrlShift;
@@ -403,6 +404,20 @@ public class GlobalInputHook : IDisposable
         {
             if (IsActivationModifierHeld())
             {
+                // Circle mode: place immediately on click, no drag needed
+                if (ActiveTool == ToolType.Steps && StepsShape == StepsShape.Circle)
+                {
+                    var pt = new System.Windows.Point(hs.pt.x, hs.pt.y);
+                    StepsPlaced?.Invoke(this, new StepsPlacedEventArgs(pt, pt));
+                    _hasPendingDrags = true;
+                    if (isMouseButtonActivation && ActivationModifier == ModifierKey.None)
+                    {
+                        _hasPendingDrags = false;
+                        CtrlReleased?.Invoke(this, EventArgs.Empty);
+                    }
+                    return (IntPtr)1;
+                }
+
                 _isDragging = true;
                 _dragStartPoint = new System.Windows.Point(hs.pt.x, hs.pt.y);                SpotlightOverlay.DebugLog.Write($"[Hook] HoldDrag: start at {hs.pt.x},{hs.pt.y}");
                 // Fire CtrlPressed for mouse-button activation so screenshot pre-capture works
@@ -481,6 +496,20 @@ public class GlobalInputHook : IDisposable
             {
                 if (IsActivationModifierHeld())
                 {
+                    // Circle mode: place immediately on first click, no second click needed
+                    if (ActiveTool == ToolType.Steps && StepsShape == StepsShape.Circle)
+                    {
+                        var pt = new System.Windows.Point(hs.pt.x, hs.pt.y);
+                        StepsPlaced?.Invoke(this, new StepsPlacedEventArgs(pt, pt));
+                        _hasPendingDrags = true;
+                        if (!IsActivationModifierHeld())
+                        {
+                            _hasPendingDrags = false;
+                            CtrlReleased?.Invoke(this, EventArgs.Empty);
+                        }
+                        return (IntPtr)1;
+                    }
+
                     // First modifier+click — set start point
                     _isClickClickActive = true;
                     _dragStartPoint = new System.Windows.Point(hs.pt.x, hs.pt.y);
@@ -536,7 +565,7 @@ public class GlobalInputHook : IDisposable
         else if (ActiveTool == ToolType.Steps)
         {
             var current = new System.Windows.Point(x, y);
-            StepsDragUpdated?.Invoke(this, new StepsPlacedEventArgs(_dragStartPoint, current));
+            StepsDragUpdated?.Invoke(this, new StepsPlacedEventArgs(_dragStartPoint, current, IsActivationModifierHeld()));
         }
         else
         {
@@ -586,7 +615,7 @@ public class GlobalInputHook : IDisposable
         else if (ActiveTool == ToolType.Steps)
         {
             var releasePoint = new System.Windows.Point(x, y);
-            StepsPlaced?.Invoke(this, new StepsPlacedEventArgs(_dragStartPoint, releasePoint));
+            StepsPlaced?.Invoke(this, new StepsPlacedEventArgs(_dragStartPoint, releasePoint, IsActivationModifierHeld()));
             _hasPendingDrags = true;
         }
         else

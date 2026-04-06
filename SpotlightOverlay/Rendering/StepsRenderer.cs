@@ -32,7 +32,7 @@ public record StepsRenderOptions(
 public class StepsRenderer
 {
     private const double OutlineThickness = 2.0;
-    private const double TailLengthFactor = 0.6;
+    public const double TailLengthFactor = 0.6;
     private const double TailBaseHalfWidth = 0.3;
 
     private readonly List<(Point Anchor, double TailAngle, int Number, StepsRenderOptions Options)> _steps = new();

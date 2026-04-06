@@ -914,31 +914,144 @@ public partial class SettingsWindow : Window
     private void ResetDefaults_Click(object sender, RoutedEventArgs e)
     {
         _settings.ResetToDefaults();
-
         _isInitializing = true;
+        RefreshGeneralTabUI();
+        RefreshSpotlightTabUI();
+        RefreshArrowTabUI();
+        RefreshBoxTabUI();
+        RefreshHighlightTabUI();
+        RefreshStepsTabUI();
+        _isInitializing = false;
+        UpdateSpotlightModeHint();
+        UpdatePreview();
+        UpdateArrowPreview();
+        UpdateBoxPreview();
+        UpdateHighlightPreview();
+        UpdateStepsPreview();
+    }
+
+    private void ResetGeneralSettings_Click(object sender, RoutedEventArgs e)
+    {
+        _settings.ResetGeneralSettings();
+        _isInitializing = true;
+        RefreshGeneralTabUI();
+        _isInitializing = false;
+        UpdatePreview();
+    }
+
+    private void ResetSpotlightSettings_Click(object sender, RoutedEventArgs e)
+    {
+        _settings.ResetSpotlightSettings();
+        _isInitializing = true;
+        RefreshSpotlightTabUI();
+        _isInitializing = false;
+        UpdateSpotlightModeHint();
+        UpdatePreview();
+    }
+
+    private void ResetArrowSettings_Click(object sender, RoutedEventArgs e)
+    {
+        _settings.ResetArrowSettings();
+        _isInitializing = true;
+        RefreshArrowTabUI();
+        _isInitializing = false;
+        UpdateArrowPreview();
+    }
+
+    private void ResetBoxSettings_Click(object sender, RoutedEventArgs e)
+    {
+        _settings.ResetBoxSettings();
+        _isInitializing = true;
+        RefreshBoxTabUI();
+        _isInitializing = false;
+        UpdateBoxPreview();
+    }
+
+    private void ResetHighlightSettings_Click(object sender, RoutedEventArgs e)
+    {
+        _settings.ResetHighlightSettings();
+        _isInitializing = true;
+        RefreshHighlightTabUI();
+        _isInitializing = false;
+        UpdateHighlightPreview();
+    }
+
+    private void ResetStepsSettings_Click(object sender, RoutedEventArgs e)
+    {
+        _settings.ResetStepsSettings();
+        _isInitializing = true;
+        RefreshStepsTabUI();
+        _isInitializing = false;
+        UpdateStepsPreview();
+    }
+
+    // ── Per-tab UI refresh helpers ─────────────────────────────────
+
+    private void RefreshGeneralTabUI()
+    {
+        DragStyleCombo.SelectedIndex = (int)_settings.DragStyle;
+        BackgroundCombo.SelectedIndex = _settings.FreezeScreen ? 1 : 0;
+        FadeModeCombo.SelectedIndex = (int)_settings.FadeMode;
+        UpdateHotkeyDisplay();
+        UpdateToggleHotkeyDisplay();
+        UpdateToggleToolHotkeyDisplay();
+        UpdateDragStyleLabels();
+    }
+
+    private void RefreshSpotlightTabUI()
+    {
         OpacitySlider.Value = 100 - _settings.OverlayOpacity * 100;
         OpacityTextBox.Text = ((int)(100 - _settings.OverlayOpacity * 100)).ToString() + "%";
         FeatherSlider.Value = _settings.FeatherRadius;
         FeatherTextBox.Text = _settings.FeatherRadius.ToString();
         PreviewStyleCombo.SelectedIndex = (int)_settings.PreviewStyle;
-        DragStyleCombo.SelectedIndex = (int)_settings.DragStyle;
-        BackgroundCombo.SelectedIndex = _settings.FreezeScreen ? 1 : 0;
-        FadeModeCombo.SelectedIndex = (int)_settings.FadeMode;
         SpotlightModeCombo.SelectedIndex = _settings.CumulativeSpotlights ? 0 : 1;
-        ArrowheadStyleCombo_Init();
+        LoadCustomColors();
+        BuildCustomColorSlots();
         HighlightSelectedPreset();
-        UpdateHotkeyDisplay();
-        UpdateToggleHotkeyDisplay();
-        UpdateToggleToolHotkeyDisplay();
-        UpdateDragStyleLabels();
-        _isInitializing = false;
+    }
 
-        UpdateSpotlightModeHint();
-        UpdatePreview();
-        UpdateArrowPreview();
-        UpdateBoxPreview();
-        UpdateBoxPreview();
-        UpdateHighlightPreview();
+    private void RefreshArrowTabUI()
+    {
+        ArrowheadStyleCombo_Init();
+        InitSizeControls();
+        SyncStyleCheck_Init();
+        SyncSizeCheck_Init();
+        HighlightSelectedPreset();
+    }
+
+    private void RefreshBoxTabUI()
+    {
+        BoxSizeSlider.Value = _settings.BoxLineThickness;
+        BoxSizeTextBox.Text = ((int)_settings.BoxLineThickness).ToString();
+        BuildBoxColorPresetSwatches();
+        BuildBoxCustomColorSlots();
+    }
+
+    private void RefreshHighlightTabUI()
+    {
+        HighlightOpacitySlider.Value = (int)(_settings.HighlightOpacity * 100);
+        HighlightOpacityTextBox.Text = ((int)(_settings.HighlightOpacity * 100)).ToString() + "%";
+        BuildHighlightColorPresetSwatches();
+        BuildHighlightCustomColorSlots();
+    }
+
+    private void RefreshStepsTabUI()
+    {
+        BuildStepsFontFamilyCombo();
+        StepsFontSizeTextBox.Text = ((int)_settings.StepsFontSize).ToString();
+        StepsSizeSlider.Value = _settings.StepsSize;
+        StepsSizeTextBox.Text = ((int)_settings.StepsSize).ToString();
+        StepsOutlineEnabledCheck.IsChecked = _settings.StepsOutlineEnabled;
+        HighlightStepsShapeToggle();
+        HighlightStepsBoldBtn();
+        HighlightStepsColorTab();
+        BuildStepsFillColorPresetSwatches();
+        BuildStepsFillCustomColorSlots();
+        BuildStepsOutlineColorPresetSwatches();
+        BuildStepsOutlineCustomColorSlots();
+        BuildStepsFontColorPresetSwatches();
+        BuildStepsFontCustomColorSlots();
     }
 
     // ── Hotkey recorder ────────────────────────────────────────────
@@ -1884,7 +1997,7 @@ public partial class SettingsWindow : Window
         {
             Text = text,
             Foreground = fgBrush,
-            FontSize = tbH * 0.55,
+            FontSize = tbH * 0.75,
             IsHitTestVisible = false,
             Width = tbW,
             TextAlignment = TextAlignment.Center
@@ -2079,8 +2192,8 @@ public partial class SettingsWindow : Window
             _settings.StepsFontBold,
             fontColor);
 
-        // Show steps 1-4 pointed right, down, left, up — evenly spaced
-        double[] angles = { 0, Math.PI / 2, Math.PI, -Math.PI / 2 };
+        // Show steps 1-4 pointed left, up, down, right — evenly spaced
+        double[] angles = { Math.PI, -Math.PI / 2, Math.PI / 2, 0 };
         double spacing = w / 5.0;
         for (int i = 0; i < 4; i++)
         {

@@ -29,7 +29,7 @@ public record AppSettings(
     ModifierKey ToggleToolModifier = ModifierKey.CtrlShift,
     int ToggleToolKey = 0x02, // VK_RBUTTON (right click = non-dominant by default)
     FadeMode FadeMode = FadeMode.Immediately,
-    string BoxColor = "00B4FF",
+    string BoxColor = "00A651",
     double BoxLineThickness = 3.0,
     string HighlightColor = "FFC90E",
     double HighlightOpacity = 0.5,
@@ -38,9 +38,9 @@ public record AppSettings(
     StepsShape StepsShape = StepsShape.Teardrop,
     bool StepsOutlineEnabled = true,
     double StepsSize = 36.0,
-    string StepsFillColor = "E84040",
+    string StepsFillColor = "3F48CC",
     string StepsOutlineColor = "FFFFFF",
-    bool StepsFontBold = false,
+    bool StepsFontBold = true,
     string StepsFontColor = "FFFFFF");
 
 public enum PreviewStyle

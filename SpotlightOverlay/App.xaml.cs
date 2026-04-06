@@ -102,6 +102,8 @@ public partial class App : Application
         _inputHook.StepsPlaced += OnStepsPlaced;
 
         // Keep hook in sync when settings change at runtime
+        _inputHook.StepsShape = _settings.StepsShape;
+
         _settings.SettingsChanged += (_, _) =>
         {
             _inputHook.DragStyle = _settings.DragStyle;
@@ -111,6 +113,7 @@ public partial class App : Application
             _inputHook.ToggleKey = _settings.ToggleKey;
             _inputHook.ToggleToolModifier = _settings.ToggleToolModifier;
             _inputHook.ToggleToolKey = _settings.ToggleToolKey;
+            _inputHook.StepsShape = _settings.StepsShape;
             _trayIcon.SetToolbarVisible(_settings.FlyoutToolbarVisible);
         };
 
@@ -588,6 +591,55 @@ public partial class App : Application
         return System.Windows.Media.Colors.White;
     }
 
+    private System.Windows.Media.Color ParseStepsFontColor()
+    {
+        try
+        {
+            var hex = _settings.StepsFontColor;
+            if (hex.Length == 6)
+            {
+                byte r = Convert.ToByte(hex.Substring(0, 2), 16);
+                byte g = Convert.ToByte(hex.Substring(2, 2), 16);
+                byte b = Convert.ToByte(hex.Substring(4, 2), 16);
+                return System.Windows.Media.Color.FromRgb(r, g, b);
+            }
+        }
+        catch { }
+        return System.Windows.Media.Colors.White;
+    }
+
+    /// <summary>
+    /// For teardrop mode: the user clicks the tip and drags to set direction.
+    /// anchorDip (first click) = tip position.
+    /// We compute the circle center by moving from tip in the OPPOSITE direction of the drag.
+    /// tailAngleRad = angle from circle center toward tip = angle of anchor→release drag.
+    /// For circle mode: anchorDip = circle center (anchor == release, single click).
+    /// When modifierHeld is false (mouse-only), snaps tail angle to nearest 90°.
+    /// </summary>
+    private (System.Windows.Point circleCenterDip, double tailAngleRad) ComputeStepsGeometry(
+        System.Windows.Point anchorDip, System.Windows.Point releaseDip, bool modifierHeld)
+    {
+        if (_settings.StepsShape == Models.StepsShape.Circle || anchorDip == releaseDip)
+            return (anchorDip, 0);
+
+        double rawAngle = Math.Atan2(releaseDip.Y - anchorDip.Y, releaseDip.X - anchorDip.X);
+
+        double tailAngleRad = modifierHeld
+            ? Math.Round(rawAngle / (Math.PI / 2)) * (Math.PI / 2) // snap to 0, ±π/2, π
+            : rawAngle;
+
+        // Tip is at anchorDip. Circle center is behind the tip by (radius + tailLength).
+        double radius = _settings.StepsSize / 2.0;
+        double tailLength = _settings.StepsSize * StepsRenderer.TailLengthFactor;
+        double dist = radius + tailLength;
+
+        var circleCenterDip = new System.Windows.Point(
+            anchorDip.X - dist * Math.Cos(tailAngleRad),
+            anchorDip.Y - dist * Math.Sin(tailAngleRad));
+
+        return (circleCenterDip, tailAngleRad);
+    }
+
     private void OnHighlightDragUpdated(object? sender, DragRectEventArgs e)
     {
         Dispatcher.BeginInvoke(() =>
@@ -642,12 +694,11 @@ public partial class App : Application
                 var anchorDip = _overlayWindow!.PointFromScreen(e.AnchorPoint);
                 var releaseDip = _overlayWindow.PointFromScreen(e.ReleasePoint);
 
-                double tailAngleRad = (e.AnchorPoint == e.ReleasePoint)
-                    ? 0
-                    : Math.Atan2(releaseDip.Y - anchorDip.Y, releaseDip.X - anchorDip.X);
+                var (circleCenterDip, tailAngleRad) = ComputeStepsGeometry(anchorDip, releaseDip, e.ModifierHeld);
 
                 var fillColor = ParseStepsFillColor();
                 var outlineColor = ParseStepsOutlineColor();
+                var fontColor = ParseStepsFontColor();
                 var options = new StepsRenderOptions(
                     _settings.StepsShape,
                     _settings.StepsOutlineEnabled,
@@ -655,9 +706,11 @@ public partial class App : Application
                     fillColor,
                     outlineColor,
                     _settings.StepsFontFamily,
-                    _settings.StepsFontSize);
+                    _settings.StepsFontSize,
+                    _settings.StepsFontBold,
+                    fontColor);
 
-                var visual = _stepsRenderer.BuildStepVisual(anchorDip, tailAngleRad, _stepsRenderer.NextStepNumber, options);
+                var visual = _stepsRenderer.BuildStepVisual(circleCenterDip, tailAngleRad, _stepsRenderer.NextStepNumber, options);
                 _overlayWindow.ShowStepsPreview(visual);
             }
             catch (Exception ex)
@@ -681,12 +734,11 @@ public partial class App : Application
                 var anchorDip = _overlayWindow.PointFromScreen(e.AnchorPoint);
                 var releaseDip = _overlayWindow.PointFromScreen(e.ReleasePoint);
 
-                double tailAngleRad = (e.AnchorPoint == e.ReleasePoint)
-                    ? 0
-                    : Math.Atan2(releaseDip.Y - anchorDip.Y, releaseDip.X - anchorDip.X);
+                var (circleCenterDip, tailAngleRad) = ComputeStepsGeometry(anchorDip, releaseDip, e.ModifierHeld);
 
                 var fillColor = ParseStepsFillColor();
                 var outlineColor = ParseStepsOutlineColor();
+                var fontColor = ParseStepsFontColor();
                 var options = new StepsRenderOptions(
                     _settings.StepsShape,
                     _settings.StepsOutlineEnabled,
@@ -694,12 +746,14 @@ public partial class App : Application
                     fillColor,
                     outlineColor,
                     _settings.StepsFontFamily,
-                    _settings.StepsFontSize);
+                    _settings.StepsFontSize,
+                    _settings.StepsFontBold,
+                    fontColor);
 
                 int stepNumber = _stepsRenderer.NextStepNumber;
-                var visual = _stepsRenderer.BuildStepVisual(anchorDip, tailAngleRad, stepNumber, options);
+                var visual = _stepsRenderer.BuildStepVisual(circleCenterDip, tailAngleRad, stepNumber, options);
                 _overlayWindow.AddStepVisual(visual);
-                _stepsRenderer.AddStep(anchorDip, tailAngleRad, stepNumber, options);
+                _stepsRenderer.AddStep(circleCenterDip, tailAngleRad, stepNumber, options);
             }
             catch (Exception ex)
             {
