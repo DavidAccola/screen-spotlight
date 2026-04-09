@@ -82,4 +82,49 @@ public class SettingsServiceTests : IDisposable
         Assert.Equal(0.75, service.OverlayOpacity);
         Assert.Equal(8, service.FeatherRadius);
     }
+
+    /// <summary>
+    /// Validates: Requirements 1.2, 1.3, 1.4, 1.5
+    /// Saving NubFraction, NubAnchorEdge, and NubMonitorFingerprint and reloading
+    /// must produce identical values.
+    /// </summary>
+    [Fact]
+    public void NubFields_RoundTrip_PreservesValues()
+    {
+        var path = GetSettingsPath();
+        var svc = new SettingsService(path);
+        svc.Load(); // creates defaults
+
+        svc.NubFraction = 0.35;
+        svc.NubAnchorEdge = AnchorEdge.Left;
+        svc.NubMonitorFingerprint = @"\\.\DISPLAY1|1920x1080";
+        svc.Save();
+
+        var svc2 = new SettingsService(path);
+        svc2.Load();
+
+        Assert.Equal(0.35, svc2.NubFraction);
+        Assert.Equal(AnchorEdge.Left, svc2.NubAnchorEdge);
+        Assert.Equal(@"\\.\DISPLAY1|1920x1080", svc2.NubMonitorFingerprint);
+    }
+
+    /// <summary>
+    /// Validates: Requirements 1.2, 4.1
+    /// Saving NubFraction = null and reloading must return null (no saved position).
+    /// </summary>
+    [Fact]
+    public void NubFraction_Null_RoundTrip_RemainsNull()
+    {
+        var path = GetSettingsPath();
+        var svc = new SettingsService(path);
+        svc.Load();
+
+        svc.NubFraction = null;
+        svc.Save();
+
+        var svc2 = new SettingsService(path);
+        svc2.Load();
+
+        Assert.Null(svc2.NubFraction);
+    }
 }

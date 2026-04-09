@@ -82,4 +82,47 @@ public static class MonitorHelper
             screenRect.Width,
             screenRect.Height);
     }
+
+    /// <summary>
+    /// Enumerates all connected monitors and returns a <see cref="MonitorInfo"/> snapshot for each.
+    /// WorkArea is expressed in DIPs using the monitor's DPI scale.
+    /// </summary>
+    public static MonitorInfo[] GetAllMonitors()
+    {
+        return WinFormsScreen.AllScreens.Select(s => new MonitorInfo(
+            DeviceName: s.DeviceName,
+            PhysicalWidth: s.Bounds.Width,
+            PhysicalHeight: s.Bounds.Height,
+            WorkArea: DipRect(s.WorkingArea),
+            IsPrimary: s.Primary
+        )).ToArray();
+    }
+
+    /// <summary>
+    /// Converts a physical-pixel <see cref="System.Drawing.Rectangle"/> (e.g. from WinForms Screen)
+    /// to a DIP <see cref="System.Windows.Rect"/> using the DPI scale of the monitor at that rectangle's top-left corner.
+    /// </summary>
+    private static System.Windows.Rect DipRect(System.Drawing.Rectangle physicalRect)
+    {
+        var point = new System.Windows.Point(physicalRect.X, physicalRect.Y);
+        double scale = GetDpiScale(point);
+        return new System.Windows.Rect(
+            physicalRect.X / scale,
+            physicalRect.Y / scale,
+            physicalRect.Width / scale,
+            physicalRect.Height / scale);
+    }
+
+    /// <summary>
+    /// Builds a stable fingerprint string for a monitor from its device name and physical resolution.
+    /// Format: "{DeviceName}|{PhysicalWidth}x{PhysicalHeight}"
+    /// </summary>
+    public static string BuildFingerprint(string deviceName, int physicalWidth, int physicalHeight)
+        => $"{deviceName}|{physicalWidth}x{physicalHeight}";
+
+    /// <summary>
+    /// Builds a stable fingerprint string for a <see cref="MonitorInfo"/>.
+    /// </summary>
+    public static string BuildFingerprint(MonitorInfo monitor)
+        => BuildFingerprint(monitor.DeviceName, monitor.PhysicalWidth, monitor.PhysicalHeight);
 }

@@ -328,7 +328,7 @@
                                 <ComboBox Grid.Column="1" x:Name="DragStyleCombo"
                                           SelectionChanged="DragStyleCombo_SelectionChanged">
                                     <ComboBoxItem x:Name="DragStyleHold" Content="Hold and Drag" />
-                                    <ComboBoxItem x:Name="DragStyleClick" Content="Click to Click" />
+                                    <ComboBoxItem x:Name="DragStyleClick" Content="Click &amp; Click Again" />
                                 </ComboBox>
                             </Grid>
                             <Border Style="{StaticResource CardSep}" />

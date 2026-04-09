@@ -111,7 +111,26 @@ public partial class FlyoutToolbarWindow : Window
             _toolbarHeight = ToolbarPanel.DesiredSize.Height;
             ToolbarPanel.Visibility = Visibility.Collapsed;
 
-            PositionCollapsed();
+            // Restore saved nub position
+            var saved = new SavedNubState(_settings.NubFraction, _settings.NubAnchorEdge, _settings.NubMonitorFingerprint);
+            var monitors = MonitorHelper.GetAllMonitors();
+            var resolved = NubPositionValidator.Resolve(saved, monitors, NubLength);
+
+            if (resolved.AnchorEdge != _anchorEdge)
+            {
+                _anchorEdge = resolved.AnchorEdge;
+                _settings.ToolbarAnchorEdge = resolved.AnchorEdge;
+                ConfigureLayout(resolved.AnchorEdge);
+                ToolbarPanel.Visibility = Visibility.Visible;
+                ToolbarPanel.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+                _toolbarWidth = ToolbarPanel.DesiredSize.Width;
+                _toolbarHeight = ToolbarPanel.DesiredSize.Height;
+                ToolbarPanel.Visibility = Visibility.Collapsed;
+            }
+
+            _nubScreenPos = resolved.NubScreenPos;
+            PositionCollapsed(resolved.WorkArea);
+            DebugLog.Write($"[Toolbar] Startup restore: edge={resolved.AnchorEdge} pos={resolved.NubScreenPos:F1} workArea={resolved.WorkArea} savedFraction={_settings.NubFraction} savedFingerprint={_settings.NubMonitorFingerprint}");
 
             // Highlight the default active tool (Spotlight)
             HighlightActiveToolButton();
@@ -251,36 +270,61 @@ public partial class FlyoutToolbarWindow : Window
     /// <summary>
     /// Positions the window so only the nub is visible at the screen edge.
     /// The toolbar panel is collapsed (hidden).
+    /// When <paramref name="workAreaOverride"/> is null, centers the nub on the primary work area edge.
+    /// When provided (startup restore), uses the existing <c>_nubScreenPos</c> (already set to the resolved value).
     /// </summary>
-    private void PositionCollapsed()
+    private void PositionCollapsed(Rect? workAreaOverride = null)
     {
         _nubOffset = 0;
         ToolbarPanel.Visibility = Visibility.Collapsed;
         _isExpanded = false;
 
-        var workArea = SystemParameters.WorkArea;
+        var workArea = workAreaOverride ?? SystemParameters.WorkArea;
 
         // Size the window to just the nub
         SizeToContent = SizeToContent.WidthAndHeight;
         UpdateLayout();
 
-        switch (_anchorEdge)
+        if (workAreaOverride is null)
         {
-            case AnchorEdge.Right:
-                Left = workArea.Right - NubWidth;
-                Top = workArea.Top + (workArea.Height - NubLength) / 2;
-                _nubScreenPos = Top;
-                break;
-            case AnchorEdge.Left:
-                Left = workArea.Left;
-                Top = workArea.Top + (workArea.Height - NubLength) / 2;
-                _nubScreenPos = Top;
-                break;
-            case AnchorEdge.Top:
-                Left = workArea.Left + (workArea.Width - NubLength) / 2;
-                Top = workArea.Top;
-                _nubScreenPos = Left;
-                break;
+            // Default: center the nub on the work area edge
+            switch (_anchorEdge)
+            {
+                case AnchorEdge.Right:
+                    Left = workArea.Right - NubWidth;
+                    Top = workArea.Top + (workArea.Height - NubLength) / 2;
+                    _nubScreenPos = Top;
+                    break;
+                case AnchorEdge.Left:
+                    Left = workArea.Left;
+                    Top = workArea.Top + (workArea.Height - NubLength) / 2;
+                    _nubScreenPos = Top;
+                    break;
+                case AnchorEdge.Top:
+                    Left = workArea.Left + (workArea.Width - NubLength) / 2;
+                    Top = workArea.Top;
+                    _nubScreenPos = Left;
+                    break;
+            }
+        }
+        else
+        {
+            // Restore: _nubScreenPos is already set to the resolved value; just position the window
+            switch (_anchorEdge)
+            {
+                case AnchorEdge.Right:
+                    Left = workArea.Right - NubWidth;
+                    Top = _nubScreenPos;
+                    break;
+                case AnchorEdge.Left:
+                    Left = workArea.Left;
+                    Top = _nubScreenPos;
+                    break;
+                case AnchorEdge.Top:
+                    Left = _nubScreenPos;
+                    Top = workArea.Top;
+                    break;
+            }
         }
 
         ComputeNubOffsetForExpand();
@@ -380,13 +424,14 @@ public partial class FlyoutToolbarWindow : Window
     /// <summary>
     /// Re-snap to collapsed position but preserve the along-edge offset
     /// (so dragged position is remembered).
+    /// When <paramref name="workAreaOverride"/> is provided, uses that work area instead of the primary.
     /// </summary>
-    private void PositionCollapsedKeepAlongEdge()
+    private void PositionCollapsedKeepAlongEdge(Rect? workAreaOverride = null)
     {
         // Ensure no stale nub margin persists — collapsed window IS the nub
         NubHandle.Margin = new Thickness(0);
 
-        var workArea = SystemParameters.WorkArea;
+        var workArea = workAreaOverride ?? SystemParameters.WorkArea;
         switch (_anchorEdge)
         {
             case AnchorEdge.Right:
@@ -551,6 +596,11 @@ public partial class FlyoutToolbarWindow : Window
         var workArea = SystemParameters.WorkArea;
         var newEdge = DetectClosestEdge(endScreen, workArea);
 
+        // Note: _anchorEdge may already equal newEdge because NubHandle_MouseMove
+        // calls ConfigureLayout during drag. Always sync ToolbarAnchorEdge here.
+        if (_settings.ToolbarAnchorEdge != _anchorEdge)
+            _settings.ToolbarAnchorEdge = _anchorEdge;
+
         if (newEdge != _anchorEdge)
         {
             if (_isExpanded)
@@ -562,10 +612,9 @@ public partial class FlyoutToolbarWindow : Window
             }
 
             _settings.ToolbarAnchorEdge = newEdge;
-            _settings.Save();
             UpdateAnchorEdge(newEdge);
 
-            // Position on new edge at cursor
+            // Position on new edge at cursor (updates _nubScreenPos and _anchorEdge)
             SnapToEdgeAtCursor(newEdge, endScreen, workArea);
         }
         else
@@ -574,6 +623,9 @@ public partial class FlyoutToolbarWindow : Window
             // Just compute _nubOffset for the next expand.
             ComputeNubOffsetForExpand();
         }
+
+        // Persist nub position (covers both same-edge and edge-changed paths)
+        SaveNubPosition();
     }
 
     /// <summary>
@@ -613,6 +665,52 @@ public partial class FlyoutToolbarWindow : Window
 
         _nubOffset = 0;
         ComputeNubOffsetForExpand();
+    }
+
+    /// <summary>
+    /// Computes and persists NubFraction, NubAnchorEdge, and NubMonitorFingerprint
+    /// from the current _nubScreenPos and _anchorEdge, then calls Save().
+    /// </summary>
+    private void SaveNubPosition()
+    {
+        var monitors = MonitorHelper.GetAllMonitors();
+
+        // Find the monitor whose work area contains the nub position.
+        // _nubScreenPos is Y for Left/Right edges, X for Top edge.
+        MonitorInfo? monitor;
+        if (_anchorEdge == AnchorEdge.Top)
+        {
+            monitor = monitors.FirstOrDefault(m =>
+                m.WorkArea.Left <= _nubScreenPos && _nubScreenPos <= m.WorkArea.Right);
+        }
+        else
+        {
+            monitor = monitors.FirstOrDefault(m =>
+                m.WorkArea.Top <= _nubScreenPos && _nubScreenPos <= m.WorkArea.Bottom);
+        }
+        monitor ??= monitors.FirstOrDefault(m => m.IsPrimary) ?? monitors.First();
+
+        double edgeStart, edgeLength;
+        if (_anchorEdge == AnchorEdge.Top)
+        {
+            edgeStart = monitor.WorkArea.Left;
+            edgeLength = monitor.WorkArea.Width;
+        }
+        else
+        {
+            edgeStart = monitor.WorkArea.Top;
+            edgeLength = monitor.WorkArea.Height;
+        }
+
+        double fraction = edgeLength > NubLength
+            ? Math.Clamp((_nubScreenPos - edgeStart) / (edgeLength - NubLength), 0.0, 1.0)
+            : 0.5;
+
+        _settings.NubFraction = fraction;
+        _settings.NubAnchorEdge = _anchorEdge;
+        _settings.NubMonitorFingerprint = MonitorHelper.BuildFingerprint(monitor);
+        DebugLog.Write($"[Toolbar] SaveNubPosition: edge={_anchorEdge} fraction={fraction:F4} pos={_nubScreenPos:F1} fingerprint={_settings.NubMonitorFingerprint} workArea={monitor.WorkArea}");
+        _settings.Save();
     }
 
     /// <summary>
@@ -734,8 +832,12 @@ public partial class FlyoutToolbarWindow : Window
     {
         Dispatcher.BeginInvoke(() =>
         {
+            DebugLog.Write($"[Toolbar] OnSettingsChanged: _anchorEdge={_anchorEdge} settings.ToolbarAnchorEdge={_settings.ToolbarAnchorEdge} settings.NubAnchorEdge={_settings.NubAnchorEdge}");
             if (_anchorEdge != _settings.ToolbarAnchorEdge)
+            {
+                DebugLog.Write($"[Toolbar] OnSettingsChanged: calling UpdateAnchorEdge({_settings.ToolbarAnchorEdge})");
                 UpdateAnchorEdge(_settings.ToolbarAnchorEdge);
+            }
 
             if (_lastVisibility != _settings.FlyoutToolbarVisible)
             {

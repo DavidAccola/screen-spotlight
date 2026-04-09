@@ -41,7 +41,10 @@ public record AppSettings(
     string StepsFillColor = "3F48CC",
     string StepsOutlineColor = "FFFFFF",
     bool StepsFontBold = true,
-    string StepsFontColor = "FFFFFF");
+    string StepsFontColor = "FFFFFF",
+    double? NubFraction = null,
+    AnchorEdge NubAnchorEdge = AnchorEdge.Right,
+    string NubMonitorFingerprint = "");
 
 public enum PreviewStyle
 {

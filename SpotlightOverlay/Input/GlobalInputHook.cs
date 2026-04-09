@@ -356,10 +356,13 @@ public class GlobalInputHook : IDisposable
             if (!IsRecordingHotkey && IsMouseButtonVk(ToggleToolKey)
                 && IsToggleToolMouseButtonMsg(msg, hs.mouseData) && IsToggleToolModifierHeld())
             {
-                // Cancel any in-progress drag so a stray left-click doesn't become a spotlight
+                // Cancel any in-progress drag so the preview is cleared before switching tools
+                bool wasInProgress = _isDragging || _isClickClickActive;
                 _isDragging = false;
                 _isClickClickActive = false;
                 _hasPendingDrags = false;
+                if (wasInProgress)
+                    DragCancelled?.Invoke(this, EventArgs.Empty);
                 ToggleToolRequested?.Invoke(this, EventArgs.Empty);
                 return (IntPtr)1;
             }
@@ -655,6 +658,13 @@ public class GlobalInputHook : IDisposable
             if (isKeyDown && !IsRecordingHotkey && !IsMouseButtonVk(ToggleToolKey)
                 && hs.vkCode == (uint)ToggleToolKey && IsToggleToolModifierHeld())
             {
+                // Cancel any in-progress drag so the preview is cleared before switching tools
+                bool wasInProgress = _isDragging || _isClickClickActive;
+                _isDragging = false;
+                _isClickClickActive = false;
+                _hasPendingDrags = false;
+                if (wasInProgress)
+                    DragCancelled?.Invoke(this, EventArgs.Empty);
                 ToggleToolRequested?.Invoke(this, EventArgs.Empty);
                 return (IntPtr)1;
             }

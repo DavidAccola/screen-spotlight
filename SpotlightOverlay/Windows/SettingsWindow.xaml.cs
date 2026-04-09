@@ -450,12 +450,12 @@ public partial class SettingsWindow : Window
         if (isMouseBtn)
         {
             DragStyleHold.Content = $"{prefix} + Hold and Drag";
-            DragStyleClick.Content = $"{prefix} to {prefix}";
+            DragStyleClick.Content = $"{prefix} & Click Again";
         }
         else
         {
             DragStyleHold.Content = $"{prefix} + Hold and Drag";
-            DragStyleClick.Content = $"{prefix} + Click to Click";
+            DragStyleClick.Content = $"{prefix} + Click & Click Again";
         }
     }
 
@@ -811,12 +811,17 @@ public partial class SettingsWindow : Window
         SizeRightBtn.Visibility = rightEnabled ? Visibility.Visible : Visibility.Hidden;
         SizeRightBtn.Cursor = rightEnabled ? System.Windows.Input.Cursors.Hand : System.Windows.Input.Cursors.Arrow;
 
-        SizeLeftBtn.Background = (_currentSizeTarget == SizeTarget.LeftEnd && leftEnabled) ? accent : normal;
-        SizeLeftBtn.BorderBrush = (_currentSizeTarget == SizeTarget.LeftEnd && leftEnabled) ? accent : borderNormal;
+        // When size sync is on, both end buttons highlight together
+        bool syncSize = _settings.SyncArrowEndSize && leftEnabled && rightEnabled;
+        bool leftSelected = _currentSizeTarget == SizeTarget.LeftEnd || (syncSize && _currentSizeTarget == SizeTarget.RightEnd);
+        bool rightSelected = _currentSizeTarget == SizeTarget.RightEnd || (syncSize && _currentSizeTarget == SizeTarget.LeftEnd);
+
+        SizeLeftBtn.Background = (leftSelected && leftEnabled) ? accent : normal;
+        SizeLeftBtn.BorderBrush = (leftSelected && leftEnabled) ? accent : borderNormal;
         SizeLineBtn.Background = _currentSizeTarget == SizeTarget.Line ? accent : normal;
         SizeLineBtn.BorderBrush = _currentSizeTarget == SizeTarget.Line ? accent : borderNormal;
-        SizeRightBtn.Background = (_currentSizeTarget == SizeTarget.RightEnd && rightEnabled) ? accent : normal;
-        SizeRightBtn.BorderBrush = (_currentSizeTarget == SizeTarget.RightEnd && rightEnabled) ? accent : borderNormal;
+        SizeRightBtn.Background = (rightSelected && rightEnabled) ? accent : normal;
+        SizeRightBtn.BorderBrush = (rightSelected && rightEnabled) ? accent : borderNormal;
     }
 
     private void SizeRadio_Checked(object sender, RoutedEventArgs e) { }
@@ -913,6 +918,8 @@ public partial class SettingsWindow : Window
 
     private void ResetDefaults_Click(object sender, RoutedEventArgs e)
     {
+        var dlg = new ConfirmResetDialog { Owner = this };
+        if (dlg.ShowDialog() != true) return;
         _settings.ResetToDefaults();
         _isInitializing = true;
         RefreshGeneralTabUI();
@@ -1623,6 +1630,7 @@ public partial class SettingsWindow : Window
         if (_isInitializing || !IsLoaded) return;
         _settings.SyncArrowEndSize = SyncSizeCheck.IsChecked == true;
         _settings.Save();
+        HighlightSizeToggle();
     }
 
     private void UpdateSyncStyleCheckEnabled()
