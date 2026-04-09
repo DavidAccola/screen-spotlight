@@ -44,7 +44,8 @@ public record AppSettings(
     string StepsFontColor = "FFFFFF",
     double? NubFraction = null,
     AnchorEdge NubAnchorEdge = AnchorEdge.Right,
-    string NubMonitorFingerprint = "");
+    string NubMonitorFingerprint = "",
+    bool ShowToolNameOnSwitch = true);
 
 public enum PreviewStyle
 {

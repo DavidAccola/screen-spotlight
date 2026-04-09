@@ -233,6 +233,8 @@ public partial class App : Application
     {
         _inputHook.ActiveTool = tool;
         DebugLog.Write($"[App] ActiveTool changed to {tool}");
+        if (_settings.ShowToolNameOnSwitch)
+            Dispatcher.BeginInvoke(() => FlyoutNotification.ShowToolName(ToolDisplayName(tool)));
     }
 
     /// <summary>
@@ -249,8 +251,20 @@ public partial class App : Application
             _flyoutToolbar.SetActiveToolExternal(next);
             _inputHook.ActiveTool = next;
             DebugLog.Write($"[App] ToggleTool: switched to {next}");
+            if (_settings.ShowToolNameOnSwitch)
+                FlyoutNotification.ShowToolName(ToolDisplayName(next));
         });
     }
+
+    private static string ToolDisplayName(ToolType tool) => tool switch
+    {
+        ToolType.Spotlight => "Spotlight",
+        ToolType.Arrow     => "Arrow",
+        ToolType.Box       => "Box",
+        ToolType.Highlight => "Highlight",
+        ToolType.Steps     => "Steps",
+        _                  => tool.ToString()
+    };
 
     /// <summary>
     /// Pre-captures a screenshot on Ctrl keydown (before any click) so that

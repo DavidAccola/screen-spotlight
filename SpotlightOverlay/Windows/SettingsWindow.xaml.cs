@@ -95,6 +95,7 @@ public partial class SettingsWindow : Window
         DragStyleCombo.SelectedIndex = (int)_settings.DragStyle;
         BackgroundCombo.SelectedIndex = _settings.FreezeScreen ? 1 : 0;
         FadeModeCombo.SelectedIndex = (int)_settings.FadeMode;
+        ShowToolNameCheck.IsChecked = _settings.ShowToolNameOnSwitch;
         SpotlightModeCombo.SelectedIndex = _settings.CumulativeSpotlights ? 0 : 1;
         ArrowheadStyleCombo_Init();
         BuildColorPresetSwatches();
@@ -582,6 +583,13 @@ public partial class SettingsWindow : Window
         _settings.Save();
     }
 
+    private void ShowToolNameCheck_Changed(object sender, System.Windows.RoutedEventArgs e)
+    {
+        if (_isInitializing) return;
+        _settings.ShowToolNameOnSwitch = ShowToolNameCheck.IsChecked == true;
+        _settings.Save();
+    }
+
     private void SpotlightModeCombo_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
     {
         if (_isInitializing) return;
@@ -999,6 +1007,7 @@ public partial class SettingsWindow : Window
         DragStyleCombo.SelectedIndex = (int)_settings.DragStyle;
         BackgroundCombo.SelectedIndex = _settings.FreezeScreen ? 1 : 0;
         FadeModeCombo.SelectedIndex = (int)_settings.FadeMode;
+        ShowToolNameCheck.IsChecked = _settings.ShowToolNameOnSwitch;
         UpdateHotkeyDisplay();
         UpdateToggleHotkeyDisplay();
         UpdateToggleToolHotkeyDisplay();

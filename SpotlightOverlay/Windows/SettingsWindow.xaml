@@ -359,6 +359,20 @@
                                     <ComboBoxItem Content="After the spotlight" />
                                 </ComboBox>
                             </Grid>
+                            <Border Style="{StaticResource CardSep}" />
+                            <!-- Show tool name on switch -->
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="130" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Tool name" Style="{StaticResource RowLabel}" />
+                                <CheckBox Grid.Column="1" x:Name="ShowToolNameCheck"
+                                          Style="{StaticResource DarkToggle}"
+                                          Content="Show on switch"
+                                          Checked="ShowToolNameCheck_Changed"
+                                          Unchecked="ShowToolNameCheck_Changed" />
+                            </Grid>
                         </StackPanel>
                     </Border>
 
