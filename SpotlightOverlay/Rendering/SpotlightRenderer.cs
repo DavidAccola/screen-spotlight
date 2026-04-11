@@ -24,6 +24,7 @@ public class SpotlightRenderer
 
     public void AddCutout(Rect rect) => _cutouts.Add(rect);
     public void ClearCutouts() => _cutouts.Clear();
+    public void RemoveLastCutout() { if (_cutouts.Count > 0) _cutouts.RemoveAt(_cutouts.Count - 1); }
     public int CutoutCount => _cutouts.Count;
     public IReadOnlyList<Rect> Cutouts => _cutouts.AsReadOnly();
 

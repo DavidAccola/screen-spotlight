@@ -24,6 +24,7 @@ public class BoxRenderer
     public void AddBox(Rect rect) => _boxes.Add(rect);
 
     public void ClearBoxes() => _boxes.Clear();
+    public void RemoveLastBox() { if (_boxes.Count > 0) _boxes.RemoveAt(_boxes.Count - 1); }
 
     /// <summary>
     /// Builds an unfilled rectangle stroke for the given rect.

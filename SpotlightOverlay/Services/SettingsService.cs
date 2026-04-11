@@ -55,6 +55,8 @@ public class SettingsService
     private const AnchorEdge DefaultNubAnchorEdge = AnchorEdge.Right;
     private const string DefaultNubMonitorFingerprint = "";
     private const bool DefaultShowToolNameOnSwitch = true;
+    private const StepsTailDirection DefaultStepsTailDirection = StepsTailDirection.Free;
+    private const EscBehavior DefaultEscBehavior = EscBehavior.ExitOverlay;
     private const string SettingsFileName = "Settings.json";
 
     private readonly string _settingsFilePath;
@@ -100,6 +102,8 @@ public class SettingsService
     public AnchorEdge NubAnchorEdge { get; set; } = DefaultNubAnchorEdge;
     public string NubMonitorFingerprint { get; set; } = DefaultNubMonitorFingerprint;
     public bool ShowToolNameOnSwitch { get; set; } = DefaultShowToolNameOnSwitch;
+    public StepsTailDirection StepsTailDirection { get; set; } = DefaultStepsTailDirection;
+    public EscBehavior EscBehavior { get; set; } = DefaultEscBehavior;
 
     /// <summary>Fired after Save() so listeners can react to any setting change.</summary>
     public event EventHandler? SettingsChanged;
@@ -228,6 +232,8 @@ public class SettingsService
         NubAnchorEdge = DefaultNubAnchorEdge;
         NubMonitorFingerprint = DefaultNubMonitorFingerprint;
         ShowToolNameOnSwitch = DefaultShowToolNameOnSwitch;
+        StepsTailDirection = DefaultStepsTailDirection;
+        EscBehavior = DefaultEscBehavior;
     }
 
     public void Load()
@@ -285,18 +291,20 @@ public class SettingsService
         NubAnchorEdge = v.NubAnchorEdge;
         NubMonitorFingerprint = v.NubMonitorFingerprint;
         ShowToolNameOnSwitch = v.ShowToolNameOnSwitch;
+        StepsTailDirection = v.StepsTailDirection;
+        EscBehavior = v.EscBehavior;
     }
 
     public void Save()
     {
-        var json = Serialize(new AppSettings(OverlayOpacity, FeatherRadius, PreviewStyle, DragStyle, FreezeScreen, ActivationModifier, ActivationKey, ToggleModifier, ToggleKey, CumulativeSpotlights, ToolbarAnchorEdge, FlyoutToolbarVisible, ArrowheadStyle, ArrowEndStyle, ArrowLineStyle, ArrowColor, ArrowLeftEndSize, ArrowLineThickness, ArrowRightEndSize, SyncArrowEndStyle, SyncArrowEndSize, CustomColors, ToggleToolModifier, ToggleToolKey, FadeMode, BoxColor, BoxLineThickness, HighlightColor, HighlightOpacity, StepsFontFamily, StepsFontSize, StepsShape, StepsOutlineEnabled, StepsSize, StepsFillColor, StepsOutlineColor, StepsFontBold, StepsFontColor, NubFraction, NubAnchorEdge, NubMonitorFingerprint, ShowToolNameOnSwitch));
+        var json = Serialize(new AppSettings(OverlayOpacity, FeatherRadius, PreviewStyle, DragStyle, FreezeScreen, ActivationModifier, ActivationKey, ToggleModifier, ToggleKey, CumulativeSpotlights, ToolbarAnchorEdge, FlyoutToolbarVisible, ArrowheadStyle, ArrowEndStyle, ArrowLineStyle, ArrowColor, ArrowLeftEndSize, ArrowLineThickness, ArrowRightEndSize, SyncArrowEndStyle, SyncArrowEndSize, CustomColors, ToggleToolModifier, ToggleToolKey, FadeMode, BoxColor, BoxLineThickness, HighlightColor, HighlightOpacity, StepsFontFamily, StepsFontSize, StepsShape, StepsOutlineEnabled, StepsSize, StepsFillColor, StepsOutlineColor, StepsFontBold, StepsFontColor, NubFraction, NubAnchorEdge, NubMonitorFingerprint, ShowToolNameOnSwitch, StepsTailDirection, EscBehavior));
         File.WriteAllText(_settingsFilePath, json);
         SettingsChanged?.Invoke(this, EventArgs.Empty);
     }
 
     public static AppSettings Deserialize(string json) =>
         JsonSerializer.Deserialize<AppSettings>(json)
-        ?? new AppSettings(DefaultOverlayOpacity, DefaultFeatherRadius, DefaultPreviewStyle, DefaultDragStyle, DefaultFreezeScreen, DefaultActivationModifier, DefaultActivationKey, DefaultToggleModifier, DefaultToggleKey, DefaultCumulativeSpotlights, DefaultToolbarAnchorEdge, DefaultFlyoutToolbarVisible, DefaultArrowheadStyle, DefaultArrowEndStyle, DefaultArrowLineStyle, DefaultArrowColor, DefaultArrowLeftEndSize, DefaultArrowLineThickness, DefaultArrowRightEndSize, DefaultSyncArrowEndStyle, DefaultSyncArrowEndSize, DefaultCustomColors, DefaultToggleToolModifier, DefaultToggleToolKey, DefaultFadeMode, DefaultBoxColor, DefaultBoxLineThickness, DefaultHighlightColor, DefaultHighlightOpacity, DefaultStepsFontFamily, DefaultStepsFontSize, DefaultStepsShape, DefaultStepsOutlineEnabled, DefaultStepsSize, DefaultStepsFillColor, DefaultStepsOutlineColor, DefaultStepsFontBold, DefaultStepsFontColor, null, DefaultNubAnchorEdge, DefaultNubMonitorFingerprint, DefaultShowToolNameOnSwitch);
+        ?? new AppSettings(DefaultOverlayOpacity, DefaultFeatherRadius, DefaultPreviewStyle, DefaultDragStyle, DefaultFreezeScreen, DefaultActivationModifier, DefaultActivationKey, DefaultToggleModifier, DefaultToggleKey, DefaultCumulativeSpotlights, DefaultToolbarAnchorEdge, DefaultFlyoutToolbarVisible, DefaultArrowheadStyle, DefaultArrowEndStyle, DefaultArrowLineStyle, DefaultArrowColor, DefaultArrowLeftEndSize, DefaultArrowLineThickness, DefaultArrowRightEndSize, DefaultSyncArrowEndStyle, DefaultSyncArrowEndSize, DefaultCustomColors, DefaultToggleToolModifier, DefaultToggleToolKey, DefaultFadeMode, DefaultBoxColor, DefaultBoxLineThickness, DefaultHighlightColor, DefaultHighlightOpacity, DefaultStepsFontFamily, DefaultStepsFontSize, DefaultStepsShape, DefaultStepsOutlineEnabled, DefaultStepsSize, DefaultStepsFillColor, DefaultStepsOutlineColor, DefaultStepsFontBold, DefaultStepsFontColor, null, DefaultNubAnchorEdge, DefaultNubMonitorFingerprint, DefaultShowToolNameOnSwitch, DefaultStepsTailDirection, DefaultEscBehavior);
 
     public static string Serialize(AppSettings settings) =>
         JsonSerializer.Serialize(settings);
@@ -341,7 +349,9 @@ public class SettingsService
         var nubFraction = s.NubFraction.HasValue ? Math.Clamp(s.NubFraction.Value, 0.0, 1.0) : (double?)null;
         var nubAnchorEdge = Enum.IsDefined(s.NubAnchorEdge) ? s.NubAnchorEdge : DefaultNubAnchorEdge;
         var nubMonitorFingerprint = s.NubMonitorFingerprint ?? DefaultNubMonitorFingerprint;
-        return new AppSettings(opacity, radius, preview, drag, s.FreezeScreen, modifier, activationKey, toggleMod, toggleKey, s.CumulativeSpotlights, anchorEdge, s.FlyoutToolbarVisible, arrowheadStyle, arrowEndStyle, arrowLineStyle, arrowColor, leftSize, lineThick, rightSize, s.SyncArrowEndStyle, s.SyncArrowEndSize, s.CustomColors ?? DefaultCustomColors, toggleToolMod, toggleToolKey, fadeMode, boxColor, boxLineThick, highlightColor, highlightOpacity, stepsFontFamily, stepsFontSize, stepsShape, s.StepsOutlineEnabled, stepsSize, stepsFillColor, stepsOutlineColor, s.StepsFontBold, stepsFontColor, nubFraction, nubAnchorEdge, nubMonitorFingerprint, s.ShowToolNameOnSwitch);
+        var stepsTailDirection = Enum.IsDefined(s.StepsTailDirection) ? s.StepsTailDirection : DefaultStepsTailDirection;
+        var escBehavior = Enum.IsDefined(s.EscBehavior) ? s.EscBehavior : DefaultEscBehavior;
+        return new AppSettings(opacity, radius, preview, drag, s.FreezeScreen, modifier, activationKey, toggleMod, toggleKey, s.CumulativeSpotlights, anchorEdge, s.FlyoutToolbarVisible, arrowheadStyle, arrowEndStyle, arrowLineStyle, arrowColor, leftSize, lineThick, rightSize, s.SyncArrowEndStyle, s.SyncArrowEndSize, s.CustomColors ?? DefaultCustomColors, toggleToolMod, toggleToolKey, fadeMode, boxColor, boxLineThick, highlightColor, highlightOpacity, stepsFontFamily, stepsFontSize, stepsShape, s.StepsOutlineEnabled, stepsSize, stepsFillColor, stepsOutlineColor, s.StepsFontBold, stepsFontColor, nubFraction, nubAnchorEdge, nubMonitorFingerprint, s.ShowToolNameOnSwitch, stepsTailDirection, escBehavior);
     }
 
     private static bool IsValidHexColor(string? color)

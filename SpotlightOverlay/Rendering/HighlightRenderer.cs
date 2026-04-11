@@ -22,6 +22,7 @@ public class HighlightRenderer
     public void AddHighlight(Rect rect) => _highlights.Add(rect);
 
     public void ClearHighlights() => _highlights.Clear();
+    public void RemoveLastHighlight() { if (_highlights.Count > 0) _highlights.RemoveAt(_highlights.Count - 1); }
 
     /// <summary>
     /// Builds a solid filled rectangle for the given rect.

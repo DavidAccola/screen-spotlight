@@ -32,6 +32,7 @@ public class ArrowRenderer
     }
 
     public void ClearArrows() => _arrows.Clear();
+    public void RemoveLastArrow() { if (_arrows.Count > 0) _arrows.RemoveAt(_arrows.Count - 1); }
 
     public static double ComputeAngle(Point start, Point end) =>
         Math.Atan2(end.Y - start.Y, end.X - start.X);

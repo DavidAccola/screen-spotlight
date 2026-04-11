@@ -96,6 +96,7 @@ public partial class SettingsWindow : Window
         BackgroundCombo.SelectedIndex = _settings.FreezeScreen ? 1 : 0;
         FadeModeCombo.SelectedIndex = (int)_settings.FadeMode;
         ShowToolNameCheck.IsChecked = _settings.ShowToolNameOnSwitch;
+        EscBehaviorCombo.SelectedIndex = (int)_settings.EscBehavior;
         SpotlightModeCombo.SelectedIndex = _settings.CumulativeSpotlights ? 0 : 1;
         ArrowheadStyleCombo_Init();
         BuildColorPresetSwatches();
@@ -125,6 +126,7 @@ public partial class SettingsWindow : Window
         StepsSizeSlider.Value = _settings.StepsSize;
         StepsSizeTextBox.Text = ((int)_settings.StepsSize).ToString();
         StepsOutlineEnabledCheck.IsChecked = _settings.StepsOutlineEnabled;
+        StepsTailDirectionCombo.SelectedIndex = (int)_settings.StepsTailDirection;
         HighlightStepsShapeToggle();
         HighlightStepsBoldBtn();
         HighlightStepsColorTab();
@@ -590,6 +592,13 @@ public partial class SettingsWindow : Window
         _settings.Save();
     }
 
+    private void EscBehaviorCombo_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        if (_isInitializing) return;
+        _settings.EscBehavior = (Models.EscBehavior)EscBehaviorCombo.SelectedIndex;
+        _settings.Save();
+    }
+
     private void SpotlightModeCombo_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
     {
         if (_isInitializing) return;
@@ -1008,6 +1017,7 @@ public partial class SettingsWindow : Window
         BackgroundCombo.SelectedIndex = _settings.FreezeScreen ? 1 : 0;
         FadeModeCombo.SelectedIndex = (int)_settings.FadeMode;
         ShowToolNameCheck.IsChecked = _settings.ShowToolNameOnSwitch;
+        EscBehaviorCombo.SelectedIndex = (int)_settings.EscBehavior;
         UpdateHotkeyDisplay();
         UpdateToggleHotkeyDisplay();
         UpdateToggleToolHotkeyDisplay();
@@ -1059,6 +1069,7 @@ public partial class SettingsWindow : Window
         StepsSizeSlider.Value = _settings.StepsSize;
         StepsSizeTextBox.Text = ((int)_settings.StepsSize).ToString();
         StepsOutlineEnabledCheck.IsChecked = _settings.StepsOutlineEnabled;
+        StepsTailDirectionCombo.SelectedIndex = (int)_settings.StepsTailDirection;
         HighlightStepsShapeToggle();
         HighlightStepsBoldBtn();
         HighlightStepsColorTab();
@@ -2406,6 +2417,13 @@ public partial class SettingsWindow : Window
         _settings.StepsOutlineEnabled = StepsOutlineEnabledCheck.IsChecked == true;
         _settings.Save();
         UpdateStepsPreview();
+    }
+
+    private void StepsTailDirectionCombo_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        if (_isInitializing) return;
+        _settings.StepsTailDirection = (Models.StepsTailDirection)StepsTailDirectionCombo.SelectedIndex;
+        _settings.Save();
     }
 
     private void StepsSizeSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)

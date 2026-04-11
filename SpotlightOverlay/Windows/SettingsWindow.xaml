@@ -370,8 +370,23 @@
                                 <CheckBox Grid.Column="1" x:Name="ShowToolNameCheck"
                                           Style="{StaticResource DarkToggle}"
                                           Content="Show on switch"
+                                          Foreground="{StaticResource TextPrimary}" FontSize="13"
                                           Checked="ShowToolNameCheck_Changed"
                                           Unchecked="ShowToolNameCheck_Changed" />
+                            </Grid>
+                            <Border Style="{StaticResource CardSep}" />
+                            <!-- Esc behavior -->
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="130" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Esc key" Style="{StaticResource RowLabel}" />
+                                <ComboBox Grid.Column="1" x:Name="EscBehaviorCombo"
+                                          SelectionChanged="EscBehaviorCombo_SelectionChanged">
+                                    <ComboBoxItem Content="Exit overlay" />
+                                    <ComboBoxItem Content="Undo last, then exit" />
+                                </ComboBox>
                             </Grid>
                         </StackPanel>
                     </Border>
@@ -1132,6 +1147,20 @@
                                               VerticalAlignment="Center"
                                               Checked="StepsOutlineEnabledCheck_Changed"
                                               Unchecked="StepsOutlineEnabledCheck_Changed" />
+                                </Grid>
+                                <Border Style="{StaticResource CardSep}" />
+                                <!-- Tail direction row -->
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="90" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Tail direction" Style="{StaticResource RowLabel}" />
+                                    <ComboBox Grid.Column="1" x:Name="StepsTailDirectionCombo"
+                                              SelectionChanged="StepsTailDirectionCombo_SelectionChanged">
+                                        <ComboBoxItem Content="Free" />
+                                        <ComboBoxItem Content="Snap to cardinal" />
+                                    </ComboBox>
                                 </Grid>
                                 <Border Style="{StaticResource CardSep}" />
                                 <!-- Size row -->

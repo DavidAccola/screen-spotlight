@@ -381,14 +381,48 @@ public partial class OverlayWindow : Window
     private FrameworkElement? _arrowPreview;
     private FrameworkElement? _boxPreview;
     private readonly List<FrameworkElement> _boxVisuals = new();
+    // Each arrow is stored as a group of visuals (shadow + main) so we can remove them together
+    private readonly List<List<FrameworkElement>> _arrowVisualGroups = new();
 
     /// <summary>
     /// Adds a finalized arrow element to the ArrowCanvas.
+    /// Call once per arrow group (shadow, then main) — groups are tracked for undo.
     /// </summary>
     public void AddArrowVisual(FrameworkElement element)
     {
         element.IsHitTestVisible = false;
         ArrowCanvas.Children.Add(element);
+    }
+
+    /// <summary>
+    /// Marks the start of a new arrow group for undo tracking.
+    /// Call before adding the shadow + main visuals for one arrow.
+    /// </summary>
+    public void BeginArrowGroup() => _arrowVisualGroups.Add(new List<FrameworkElement>());
+
+    /// <summary>
+    /// Adds a finalized arrow element to the current arrow group and the canvas.
+    /// </summary>
+    public void AddArrowVisualGrouped(FrameworkElement element)
+    {
+        element.IsHitTestVisible = false;
+        if (_arrowVisualGroups.Count > 0)
+            _arrowVisualGroups[^1].Add(element);
+        ArrowCanvas.Children.Add(element);
+    }
+
+    /// <summary>
+    /// Removes the most recently added arrow group (shadow + main) from the canvas.
+    /// Returns true if an arrow was removed.
+    /// </summary>
+    public bool RemoveLastArrow()
+    {
+        if (_arrowVisualGroups.Count == 0) return false;
+        var group = _arrowVisualGroups[^1];
+        _arrowVisualGroups.RemoveAt(_arrowVisualGroups.Count - 1);
+        foreach (var el in group)
+            ArrowCanvas.Children.Remove(el);
+        return true;
     }
 
     /// <summary>
@@ -421,6 +455,7 @@ public partial class OverlayWindow : Window
     public void ClearArrows()
     {
         ArrowCanvas.Children.Clear();
+        _arrowVisualGroups.Clear();
         _arrowPreview = null;
     }
 
@@ -467,6 +502,23 @@ public partial class OverlayWindow : Window
             ArrowCanvas.Children.Remove(visual);
         _boxVisuals.Clear();
         HideBoxPreview();
+    }
+
+    /// <summary>
+    /// Removes the most recently added box (shadow + main, 2 visuals) from the canvas.
+    /// Returns true if a box was removed.
+    /// </summary>
+    public bool RemoveLastBox()
+    {
+        // Each box is 2 visuals: shadow then main (added in order)
+        if (_boxVisuals.Count < 2) return false;
+        for (int i = 0; i < 2; i++)
+        {
+            var el = _boxVisuals[^1];
+            _boxVisuals.RemoveAt(_boxVisuals.Count - 1);
+            ArrowCanvas.Children.Remove(el);
+        }
+        return true;
     }
 
     #endregion
@@ -519,6 +571,19 @@ public partial class OverlayWindow : Window
             HighlightCanvas.Children.Remove(visual);
         _highlightVisuals.Clear();
         HideHighlightPreview();
+    }
+
+    /// <summary>
+    /// Removes the most recently added highlight from the canvas.
+    /// Returns true if a highlight was removed.
+    /// </summary>
+    public bool RemoveLastHighlight()
+    {
+        if (_highlightVisuals.Count == 0) return false;
+        var el = _highlightVisuals[^1];
+        _highlightVisuals.RemoveAt(_highlightVisuals.Count - 1);
+        HighlightCanvas.Children.Remove(el);
+        return true;
     }
 
     /// <summary>
@@ -584,21 +649,49 @@ public partial class OverlayWindow : Window
         HideStepsPreview();
     }
 
+    /// <summary>
+    /// Removes the most recently added step from the canvas.
+    /// Returns true if a step was removed.
+    /// </summary>
+    public bool RemoveLastStep()
+    {
+        if (_stepsVisuals.Count == 0) return false;
+        var el = _stepsVisuals[^1];
+        _stepsVisuals.RemoveAt(_stepsVisuals.Count - 1);
+        StepsCanvas.Children.Remove(el);
+        return true;
+    }
+
     #endregion
 
-    public void AnimateCutoutFadeIn(Rect cutoutRect)
+    public void AnimateCutoutFadeIn(Rect cutoutRect, IReadOnlyList<Rect>? existingCutouts = null)
     {
-        var patch = new System.Windows.Shapes.Rectangle
+        var patch = new System.Windows.Shapes.Path
         {
-            Width = cutoutRect.Width,
-            Height = cutoutRect.Height,
+            IsHitTestVisible = false,
             Fill = new SolidColorBrush(
-                System.Windows.Media.Color.FromArgb((byte)(_overlayOpacity * 255), 0, 0, 0)),
-            IsHitTestVisible = false
+                System.Windows.Media.Color.FromArgb((byte)(_overlayOpacity * 255), 0, 0, 0))
         };
 
-        System.Windows.Controls.Canvas.SetLeft(patch, cutoutRect.X);
-        System.Windows.Controls.Canvas.SetTop(patch, cutoutRect.Y);
+        // Build geometry: the new cutout rect minus any already-transparent existing cutouts
+        Geometry patchGeometry = new RectangleGeometry(cutoutRect);
+        if (existingCutouts != null)
+        {
+            foreach (var existing in existingCutouts)
+            {
+                // Only subtract if there's an actual overlap
+                var intersection = Rect.Intersect(cutoutRect, existing);
+                if (!intersection.IsEmpty)
+                {
+                    patchGeometry = new CombinedGeometry(
+                        GeometryCombineMode.Exclude,
+                        patchGeometry,
+                        new RectangleGeometry(existing));
+                }
+            }
+        }
+
+        patch.Data = patchGeometry;
         FadeCanvas.Children.Add(patch);
 
         var fadeOut = new DoubleAnimation

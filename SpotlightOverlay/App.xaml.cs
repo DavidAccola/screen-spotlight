@@ -26,6 +26,9 @@ public partial class App : Application
     private readonly List<System.Windows.Rect> _pendingCutouts = new();
     private bool _isDismissed; // true when overlay is hidden but cutouts are preserved
     private System.Windows.Media.Imaging.BitmapSource? _cachedScreenshot; // pre-captured on Ctrl press
+    // Undo stack for EscBehavior.UndoThenExit — tracks tool type of each finalized shape in order
+    private readonly Stack<ToolType> _undoStack = new();
+    private bool _undoConsumedLastEsc; // true after an undo Esc; next Esc exits
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -227,12 +230,28 @@ public partial class App : Application
     }
 
     /// <summary>
+    /// Clears all in-progress tool previews from the overlay without closing it.
+    /// Called when switching tools mid-drag so the new tool starts fresh.
+    /// </summary>
+    private void HideAllPreviews()
+    {
+        if (_overlayWindow == null) return;
+        _overlayWindow.HideDragPreview();
+        _overlayWindow.HideArrowPreview();
+        _overlayWindow.HideBoxPreview();
+        _overlayWindow.HideHighlightPreview();
+        _overlayWindow.HideStepsPreview();
+    }
+
+    /// <summary>
     /// Handles active tool changes from the flyout toolbar.
     /// </summary>
     private void OnActiveToolChanged(object? sender, ToolType tool)
     {
         _inputHook.ActiveTool = tool;
         DebugLog.Write($"[App] ActiveTool changed to {tool}");
+        if (_inputHook.IsDragInProgress)
+            Dispatcher.BeginInvoke(() => { HideAllPreviews(); _inputHook.RefreshDragPreview(); });
         if (_settings.ShowToolNameOnSwitch)
             Dispatcher.BeginInvoke(() => FlyoutNotification.ShowToolName(ToolDisplayName(tool)));
     }
@@ -251,6 +270,11 @@ public partial class App : Application
             _flyoutToolbar.SetActiveToolExternal(next);
             _inputHook.ActiveTool = next;
             DebugLog.Write($"[App] ToggleTool: switched to {next}");
+            if (_inputHook.IsDragInProgress)
+            {
+                HideAllPreviews();
+                _inputHook.RefreshDragPreview();
+            }
             if (_settings.ShowToolNameOnSwitch)
                 FlyoutNotification.ShowToolName(ToolDisplayName(next));
         });
@@ -349,7 +373,7 @@ public partial class App : Application
             if (_inputHook.ActiveTool == ToolType.Spotlight && _settings.FadeMode == FadeMode.Immediately)
                 win.FadeInBackground(300);
             win.ForceTopmost();
-            DismissStartMenu(monitorBounds);
+            DismissStartMenu(win);
         }
 
         _overlayWindow = win;
@@ -380,6 +404,8 @@ public partial class App : Application
         _highlightRenderer.ClearHighlights();
         _stepsRenderer.ClearSteps();
         _pendingCutouts.Clear();
+        _undoStack.Clear();
+        _undoConsumedLastEsc = false;
         _isDismissed = false;
         _inputHook.CanRestore = false;
     }
@@ -442,16 +468,18 @@ public partial class App : Application
                 // Add shadow path first (renders behind the main arrow)
                 var shadowPath = _arrowRenderer.BuildShadowPath(dipStart, dipEnd, leftEnd, rightEnd, lineStyle,
                     _settings.ArrowLeftEndSize, _settings.ArrowLineThickness, _settings.ArrowRightEndSize);
-                if (shadowPath != null)
-                    _overlayWindow.AddArrowVisual(shadowPath);
 
                 // Add main arrow path
                 var mainPath = _arrowRenderer.BuildArrowPath(dipStart, dipEnd, color, leftEnd, rightEnd, lineStyle,
                     _settings.ArrowLeftEndSize, _settings.ArrowLineThickness, _settings.ArrowRightEndSize);
                 if (mainPath != null)
                 {
-                    _overlayWindow.AddArrowVisual(mainPath);
+                    _overlayWindow.BeginArrowGroup();
+                    if (shadowPath != null) _overlayWindow.AddArrowVisualGrouped(shadowPath);
+                    _overlayWindow.AddArrowVisualGrouped(mainPath);
                     _arrowRenderer.AddArrow(dipStart, dipEnd);
+                    _undoStack.Push(ToolType.Arrow);
+                    _undoConsumedLastEsc = false;
                 }
 
                 // Note: do NOT call FadeInBackground() here — the dark overlay
@@ -523,6 +551,8 @@ public partial class App : Application
                 {
                     _overlayWindow.AddBoxVisual(mainPath);
                     _boxRenderer.AddBox(dipRect);
+                    _undoStack.Push(ToolType.Box);
+                    _undoConsumedLastEsc = false;
                 }
 
                 // Note: do NOT call FadeInBackground() — boxes render on transparent overlay like arrows.
@@ -633,12 +663,14 @@ public partial class App : Application
     private (System.Windows.Point circleCenterDip, double tailAngleRad) ComputeStepsGeometry(
         System.Windows.Point anchorDip, System.Windows.Point releaseDip, bool modifierHeld)
     {
+        // SnapToCardinal setting always snaps regardless of modifier state
+        bool snap = modifierHeld || _settings.StepsTailDirection == StepsTailDirection.SnapToCardinal;
         if (_settings.StepsShape == Models.StepsShape.Circle || anchorDip == releaseDip)
             return (anchorDip, 0);
 
         double rawAngle = Math.Atan2(releaseDip.Y - anchorDip.Y, releaseDip.X - anchorDip.X);
 
-        double tailAngleRad = modifierHeld
+        double tailAngleRad = snap
             ? Math.Round(rawAngle / (Math.PI / 2)) * (Math.PI / 2) // snap to 0, ±π/2, π
             : rawAngle;
 
@@ -690,6 +722,8 @@ public partial class App : Application
                 {
                     _overlayWindow.AddHighlightVisual(mainPath);
                     _highlightRenderer.AddHighlight(dipRect);
+                    _undoStack.Push(ToolType.Highlight);
+                    _undoConsumedLastEsc = false;
                 }
             }
             catch (Exception ex) { DebugLog.Write($"[App] ERROR in HighlightDragCompleted: {ex}"); }
@@ -768,6 +802,8 @@ public partial class App : Application
                 var visual = _stepsRenderer.BuildStepVisual(circleCenterDip, tailAngleRad, stepNumber, options);
                 _overlayWindow.AddStepVisual(visual);
                 _stepsRenderer.AddStep(circleCenterDip, tailAngleRad, stepNumber, options);
+                _undoStack.Push(ToolType.Steps);
+                _undoConsumedLastEsc = false;
             }
             catch (Exception ex)
             {
@@ -902,8 +938,15 @@ public partial class App : Application
     {
         if (_overlayWindow == null) return;
 
+        // Capture existing cutouts BEFORE adding new ones — used to clip the fade animation
+        var existingCutouts = _renderer.Cutouts.ToList();
+
         foreach (var rect in cutouts)
+        {
             _renderer.AddCutout(rect);
+            _undoStack.Push(ToolType.Spotlight);
+            _undoConsumedLastEsc = false;
+        }
 
         var overlaySize = new System.Windows.Size(_overlayWindow.ActualWidth, _overlayWindow.ActualHeight);
         var featheredMask = _renderer.BuildFeatheredMask(overlaySize);
@@ -913,7 +956,7 @@ public partial class App : Application
         if (!isFirstBatch)
         {
             foreach (var rect in cutouts)
-                _overlayWindow.AnimateCutoutFadeIn(rect);
+                _overlayWindow.AnimateCutoutFadeIn(rect, existingCutouts);
         }
 
         _overlayWindow.ClearFinalizedPreviews();
@@ -935,6 +978,15 @@ public partial class App : Application
                 return;
             }
 
+            // UndoThenExit: first Esc undos last shape; second Esc (with nothing new created) exits
+            if (_settings.EscBehavior == EscBehavior.UndoThenExit && _undoStack.Count > 1 && !_undoConsumedLastEsc)
+            {
+                DebugLog.Write($"[App] Esc undo: removing last shape ({_undoStack.Peek()})");
+                UndoLastShape();
+                _undoConsumedLastEsc = true;
+                return;
+            }
+
             DebugLog.Write("[App] Dismissing overlay");
             _isDismissed = true;
             _inputHook.CanRestore = true;
@@ -944,6 +996,46 @@ public partial class App : Application
                 DebugLog.Write("[App] Fade-out complete, overlay hidden (cutouts and arrows preserved)");
             });
         });
+    }
+
+    /// <summary>
+    /// Removes the most recently created shape from the overlay and its renderer.
+    /// </summary>
+    private void UndoLastShape()
+    {
+        if (_overlayWindow == null || _undoStack.Count == 0) return;
+        var tool = _undoStack.Pop();
+        switch (tool)
+        {
+            case ToolType.Spotlight:
+                if (_renderer.CutoutCount > 0)
+                {
+                    _renderer.RemoveLastCutout();
+                    var overlaySize = new System.Windows.Size(_overlayWindow.ActualWidth, _overlayWindow.ActualHeight);
+                    _overlayWindow.ApplyFeatheredMask(_renderer.BuildFeatheredMask(overlaySize));
+                }
+                break;
+            case ToolType.Arrow:
+                _overlayWindow.RemoveLastArrow();
+                if (_arrowRenderer.ArrowCount > 0)
+                    _arrowRenderer.RemoveLastArrow();
+                break;
+            case ToolType.Box:
+                _overlayWindow.RemoveLastBox();
+                if (_boxRenderer.BoxCount > 0)
+                    _boxRenderer.RemoveLastBox();
+                break;
+            case ToolType.Highlight:
+                _overlayWindow.RemoveLastHighlight();
+                if (_highlightRenderer.HighlightCount > 0)
+                    _highlightRenderer.RemoveLastHighlight();
+                break;
+            case ToolType.Steps:
+                _overlayWindow.RemoveLastStep();
+                if (_stepsRenderer.StepCount > 0)
+                    _stepsRenderer.RemoveLastStep();
+                break;
+        }
     }
 
     private void OnRestoreRequested(object? sender, EventArgs e)
@@ -1004,13 +1096,18 @@ public partial class App : Application
         return SystemIcons.Application;
     }
 
-    // --- DismissStartMenu: synthetic mouse click to steal focus ---
+    // --- DismissStartMenu: focus-steal → click fallback ---
 
     [System.Runtime.InteropServices.DllImport("user32.dll")]
-    private static extern IntPtr FindWindow(string? lpClassName, string? lpWindowName);
+    private static extern IntPtr WindowFromPoint(POINT point);
 
     [System.Runtime.InteropServices.DllImport("user32.dll")]
-    private static extern bool IsWindowVisible(IntPtr hWnd);
+    private static extern IntPtr GetAncestor(IntPtr hwnd, uint gaFlags);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
+
+    private const uint GA_ROOT = 2;
 
     [System.Runtime.InteropServices.DllImport("user32.dll", SetLastError = true)]
     private static extern uint SendInput(uint nInputs, NativeInput[] pInputs, int cbSize);
@@ -1023,6 +1120,15 @@ public partial class App : Application
 
     [System.Runtime.InteropServices.DllImport("user32.dll")]
     private static extern int GetSystemMetrics(int nIndex);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern bool SetForegroundWindow(IntPtr hWnd);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern bool AllowSetForegroundWindow(uint dwProcessId);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern bool BlockInput(bool fBlockIt);
 
     [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
     private struct POINT { public int X; public int Y; }
@@ -1039,6 +1145,7 @@ public partial class App : Application
         [System.Runtime.InteropServices.FieldOffset(32)] public IntPtr dwExtraInfo;
     }
 
+    private const uint ASFW_ANY = 0xFFFFFFFF;
     private const uint INPUT_MOUSE = 0;
     private const uint MOUSEEVENTF_LEFTDOWN = 0x0002;
     private const uint MOUSEEVENTF_LEFTUP = 0x0004;
@@ -1048,62 +1155,104 @@ public partial class App : Application
     private const int DISMISS_EXTRA_INFO = 0x534D4449;
 
     /// <summary>
-    /// Dismisses the Start menu by injecting a synthetic left-click on our own
-    /// overlay window (top-center pixel). The overlay absorbs the click so nothing
-    /// underneath is affected. The Start menu loses focus and auto-closes.
+    /// Dismisses the Windows 11 Start menu.
+    /// Tries focus-steal first (no flicker). Falls back to synthetic click (BlockInput suppresses flicker).
     /// </summary>
-    private static void DismissStartMenu(System.Windows.Rect monitorBounds)
+    private static void DismissStartMenu(OverlayWindow win)
     {
         try
         {
-            var startMenu = FindWindow("Windows.UI.Core.CoreWindow", "Start");
-            bool visible = startMenu != IntPtr.Zero && IsWindowVisible(startMenu);
-            DebugLog.Write($"[App] DismissStartMenu: hwnd={startMenu}, visible={visible}");
+            if (!IsStartMenuOpen())
+            {
+                DebugLog.Write("[App] DismissStartMenu: Start menu not open, skipping");
+                return;
+            }
 
-            if (!visible) return;
+            DebugLog.Write("[App] DismissStartMenu: Start menu is open");
 
-            // Save cursor position
+            // Try focus-steal first — no cursor movement, no flicker
+            var hwnd = new System.Windows.Interop.WindowInteropHelper(win).Handle;
+            if (hwnd != IntPtr.Zero)
+            {
+                AllowSetForegroundWindow(ASFW_ANY);
+                if (SetForegroundWindow(hwnd))
+                {
+                    DebugLog.Write("[App] DismissStartMenu: dismissed via focus-steal");
+                    return;
+                }
+            }
+
+            // Fallback: synthetic click at top-center of screen (overlay absorbs it)
+            DebugLog.Write("[App] DismissStartMenu: focus-steal failed, using click fallback");
             GetCursorPos(out POINT origCursor);
-
-            // Click at top-center of the monitor (where our overlay is).
-            // The overlay is fullscreen on this monitor and topmost, so it absorbs the click.
-            int clickX = (int)(monitorBounds.X + monitorBounds.Width / 2);
-            int clickY = (int)monitorBounds.Y;
-
             int screenW = GetSystemMetrics(SM_CXSCREEN);
             int screenH = GetSystemMetrics(SM_CYSCREEN);
-
-            // Convert to absolute coordinates (0..65535 range)
+            int clickX = screenW / 2;
+            int clickY = 0;
             int absX = (int)Math.Round(clickX * 65535.0 / (screenW - 1));
-            int absY = (int)Math.Round(clickY * 65535.0 / (screenH - 1));
-
-            SetCursorPos(clickX, clickY);
+            int absY = 0;
 
             var inputs = new NativeInput[2];
             int size = System.Runtime.InteropServices.Marshal.SizeOf<NativeInput>();
-
-            inputs[0].type = INPUT_MOUSE;
-            inputs[0].dx = absX;
-            inputs[0].dy = absY;
+            inputs[0].type = INPUT_MOUSE; inputs[0].dx = absX; inputs[0].dy = absY;
             inputs[0].dwFlags = MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_LEFTDOWN;
             inputs[0].dwExtraInfo = (IntPtr)DISMISS_EXTRA_INFO;
-
-            inputs[1].type = INPUT_MOUSE;
-            inputs[1].dx = absX;
-            inputs[1].dy = absY;
+            inputs[1].type = INPUT_MOUSE; inputs[1].dx = absX; inputs[1].dy = absY;
             inputs[1].dwFlags = MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_LEFTUP;
             inputs[1].dwExtraInfo = (IntPtr)DISMISS_EXTRA_INFO;
 
-            uint sent = SendInput(2, inputs, size);
-
-            // Restore cursor
-            SetCursorPos(origCursor.X, origCursor.Y);
-
-            DebugLog.Write($"[App] DismissStartMenu: click at {clickX},{clickY}, sent={sent}/2");
+            BlockInput(true);
+            try
+            {
+                SetCursorPos(clickX, clickY);
+                SendInput(2, inputs, size);
+                SetCursorPos(origCursor.X, origCursor.Y);
+            }
+            finally { BlockInput(false); }
         }
         catch (Exception ex)
         {
             DebugLog.Write($"[App] DismissStartMenu failed (non-fatal): {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Detects whether the Windows 11 Start menu is currently open and visible
+    /// by hit-testing a point in the center/upper area of the primary monitor.
+    /// If the window under that point belongs to StartMenuExperienceHost, Start is open.
+    /// This is more reliable than UIA or IsWindowVisible — it reflects what's actually rendered.
+    /// </summary>
+    private static bool IsStartMenuOpen()
+    {
+        try
+        {
+            // Hit-test at center-top of primary work area — Start menu always covers this region
+            var workArea = SystemParameters.WorkArea;
+            var pt = new POINT
+            {
+                X = (int)(workArea.Left + workArea.Width / 2),
+                Y = (int)(workArea.Top + workArea.Height / 3)
+            };
+
+            IntPtr hwnd = WindowFromPoint(pt);
+            if (hwnd == IntPtr.Zero) return false;
+
+            IntPtr root = GetAncestor(hwnd, GA_ROOT);
+            if (root == IntPtr.Zero) root = hwnd;
+
+            GetWindowThreadProcessId(root, out uint pid);
+            if (pid == 0) return false;
+
+            using var proc = System.Diagnostics.Process.GetProcessById((int)pid);
+            bool isStart = proc.ProcessName.Equals("StartMenuExperienceHost",
+                StringComparison.OrdinalIgnoreCase);
+            DebugLog.Write($"[App] IsStartMenuOpen: process={proc.ProcessName} → {isStart}");
+            return isStart;
+        }
+        catch (Exception ex)
+        {
+            DebugLog.Write($"[App] IsStartMenuOpen failed: {ex.Message}");
+            return false;
         }
     }
 }

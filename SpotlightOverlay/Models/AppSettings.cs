@@ -45,7 +45,21 @@ public record AppSettings(
     double? NubFraction = null,
     AnchorEdge NubAnchorEdge = AnchorEdge.Right,
     string NubMonitorFingerprint = "",
-    bool ShowToolNameOnSwitch = true);
+    bool ShowToolNameOnSwitch = true,
+    StepsTailDirection StepsTailDirection = StepsTailDirection.Free,
+    EscBehavior EscBehavior = EscBehavior.ExitOverlay);
+
+public enum StepsTailDirection
+{
+    Free = 0,           // precise angle; hotkey snaps to cardinal
+    SnapToCardinal = 1  // always snaps to up/down/left/right
+}
+
+public enum EscBehavior
+{
+    ExitOverlay = 0,  // Esc always exits the overlay (current behavior)
+    UndoThenExit = 1  // Esc removes last shape; second Esc exits
+}
 
 public enum PreviewStyle
 {

@@ -44,6 +44,7 @@ public class StepsRenderer
         => _steps.Add((anchorDip, tailAngleRad, stepNumber, options));
 
     public void ClearSteps() => _steps.Clear();
+    public void RemoveLastStep() { if (_steps.Count > 0) _steps.RemoveAt(_steps.Count - 1); }
 
     /// <summary>
     /// Builds a WPF Canvas containing the step marker shape and number label.

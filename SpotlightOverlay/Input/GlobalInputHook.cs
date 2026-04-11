@@ -96,6 +96,18 @@ public class GlobalInputHook : IDisposable
     public bool CanRestore { get; set; }
     public DragStyle DragStyle { get; set; }
     public ToolType ActiveTool { get; set; } = ToolType.Spotlight;
+    public bool IsDragInProgress => _isDragging || _isClickClickActive;
+
+    /// <summary>
+    /// Re-emits a DragUpdated event at the current mouse cursor position.
+    /// Call after switching tools mid-drag to immediately show the new tool's preview.
+    /// </summary>
+    public void RefreshDragPreview()
+    {
+        if (!_isDragging && !_isClickClickActive) return;
+        var pos = System.Windows.Forms.Cursor.Position;
+        EmitDragUpdated(pos.X, pos.Y);
+    }
     public StepsShape StepsShape { get; set; } = StepsShape.Teardrop;
     public ModifierKey ActivationModifier { get; set; } = ModifierKey.Ctrl;
     public int ActivationKey { get; set; } = 0; // 0 = no key, modifier-only
@@ -658,13 +670,6 @@ public class GlobalInputHook : IDisposable
             if (isKeyDown && !IsRecordingHotkey && !IsMouseButtonVk(ToggleToolKey)
                 && hs.vkCode == (uint)ToggleToolKey && IsToggleToolModifierHeld())
             {
-                // Cancel any in-progress drag so the preview is cleared before switching tools
-                bool wasInProgress = _isDragging || _isClickClickActive;
-                _isDragging = false;
-                _isClickClickActive = false;
-                _hasPendingDrags = false;
-                if (wasInProgress)
-                    DragCancelled?.Invoke(this, EventArgs.Empty);
                 ToggleToolRequested?.Invoke(this, EventArgs.Empty);
                 return (IntPtr)1;
             }
