@@ -426,6 +426,17 @@ public partial class OverlayWindow : Window
     }
 
     /// <summary>
+    /// Fades out and removes the most recently added arrow group.
+    /// </summary>
+    public void AnimateRemoveLastArrow(int durationMs = 300)
+    {
+        if (_arrowVisualGroups.Count == 0) return;
+        var group = _arrowVisualGroups[^1];
+        _arrowVisualGroups.RemoveAt(_arrowVisualGroups.Count - 1);
+        FadeOutAndRemove(group, ArrowCanvas, durationMs);
+    }
+
+    /// <summary>
     /// Shows a live preview arrow on the ArrowCanvas.
     /// Removes any previous preview first, then adds the new one.
     /// </summary>
@@ -521,6 +532,15 @@ public partial class OverlayWindow : Window
         return true;
     }
 
+    public void AnimateRemoveLastBox(int durationMs = 300)
+    {
+        if (_boxVisuals.Count < 2) return;
+        var toRemove = new List<FrameworkElement> { _boxVisuals[^2], _boxVisuals[^1] };
+        _boxVisuals.RemoveAt(_boxVisuals.Count - 1);
+        _boxVisuals.RemoveAt(_boxVisuals.Count - 1);
+        FadeOutAndRemove(toRemove, ArrowCanvas, durationMs);
+    }
+
     #endregion
 
     #region Highlight Rendering
@@ -584,6 +604,14 @@ public partial class OverlayWindow : Window
         _highlightVisuals.RemoveAt(_highlightVisuals.Count - 1);
         HighlightCanvas.Children.Remove(el);
         return true;
+    }
+
+    public void AnimateRemoveLastHighlight(int durationMs = 300)
+    {
+        if (_highlightVisuals.Count == 0) return;
+        var el = _highlightVisuals[^1];
+        _highlightVisuals.RemoveAt(_highlightVisuals.Count - 1);
+        FadeOutAndRemove(new[] { el }, HighlightCanvas, durationMs);
     }
 
     /// <summary>
@@ -662,6 +690,36 @@ public partial class OverlayWindow : Window
         return true;
     }
 
+    public void AnimateRemoveLastStep(int durationMs = 300)
+    {
+        if (_stepsVisuals.Count == 0) return;
+        var el = _stepsVisuals[^1];
+        _stepsVisuals.RemoveAt(_stepsVisuals.Count - 1);
+        FadeOutAndRemove(new[] { el }, StepsCanvas, durationMs);
+    }
+
+    private static void FadeOutAndRemove(IEnumerable<FrameworkElement> elements,
+        System.Windows.Controls.Panel parent, int durationMs)
+    {
+        var list = elements.ToList();
+        if (list.Count == 0) return;
+        int remaining = list.Count;
+        foreach (var el in list)
+        {
+            var fade = new DoubleAnimation
+            {
+                From = 1.0, To = 0.0,
+                Duration = new Duration(TimeSpan.FromMilliseconds(durationMs)),
+                EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseIn }
+            };
+            fade.Completed += (_, _) =>
+            {
+                parent.Children.Remove(el);
+            };
+            el.BeginAnimation(OpacityProperty, fade);
+        }
+    }
+
     #endregion
 
     public void AnimateCutoutFadeIn(Rect cutoutRect, IReadOnlyList<Rect>? existingCutouts = null)
@@ -710,9 +768,11 @@ public partial class OverlayWindow : Window
     /// Animates old cutouts "filling back in" — a feathered dark patch fades from
     /// transparent to opaque over each cutout rect, visually closing the hole.
     /// The patch is expanded and blurred to match the feathered cutout edges.
+    /// remainingCutouts: cutouts that still exist after removal — overlap areas are excluded from the patch.
     /// Calls onComplete when all animations finish.
     /// </summary>
-    public void AnimateCutoutsFadeOut(IReadOnlyList<Rect> cutoutRects, Action? onComplete, int durationMs = 400)
+    public void AnimateCutoutsFadeOut(IReadOnlyList<Rect> cutoutRects, Action? onComplete,
+        int durationMs = 400, IReadOnlyList<Rect>? remainingCutouts = null)
     {
         if (cutoutRects.Count == 0) { onComplete?.Invoke(); return; }
 
@@ -721,36 +781,83 @@ public partial class OverlayWindow : Window
 
         foreach (var cutoutRect in cutoutRects)
         {
-            // Expand the patch so the blur straddles the original cutout edge,
-            // matching how BuildFeatheredMask expands cutouts
+            // Build the overlap exclusion geometry (remaining cutouts that intersect this one)
+            Geometry? exclusionGeometry = null;
+            if (remainingCutouts != null)
+            {
+                foreach (var other in remainingCutouts)
+                {
+                    var intersection = Rect.Intersect(cutoutRect, other);
+                    if (!intersection.IsEmpty)
+                    {
+                        var intersectGeom = new RectangleGeometry(other);
+                        exclusionGeometry = exclusionGeometry == null
+                            ? (Geometry)intersectGeom
+                            : new CombinedGeometry(GeometryCombineMode.Union, exclusionGeometry, intersectGeom);
+                    }
+                }
+            }
+
+            // Expand the patch so the blur straddles the original cutout edge
             var expandedRect = new Rect(
                 cutoutRect.X - expand - _featherRadius,
                 cutoutRect.Y - expand - _featherRadius,
                 cutoutRect.Width + (expand + _featherRadius) * 2,
                 cutoutRect.Height + (expand + _featherRadius) * 2);
 
-            var patch = new System.Windows.Shapes.Rectangle
-            {
-                Width = expandedRect.Width,
-                Height = expandedRect.Height,
-                Fill = new SolidColorBrush(
-                    System.Windows.Media.Color.FromArgb((byte)(_overlayOpacity * 255), 0, 0, 0)),
-                Opacity = 0,
-                IsHitTestVisible = false
-            };
+            FrameworkElement patch;
 
-            if (_featherRadius > 0)
+            if (exclusionGeometry != null)
             {
-                patch.Effect = new BlurEffect
+                // Use a Path with clip geometry to exclude overlapping areas
+                Geometry patchGeometry = new RectangleGeometry(expandedRect);
+                patchGeometry = new CombinedGeometry(
+                    GeometryCombineMode.Exclude, patchGeometry, exclusionGeometry);
+
+                patch = new System.Windows.Shapes.Path
                 {
-                    Radius = _featherRadius,
-                    KernelType = KernelType.Gaussian,
-                    RenderingBias = RenderingBias.Performance
+                    Data = patchGeometry,
+                    Fill = new SolidColorBrush(
+                        System.Windows.Media.Color.FromArgb((byte)(_overlayOpacity * 255), 0, 0, 0)),
+                    Opacity = 0,
+                    IsHitTestVisible = false
                 };
+                // Apply blur via clip on the canvas element
+                if (_featherRadius > 0)
+                {
+                    patch.Effect = new BlurEffect
+                    {
+                        Radius = _featherRadius,
+                        KernelType = KernelType.Gaussian,
+                        RenderingBias = RenderingBias.Performance
+                    };
+                }
+            }
+            else
+            {
+                var rect = new System.Windows.Shapes.Rectangle
+                {
+                    Width = expandedRect.Width,
+                    Height = expandedRect.Height,
+                    Fill = new SolidColorBrush(
+                        System.Windows.Media.Color.FromArgb((byte)(_overlayOpacity * 255), 0, 0, 0)),
+                    Opacity = 0,
+                    IsHitTestVisible = false
+                };
+                if (_featherRadius > 0)
+                {
+                    rect.Effect = new BlurEffect
+                    {
+                        Radius = _featherRadius,
+                        KernelType = KernelType.Gaussian,
+                        RenderingBias = RenderingBias.Performance
+                    };
+                }
+                System.Windows.Controls.Canvas.SetLeft(rect, expandedRect.X);
+                System.Windows.Controls.Canvas.SetTop(rect, expandedRect.Y);
+                patch = rect;
             }
 
-            System.Windows.Controls.Canvas.SetLeft(patch, expandedRect.X);
-            System.Windows.Controls.Canvas.SetTop(patch, expandedRect.Y);
             FadeCanvas.Children.Add(patch);
 
             var fadeIn = new DoubleAnimation

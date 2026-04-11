@@ -56,7 +56,7 @@ public class SettingsService
     private const string DefaultNubMonitorFingerprint = "";
     private const bool DefaultShowToolNameOnSwitch = true;
     private const StepsTailDirection DefaultStepsTailDirection = StepsTailDirection.Free;
-    private const EscBehavior DefaultEscBehavior = EscBehavior.ExitOverlay;
+    private const EscBehavior DefaultEscBehavior = EscBehavior.UndoThenExit;
     private const string SettingsFileName = "Settings.json";
 
     private readonly string _settingsFilePath;

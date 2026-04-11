@@ -47,7 +47,7 @@ public record AppSettings(
     string NubMonitorFingerprint = "",
     bool ShowToolNameOnSwitch = true,
     StepsTailDirection StepsTailDirection = StepsTailDirection.Free,
-    EscBehavior EscBehavior = EscBehavior.ExitOverlay);
+    EscBehavior EscBehavior = EscBehavior.UndoThenExit);
 
 public enum StepsTailDirection
 {

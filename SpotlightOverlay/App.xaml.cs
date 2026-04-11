@@ -1010,28 +1010,34 @@ public partial class App : Application
             case ToolType.Spotlight:
                 if (_renderer.CutoutCount > 0)
                 {
+                    var lastCutout = _renderer.Cutouts[_renderer.CutoutCount - 1];
                     _renderer.RemoveLastCutout();
                     var overlaySize = new System.Windows.Size(_overlayWindow.ActualWidth, _overlayWindow.ActualHeight);
-                    _overlayWindow.ApplyFeatheredMask(_renderer.BuildFeatheredMask(overlaySize));
+                    var remaining = _renderer.Cutouts.ToList();
+                    _overlayWindow.AnimateCutoutsFadeOut(
+                        new[] { lastCutout },
+                        () => _overlayWindow?.ApplyFeatheredMask(_renderer.BuildFeatheredMask(overlaySize)),
+                        durationMs: 300,
+                        remainingCutouts: remaining);
                 }
                 break;
             case ToolType.Arrow:
-                _overlayWindow.RemoveLastArrow();
+                _overlayWindow.AnimateRemoveLastArrow();
                 if (_arrowRenderer.ArrowCount > 0)
                     _arrowRenderer.RemoveLastArrow();
                 break;
             case ToolType.Box:
-                _overlayWindow.RemoveLastBox();
+                _overlayWindow.AnimateRemoveLastBox();
                 if (_boxRenderer.BoxCount > 0)
                     _boxRenderer.RemoveLastBox();
                 break;
             case ToolType.Highlight:
-                _overlayWindow.RemoveLastHighlight();
+                _overlayWindow.AnimateRemoveLastHighlight();
                 if (_highlightRenderer.HighlightCount > 0)
                     _highlightRenderer.RemoveLastHighlight();
                 break;
             case ToolType.Steps:
-                _overlayWindow.RemoveLastStep();
+                _overlayWindow.AnimateRemoveLastStep();
                 if (_stepsRenderer.StepCount > 0)
                     _stepsRenderer.RemoveLastStep();
                 break;
