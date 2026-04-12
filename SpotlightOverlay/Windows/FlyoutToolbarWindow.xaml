@@ -123,7 +123,7 @@
                         Style="{StaticResource ToolbarButton}">
                     <StackPanel HorizontalAlignment="Center">
                         <TextBlock Text="&#x1F58D;" FontSize="18" HorizontalAlignment="Center" />
-                        <TextBlock Text="Highlight" FontSize="10" HorizontalAlignment="Center" Margin="0,2,0,0" />
+                        <TextBlock Text="Highlighter" FontSize="10" HorizontalAlignment="Center" Margin="0,2,0,0" />
                     </StackPanel>
                 </Button>
 

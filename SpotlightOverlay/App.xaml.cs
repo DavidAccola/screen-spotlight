@@ -299,7 +299,7 @@ public partial class App : Application
         ToolType.Spotlight => "Spotlight",
         ToolType.Arrow     => "Arrow",
         ToolType.Box       => "Box",
-        ToolType.Highlight => "Highlight",
+        ToolType.Highlight => "Highlighter",
         ToolType.Steps     => "Steps",
         _                  => tool.ToString()
     };
