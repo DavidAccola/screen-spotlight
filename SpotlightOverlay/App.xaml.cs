@@ -13,6 +13,7 @@ namespace SpotlightOverlay;
 public partial class App : Application
 {
     private static Mutex? _singleInstanceMutex;
+    private static SingleInstanceMessenger? _messenger;
     private SettingsService _settings = null!;
     private SpotlightRenderer _renderer = null!;
     private readonly ArrowRenderer _arrowRenderer = new();
@@ -34,14 +35,22 @@ public partial class App : Application
     {
         base.OnStartup(e);
 
-        // Single-instance check — exit silently if another instance is already running
+        // Single-instance check — if already running, tell it to open settings then exit
         _singleInstanceMutex = new Mutex(true, "SpotlightOverlay_SingleInstance", out bool createdNew);
         if (!createdNew)
         {
+            // Signal the running instance to open settings
+            var messenger = new SingleInstanceMessenger();
+            messenger.NotifyFirstInstance();
             Shutdown();
             return;
         }
 
+        // Create the message window so subsequent launches can signal us
+        _messenger = new SingleInstanceMessenger();
+        _messenger.ActivateRequested += () => Dispatcher.BeginInvoke(() =>
+            SettingsWindow.ShowSingleton(_settings, _inputHook));
+        _messenger.CreateMessageWindow();
         // Global exception handlers for debugging silent crashes
         AppDomain.CurrentDomain.UnhandledException += (s, args) =>
         {
@@ -60,6 +69,9 @@ public partial class App : Application
         _renderer = new SpotlightRenderer(_settings);
 
         _inputHook = new GlobalInputHook();
+
+        // Message window is ready now that _settings and _inputHook are initialized
+        _messenger!.CreateMessageWindow();
 
         _trayIcon = new TrayIconService(LoadApplicationIcon());
 
@@ -185,6 +197,7 @@ public partial class App : Application
         _flyoutToolbar?.Close();
         _inputHook.Dispose();
         _trayIcon.Dispose();
+        _messenger?.Dispose();
         Shutdown();
     }
 

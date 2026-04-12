@@ -92,7 +92,7 @@
                         AutomationProperties.Name="Spotlight"
                         Style="{StaticResource ToolbarButton}">
                     <StackPanel HorizontalAlignment="Center">
-                        <TextBlock Text="&#x1F526;" FontSize="18" HorizontalAlignment="Center" />
+                        <Image x:Name="SpotlightIcon" Width="26" Height="26" HorizontalAlignment="Center"/>
                         <TextBlock Text="Spotlight" FontSize="10" HorizontalAlignment="Center" Margin="0,2,0,0" />
                     </StackPanel>
                 </Button>
@@ -110,7 +110,10 @@
                         AutomationProperties.Name="Box"
                         Style="{StaticResource ToolbarButton}">
                     <StackPanel HorizontalAlignment="Center">
-                        <TextBlock Text="&#x25A2;" FontSize="18" HorizontalAlignment="Center" />
+                        <!-- Sharp-cornered rectangle, matching the actual box tool -->
+                        <Viewbox Width="18" Height="18" HorizontalAlignment="Center">
+                            <Rectangle Width="16" Height="13" Stroke="White" StrokeThickness="1.5" Fill="Transparent"/>
+                        </Viewbox>
                         <TextBlock Text="Box" FontSize="10" HorizontalAlignment="Center" Margin="0,2,0,0" />
                     </StackPanel>
                 </Button>
@@ -128,7 +131,30 @@
                         AutomationProperties.Name="Steps"
                         Style="{StaticResource ToolbarButton}">
                     <StackPanel HorizontalAlignment="Center">
-                        <TextBlock Text="&#x1F4CD;" FontSize="18" HorizontalAlignment="Center" />
+                        <!-- Teardrop matching actual geometry: large arc top, quadratic bezier sides to tip -->
+                        <!-- Canvas 18×26: center=(9,8), radius=7, tail down, tip at (9,23.4) -->
+                        <Viewbox Width="18" Height="22" HorizontalAlignment="Center">
+                            <Grid Width="18" Height="26">
+                                <Path Fill="White" Stroke="Transparent">
+                                    <Path.Data>
+                                        <!-- Start at left touch point (2,8), large clockwise arc to right (16,8),
+                                             quadratic bezier via (16,13.1) to tip (9,23.4),
+                                             quadratic bezier via (2,13.1) back to start -->
+                                        <PathGeometry>
+                                            <PathFigure StartPoint="2,8" IsClosed="True">
+                                                <ArcSegment Point="16,8" Size="7,7" IsLargeArc="True" SweepDirection="Clockwise"/>
+                                                <QuadraticBezierSegment Point1="16,13.1" Point2="9,23.4"/>
+                                                <QuadraticBezierSegment Point1="2,13.1" Point2="2,8"/>
+                                            </PathFigure>
+                                        </PathGeometry>
+                                    </Path.Data>
+                                </Path>
+                                <TextBlock Text="1" FontSize="10" FontWeight="Bold"
+                                           Foreground="#CC222222"
+                                           HorizontalAlignment="Center" VerticalAlignment="Top"
+                                           Margin="0,2,0,0" IsHitTestVisible="False"/>
+                            </Grid>
+                        </Viewbox>
                         <TextBlock Text="Steps" FontSize="10" HorizontalAlignment="Center" Margin="0,2,0,0" />
                     </StackPanel>
                 </Button>
@@ -140,7 +166,15 @@
                         AutomationProperties.Name="Settings"
                         Style="{StaticResource ToolbarButton}">
                     <StackPanel HorizontalAlignment="Center">
-                        <TextBlock Text="&#x2699;" FontSize="18" HorizontalAlignment="Center" />
+                        <!-- Modern 8-tooth settings gear with circular center hole, EvenOdd fill -->
+                        <Viewbox Width="18" Height="18" HorizontalAlignment="Center">
+                            <Path Fill="White" Stretch="Uniform">
+                                <Path.Data>
+                                    <PathGeometry FillRule="EvenOdd"
+                                        Figures="M 12,15.5 C 10.07,15.5 8.5,13.93 8.5,12 C 8.5,10.07 10.07,8.5 12,8.5 C 13.93,8.5 15.5,10.07 15.5,12 C 15.5,13.93 13.93,15.5 12,15.5 Z M 19.43,12.97 C 19.47,12.65 19.5,12.33 19.5,12 C 19.5,11.67 19.47,11.34 19.43,11.03 L 21.54,9.37 C 21.73,9.22 21.78,8.95 21.66,8.73 L 19.66,5.27 C 19.54,5.05 19.27,4.97 19.05,5.05 L 16.56,6.05 C 16.04,5.65 15.48,5.32 14.87,5.07 L 14.49,2.42 C 14.46,2.18 14.25,2 14,2 L 10,2 C 9.75,2 9.54,2.18 9.51,2.42 L 9.13,5.07 C 8.52,5.32 7.96,5.66 7.44,6.05 L 4.95,5.05 C 4.72,4.96 4.46,5.05 4.34,5.27 L 2.34,8.73 C 2.21,8.95 2.27,9.22 2.46,9.37 L 4.57,11.03 C 4.53,11.34 4.5,11.67 4.5,12 C 4.5,12.33 4.53,12.65 4.57,12.97 L 2.46,14.63 C 2.27,14.78 2.21,15.05 2.34,15.27 L 4.34,18.73 C 4.46,18.95 4.73,19.03 4.95,18.95 L 7.44,17.95 C 7.96,18.35 8.52,18.68 9.13,18.93 L 9.51,21.58 C 9.54,21.82 9.75,22 10,22 L 14,22 C 14.25,22 14.46,21.82 14.49,21.58 L 14.87,18.93 C 15.48,18.68 16.04,18.34 16.56,17.95 L 19.05,18.95 C 19.28,19.04 19.54,18.95 19.66,18.73 L 21.66,15.27 C 21.78,15.05 21.73,14.78 21.54,14.63 Z"/>
+                                </Path.Data>
+                            </Path>
+                        </Viewbox>
                         <TextBlock Text="Settings" FontSize="10" HorizontalAlignment="Center" Margin="0,2,0,0" />
                     </StackPanel>
                 </Button>

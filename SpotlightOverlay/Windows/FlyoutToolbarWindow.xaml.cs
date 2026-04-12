@@ -149,6 +149,9 @@ public partial class FlyoutToolbarWindow : Window
             // Highlight the default active tool (Spotlight)
             HighlightActiveToolButton();
 
+            // Generate the spotlight icon using the actual renderer pipeline
+            SpotlightIcon.Source = BuildSpotlightIconBitmap(16, 13, featherRadius: 3);
+
             // Start fullscreen detection timer
             StartFullscreenDetection();
         };
@@ -1082,5 +1085,42 @@ public partial class FlyoutToolbarWindow : Window
         if (!_settings.FlyoutToolbarVisible) return;
         DebugLog.Write("[Toolbar] Restored from fullscreen hide");
         FadeOpacity(Opacity, 1.0);
+    }
+
+    /// <summary>
+    /// Renders the spotlight icon using the same pipeline as the actual renderer:
+    /// a white rectangle with a feathered rectangular cutout (transparent center),
+    /// using CombinedGeometry + BlurEffect on a RenderTargetBitmap.
+    /// </summary>
+    private static System.Windows.Media.Imaging.BitmapSource BuildSpotlightIconBitmap(
+        int w, int h, int featherRadius)
+    {
+        // The cutout is centered, leaving a featherRadius-wide border on each side
+        var cutout = new Rect(featherRadius, featherRadius,
+            w - featherRadius * 2, h - featherRadius * 2);
+
+        // Draw just the inner cutout rect as white — the surrounding area stays transparent
+        var innerGeo = new RectangleGeometry(cutout);
+        var drawing = new GeometryDrawing(System.Windows.Media.Brushes.White, null, innerGeo);
+        var drawingGroup = new DrawingGroup();
+        drawingGroup.Children.Add(drawing);
+
+        var drawingVisual = new System.Windows.Media.DrawingVisual();
+        using (var dc = drawingVisual.RenderOpen())
+            dc.DrawDrawing(drawingGroup);
+
+        // Apply blur to feather the edges
+        drawingVisual.Effect = new System.Windows.Media.Effects.BlurEffect
+        {
+            Radius = featherRadius,
+            KernelType = System.Windows.Media.Effects.KernelType.Gaussian,
+            RenderingBias = System.Windows.Media.Effects.RenderingBias.Quality
+        };
+
+        var rtb = new System.Windows.Media.Imaging.RenderTargetBitmap(
+            w, h, 96, 96, System.Windows.Media.PixelFormats.Pbgra32);
+        rtb.Render(drawingVisual);
+        rtb.Freeze();
+        return rtb;
     }
 }
