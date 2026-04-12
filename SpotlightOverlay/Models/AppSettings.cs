@@ -47,7 +47,8 @@ public record AppSettings(
     string NubMonitorFingerprint = "",
     bool ShowToolNameOnSwitch = true,
     StepsTailDirection StepsTailDirection = StepsTailDirection.Free,
-    EscBehavior EscBehavior = EscBehavior.UndoThenExit);
+    EscBehavior EscBehavior = EscBehavior.UndoThenExit,
+    NestedSpotlightMode NestedSpotlightMode = NestedSpotlightMode.Darken);
 
 public enum StepsTailDirection
 {
@@ -59,6 +60,12 @@ public enum EscBehavior
 {
     ExitOverlay = 0,  // Esc always exits the overlay (current behavior)
     UndoThenExit = 1  // Esc removes last shape; second Esc exits
+}
+
+public enum NestedSpotlightMode
+{
+    Darken = 0,   // Nested spotlight creates darkness layer in surrounding area (can be cut through)
+    Replace = 1   // Nested spotlight replaces parent - parent area goes full darkness
 }
 
 public enum PreviewStyle

@@ -57,6 +57,7 @@ public class SettingsService
     private const bool DefaultShowToolNameOnSwitch = true;
     private const StepsTailDirection DefaultStepsTailDirection = StepsTailDirection.Free;
     private const EscBehavior DefaultEscBehavior = EscBehavior.UndoThenExit;
+    private const NestedSpotlightMode DefaultNestedSpotlightMode = NestedSpotlightMode.Darken;
     private const string SettingsFileName = "Settings.json";
 
     private readonly string _settingsFilePath;
@@ -104,6 +105,7 @@ public class SettingsService
     public bool ShowToolNameOnSwitch { get; set; } = DefaultShowToolNameOnSwitch;
     public StepsTailDirection StepsTailDirection { get; set; } = DefaultStepsTailDirection;
     public EscBehavior EscBehavior { get; set; } = DefaultEscBehavior;
+    public NestedSpotlightMode NestedSpotlightMode { get; set; } = DefaultNestedSpotlightMode;
 
     /// <summary>Fired after Save() so listeners can react to any setting change.</summary>
     public event EventHandler? SettingsChanged;
@@ -142,6 +144,7 @@ public class SettingsService
         FeatherRadius = DefaultFeatherRadius;
         PreviewStyle = DefaultPreviewStyle;
         CumulativeSpotlights = DefaultCumulativeSpotlights;
+        NestedSpotlightMode = DefaultNestedSpotlightMode;
         CustomColors = DefaultCustomColors;
         Save();
     }
@@ -234,6 +237,7 @@ public class SettingsService
         ShowToolNameOnSwitch = DefaultShowToolNameOnSwitch;
         StepsTailDirection = DefaultStepsTailDirection;
         EscBehavior = DefaultEscBehavior;
+        NestedSpotlightMode = DefaultNestedSpotlightMode;
     }
 
     public void Load()

@@ -67,6 +67,20 @@ public partial class FlyoutToolbarWindow : Window
     private double _toolbarWidth;
     private double _toolbarHeight;
 
+    // Fullscreen detection
+    private System.Windows.Threading.DispatcherTimer? _fullscreenCheckTimer;
+    private bool _hiddenDueToFullscreen = false;
+    private bool _expandedOverFullscreen = false; // toolbar is temporarily shown over a fullscreen app
+
+    // WinEvent hooks for instant fullscreen detection
+    private IntPtr _hookForeground = IntPtr.Zero;
+    private IntPtr _hookLocationChange = IntPtr.Zero;
+    private WinEventDelegate? _winEventDelegate; // must be kept alive to prevent GC
+    private System.Windows.Threading.DispatcherTimer? _debounceTimer;
+
+    // Reference to the input hook for checking tool-in-progress state
+    private Input.GlobalInputHook? _inputHook;
+
     public FlyoutToolbarWindow(SettingsService settings)
     {
         _settings = settings;
@@ -134,6 +148,9 @@ public partial class FlyoutToolbarWindow : Window
 
             // Highlight the default active tool (Spotlight)
             HighlightActiveToolButton();
+
+            // Start fullscreen detection timer
+            StartFullscreenDetection();
         };
     }
 
@@ -347,6 +364,69 @@ public partial class FlyoutToolbarWindow : Window
     public void ShowToolbar() => Visibility = Visibility.Visible;
     public void HideToolbar() => Visibility = Visibility.Collapsed;
 
+    /// <summary>
+    /// Provides the input hook so the toolbar can check IsDragInProgress before expanding,
+    /// and receive global mouse move events for nub hover detection while fullscreen-hidden.
+    /// </summary>
+    public void SetInputHook(Input.GlobalInputHook hook)
+    {
+        _inputHook = hook;
+        _inputHook.MouseMoved += OnGlobalMouseMoved;
+    }
+
+    /// <summary>
+    /// Called on every global mouse move. When the toolbar is fullscreen-hidden (opacity=0),
+    /// checks if the cursor is over the nub's screen rect and expands if so.
+    /// </summary>
+    private void OnGlobalMouseMoved(object? sender, System.Windows.Point physicalPt)
+    {
+        if (!_hiddenDueToFullscreen) return;
+        if (_inputHook?.IsDragInProgress == true) return;
+
+        Dispatcher.BeginInvoke(() =>
+        {
+            if (!_hiddenDueToFullscreen) return;
+            if (_inputHook?.IsDragInProgress == true) return;
+
+            bool overNub = GetNubPhysicalRect().Contains(physicalPt);
+
+            if (overNub && !_expandedOverFullscreen)
+            {
+                // Cursor entered nub — fade in and expand
+                _expandedOverFullscreen = true;
+                FadeOpacity(0.0, 1.0);
+                if (!_isExpanded && !_isDragging)
+                    ExpandToolbar();
+            }
+            else if (!overNub && _expandedOverFullscreen && !_isExpanded)
+            {
+                // Cursor left nub area and toolbar has since collapsed — fade back out
+                _expandedOverFullscreen = false;
+                FadeOpacity(1.0, 0.0);
+            }
+        });
+    }
+
+    /// <summary>
+    /// Returns the nub's bounding rect in physical screen pixels.
+    /// </summary>
+    private System.Windows.Rect GetNubPhysicalRect()
+    {
+        var monitorPoint = new System.Windows.Point(Left, Top);
+        double scale = MonitorHelper.GetDpiScale(monitorPoint);
+        return new System.Windows.Rect(Left * scale, Top * scale, NubWidth * scale, NubLength * scale);
+    }
+
+    private void FadeOpacity(double from, double to)
+    {
+        BeginAnimation(OpacityProperty, null);
+        var fade = new DoubleAnimation(from, to, TimeSpan.FromMilliseconds(150))
+        {
+            EasingFunction = new CubicEase { EasingMode = to > from ? EasingMode.EaseOut : EasingMode.EaseIn }
+        };
+        BeginAnimation(OpacityProperty, fade);
+    }
+
     // ── Expand / Collapse ────────────────────────────────────────────
 
     private void ExpandToolbar()
@@ -453,6 +533,7 @@ public partial class FlyoutToolbarWindow : Window
 
     private void NubHandle_MouseEnter(object sender, MouseEventArgs e)
     {
+        if (_inputHook?.IsDragInProgress == true) return;
         if (!_isExpanded && !_isDragging)
             ExpandToolbar();
     }
@@ -475,6 +556,12 @@ public partial class FlyoutToolbarWindow : Window
             {
                 _collapseTimer.Stop();
                 CollapseToolbar();
+                // If we're still in fullscreen mode, fade back out after collapsing
+                if (_hiddenDueToFullscreen)
+                {
+                    _expandedOverFullscreen = false;
+                    FadeOpacity(1.0, 0.0);
+                }
             };
             _collapseTimer.Start();
         }
@@ -846,5 +933,154 @@ public partial class FlyoutToolbarWindow : Window
                 else HideToolbar();
             }
         });
+    }
+
+    // ── Fullscreen Detection ─────────────────────────────────────────
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern IntPtr SetWinEventHook(uint eventMin, uint eventMax,
+        IntPtr hmodWinEventProc, WinEventDelegate lpfnWinEventProc,
+        uint idProcess, uint idThread, uint dwFlags);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern bool UnhookWinEvent(IntPtr hWinEventHook);
+
+    private delegate void WinEventDelegate(IntPtr hWinEventHook, uint eventType,
+        IntPtr hwnd, int idObject, int idChild, uint dwEventThread, uint dwmsEventTime);
+
+    private const uint EVENT_SYSTEM_FOREGROUND    = 0x0003;
+    private const uint EVENT_OBJECT_LOCATIONCHANGE = 0x800B;
+    private const uint WINEVENT_OUTOFCONTEXT      = 0x0000;
+
+    private void StartFullscreenDetection()
+    {
+        // Keep delegate alive — GC will collect it otherwise and crash
+        _winEventDelegate = OnWinEvent;
+
+        // Fires when any window becomes foreground (user switches to fullscreen app)
+        _hookForeground = SetWinEventHook(
+            EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_FOREGROUND,
+            IntPtr.Zero, _winEventDelegate, 0, 0, WINEVENT_OUTOFCONTEXT);
+
+        // Fires when any window moves or resizes (browser entering fullscreen mid-session)
+        _hookLocationChange = SetWinEventHook(
+            EVENT_OBJECT_LOCATIONCHANGE, EVENT_OBJECT_LOCATIONCHANGE,
+            IntPtr.Zero, _winEventDelegate, 0, 0, WINEVENT_OUTOFCONTEXT);
+
+        // Fallback safety-net timer — catches anything the hooks miss (e.g. some games)
+        _fullscreenCheckTimer = new System.Windows.Threading.DispatcherTimer
+        {
+            Interval = TimeSpan.FromSeconds(5)
+        };
+        _fullscreenCheckTimer.Tick += (_, _) => CheckFullscreenState();
+        _fullscreenCheckTimer.Start();
+
+        // Clean up hooks when the window closes
+        Closed += (_, _) => StopFullscreenDetection();
+    }
+
+    private void StopFullscreenDetection()
+    {
+        _fullscreenCheckTimer?.Stop();
+        if (_hookForeground != IntPtr.Zero) { UnhookWinEvent(_hookForeground); _hookForeground = IntPtr.Zero; }
+        if (_hookLocationChange != IntPtr.Zero) { UnhookWinEvent(_hookLocationChange); _hookLocationChange = IntPtr.Zero; }
+    }
+
+    private void OnWinEvent(IntPtr hWinEventHook, uint eventType,
+        IntPtr hwnd, int idObject, int idChild, uint dwEventThread, uint dwmsEventTime)
+    {
+        // WINEVENT_OUTOFCONTEXT delivers callbacks on the thread that called SetWinEventHook,
+        // which is the UI thread — so Dispatcher.BeginInvoke is not needed.
+        // However we debounce location-change events: they fire hundreds of times per second
+        // during a window resize/animation, so we only act after a short quiet period.
+        if (eventType == EVENT_OBJECT_LOCATIONCHANGE)
+        {
+            if (_debounceTimer == null)
+            {
+                _debounceTimer = new System.Windows.Threading.DispatcherTimer
+                {
+                    Interval = TimeSpan.FromMilliseconds(150)
+                };
+                _debounceTimer.Tick += (_, _) => { _debounceTimer.Stop(); CheckFullscreenState(); };
+            }
+            _debounceTimer.Stop();
+            _debounceTimer.Start();
+        }
+        else
+        {
+            // Foreground change — act immediately
+            CheckFullscreenState();
+        }
+    }
+
+    private void CheckFullscreenState()
+    {
+        try
+        {
+            var nubMonitor = GetNubMonitor();
+            if (nubMonitor == null)
+            {
+                RestoreFromFullscreen();
+                return;
+            }
+
+            bool foundFullscreen = FullscreenDetector.IsAnyFullscreenWindowOnMonitor(nubMonitor);
+
+            if (foundFullscreen)
+            {
+                // Don't re-hide if the user is actively hovering the nub or using the toolbar
+                if (!_expandedOverFullscreen)
+                    HideForFullscreen();
+            }
+            else
+            {
+                RestoreFromFullscreen();
+            }
+        }
+        catch (Exception ex)
+        {
+            DebugLog.Write($"[Toolbar] Fullscreen detection error: {ex.Message}");
+        }
+    }
+
+    private MonitorInfo? GetNubMonitor()
+    {
+        var monitors = MonitorHelper.GetAllMonitors();
+        foreach (var monitor in monitors)
+        {
+            var workArea = monitor.WorkArea;
+            switch (_anchorEdge)
+            {
+                case AnchorEdge.Left:
+                case AnchorEdge.Right:
+                    if (_nubScreenPos >= workArea.Top && _nubScreenPos <= workArea.Bottom)
+                        return monitor;
+                    break;
+                case AnchorEdge.Top:
+                    if (_nubScreenPos >= workArea.Left && _nubScreenPos <= workArea.Right)
+                        return monitor;
+                    break;
+            }
+        }
+        return null;
+    }
+
+    private void HideForFullscreen()
+    {
+        if (_hiddenDueToFullscreen || Visibility != Visibility.Visible) return;
+        _hiddenDueToFullscreen = true;
+        _expandedOverFullscreen = false;
+        DebugLog.Write("[Toolbar] Hidden due to fullscreen window");
+        FadeOpacity(Opacity, 0.0);
+    }
+
+    private void RestoreFromFullscreen()
+    {
+        if (!_hiddenDueToFullscreen) return;
+        _hiddenDueToFullscreen = false;
+        _expandedOverFullscreen = false;
+        if (!_settings.FlyoutToolbarVisible) return;
+        DebugLog.Write("[Toolbar] Restored from fullscreen hide");
+        FadeOpacity(Opacity, 1.0);
     }
 }

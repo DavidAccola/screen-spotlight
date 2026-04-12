@@ -79,7 +79,7 @@ public class SpotlightRenderer
                 expanded.Width * scale, expanded.Height * scale));
         }
 
-        var element = new MaskElement(scaledCutouts, w, h)
+        var element = new MaskElement(scaledCutouts, w, h, _settings.NestedSpotlightMode, scaledFeather)
         {
             Width = w,
             Height = h
@@ -118,27 +118,165 @@ public class SpotlightRenderer
     {
         private readonly IReadOnlyList<Rect> _cutouts;
         private readonly int _w, _h;
+        private readonly Models.NestedSpotlightMode _nestedMode;
+        private readonly int _featherRadius;
 
-        public MaskElement(IReadOnlyList<Rect> cutouts, int w, int h)
+        public MaskElement(IReadOnlyList<Rect> cutouts, int w, int h, Models.NestedSpotlightMode nestedMode, int featherRadius)
         {
             _cutouts = cutouts;
             _w = w;
             _h = h;
+            _nestedMode = nestedMode;
+            _featherRadius = featherRadius;
         }
 
         protected override void OnRender(DrawingContext dc)
         {
-            // Build geometry: full rectangle with cutout holes excluded
-            Geometry mask = new RectangleGeometry(new Rect(0, 0, _w, _h));
+            DebugLog.Write($"[MaskElement] OnRender: cutouts={_cutouts.Count}, size={_w}x{_h}, mode={_nestedMode}");
+
+            // Step 1: Build base mask geometry - full rectangle with ALL cutouts excluded
+            Geometry baseMask = new RectangleGeometry(new Rect(0, 0, _w, _h));
             foreach (var cutout in _cutouts)
             {
-                mask = new CombinedGeometry(GeometryCombineMode.Exclude, mask, new RectangleGeometry(cutout));
+                baseMask = new CombinedGeometry(GeometryCombineMode.Exclude, baseMask, new RectangleGeometry(cutout));
             }
+            
+            // Draw the base mask in white (dark overlay with transparent cutouts)
+            dc.DrawGeometry(Brushes.White, null, baseMask);
+            DebugLog.Write($"[MaskElement] Step 1: Drew base mask with {_cutouts.Count} cutouts excluded");
 
-            // Draw the holed geometry in white (alpha=FF).
-            // Cutout areas have no geometry = no pixels = alpha=0.
-            // BlurEffect will feather the alpha transition at the edges.
-            dc.DrawGeometry(Brushes.White, null, mask);
+            // Step 2: Handle nested spotlights based on mode
+            if (_nestedMode == Models.NestedSpotlightMode.Darken)
+            {
+                RenderDarkenMode(dc);
+            }
+            else // Replace mode
+            {
+                RenderReplaceMode(dc);
+            }
+        }
+
+        /// <summary>
+        /// Darken mode: nested spotlight creates darkness layer in surrounding area (can be cut through by later cutouts)
+        /// </summary>
+        private void RenderDarkenMode(DrawingContext dc)
+        {
+            // Add darkness layers for nested overlays
+            // A cutout is "nested" if it's fully contained within the UNION of all earlier cutouts
+            // This treats overlapping cutouts as one combined spotlight region
+            int donutCount = 0;
+            for (int i = 0; i < _cutouts.Count; i++)
+            {
+                // Build the union of all cutouts created before this one
+                Geometry unionOfEarlier = Geometry.Empty;
+                for (int j = 0; j < i; j++)
+                {
+                    unionOfEarlier = new CombinedGeometry(GeometryCombineMode.Union, unionOfEarlier, new RectangleGeometry(_cutouts[j]));
+                }
+                
+                // Check if this cutout is fully contained within the union
+                if (!unionOfEarlier.IsEmpty() && IsFullyContainedInGeometry(unionOfEarlier, _cutouts[i]))
+                {
+                    // This cutout is nested within the combined earlier spotlight region
+                    // Create darkness layer: union of earlier cutouts minus this cutout
+                    Geometry donutGeom = unionOfEarlier;
+                    donutGeom = new CombinedGeometry(GeometryCombineMode.Exclude, donutGeom, new RectangleGeometry(_cutouts[i]));
+                    
+                    // Exclude cutouts that come AFTER this one (they should cut through the darkness)
+                    for (int k = i + 1; k < _cutouts.Count; k++)
+                    {
+                        donutGeom = new CombinedGeometry(GeometryCombineMode.Exclude, donutGeom, new RectangleGeometry(_cutouts[k]));
+                        DebugLog.Write($"[MaskElement] Excluding later cutout {k} from donut (nested cutout={i})");
+                    }
+                    
+                    // Draw semi-transparent white to add darkness layer
+                    // Alpha 128 = 50% additional darkness
+                    dc.DrawGeometry(new SolidColorBrush(
+                        System.Windows.Media.Color.FromArgb(128, 0xFF, 0xFF, 0xFF)),
+                        null, donutGeom);
+                    donutCount++;
+                    DebugLog.Write($"[MaskElement] Darken mode: Drew donut layer {donutCount} for nested cutout {i} (within union of 0-{i-1})");
+                }
+            }
+            DebugLog.Write($"[MaskElement] Darken mode complete: {donutCount} donut layers");
+        }
+
+        /// <summary>
+        /// Replace mode: nested spotlight replaces parent - parent area goes full darkness (except the nested cutout itself)
+        /// </summary>
+        private void RenderReplaceMode(DrawingContext dc)
+        {
+            // For each nested cutout, fill the union of earlier cutouts with full white (darkness)
+            // but exclude the nested cutout itself and any later cutouts
+            // Expand the parent geometry to cover the feathered edge
+            int replaceCount = 0;
+            for (int i = 0; i < _cutouts.Count; i++)
+            {
+                // Build the union of all cutouts created before this one
+                Geometry unionOfEarlier = Geometry.Empty;
+                for (int j = 0; j < i; j++)
+                {
+                    unionOfEarlier = new CombinedGeometry(GeometryCombineMode.Union, unionOfEarlier, new RectangleGeometry(_cutouts[j]));
+                }
+                
+                // Check if this cutout is fully contained within the union
+                if (!unionOfEarlier.IsEmpty() && IsFullyContainedInGeometry(unionOfEarlier, _cutouts[i]))
+                {
+                    // This cutout replaces the parent spotlight region
+                    // Expand the union geometry to cover the feathered edge (add extra margin)
+                    // The feather extends beyond the cutout edge, so we need to cover that area
+                    var expandedUnion = unionOfEarlier;
+                    if (_featherRadius > 0)
+                    {
+                        // Expand by the feather radius to ensure we cover the entire feathered edge
+                        expandedUnion = unionOfEarlier.GetWidenedPathGeometry(new System.Windows.Media.Pen(Brushes.White, _featherRadius * 2));
+                    }
+                    
+                    // Fill the expanded union with full white (darkness), but exclude this cutout and later ones
+                    Geometry replaceGeom = expandedUnion;
+                    
+                    // Exclude this cutout and all later cutouts
+                    for (int k = i; k < _cutouts.Count; k++)
+                    {
+                        replaceGeom = new CombinedGeometry(GeometryCombineMode.Exclude, replaceGeom, new RectangleGeometry(_cutouts[k]));
+                    }
+                    
+                    // Draw full white to make the parent area fully dark
+                    dc.DrawGeometry(Brushes.White, null, replaceGeom);
+                    replaceCount++;
+                    DebugLog.Write($"[MaskElement] Replace mode: Filled parent region for nested cutout {i} (replaced union of 0-{i-1})");
+                }
+            }
+            DebugLog.Write($"[MaskElement] Replace mode complete: {replaceCount} replacements");
+        }
+
+        /// <summary>
+        /// Returns true if inner is fully contained within outer (all edges inside).
+        /// </summary>
+        private static bool IsFullyContained(Rect outer, Rect inner)
+        {
+            return inner.Left >= outer.Left &&
+                   inner.Right <= outer.Right &&
+                   inner.Top >= outer.Top &&
+                   inner.Bottom <= outer.Bottom;
+        }
+
+        /// <summary>
+        /// Returns true if the rectangle is fully contained within the geometry.
+        /// Uses hit testing to check if all four corners are inside the geometry.
+        /// </summary>
+        private static bool IsFullyContainedInGeometry(Geometry geometry, Rect rect)
+        {
+            // Check all four corners - if all are inside the geometry, the rect is fully contained
+            var topLeft = new System.Windows.Point(rect.Left, rect.Top);
+            var topRight = new System.Windows.Point(rect.Right, rect.Top);
+            var bottomLeft = new System.Windows.Point(rect.Left, rect.Bottom);
+            var bottomRight = new System.Windows.Point(rect.Right, rect.Bottom);
+            
+            return geometry.FillContains(topLeft) &&
+                   geometry.FillContains(topRight) &&
+                   geometry.FillContains(bottomLeft) &&
+                   geometry.FillContains(bottomRight);
         }
     }
 

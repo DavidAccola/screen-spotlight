@@ -73,6 +73,7 @@ public class GlobalInputHook : IDisposable
     #endregion
 
     #region Events
+    public event EventHandler<System.Windows.Point>? MouseMoved;
     public event EventHandler<DragRectEventArgs>? DragCompleted;
     public event EventHandler<DragRectEventArgs>? DragUpdated;
     public event EventHandler<ArrowLineEventArgs>? ArrowDragCompleted;
@@ -355,6 +356,10 @@ public class GlobalInputHook : IDisposable
             int msg = wParam.ToInt32();
             var hs = Marshal.PtrToStructure<MSLLHOOKSTRUCT>(lParam);
 
+            // Fire MouseMoved for every mouse move — used by toolbar for nub hover detection
+            if (msg == WM_MOUSEMOVE)
+                MouseMoved?.Invoke(this, new System.Windows.Point(hs.pt.x, hs.pt.y));
+
             // Toggle via mouse button (works regardless of IsEnabled, like keyboard toggle)
             // Skip when recording hotkeys in settings
             if (!IsRecordingHotkey && IsMouseButtonVk(ToggleKey)
@@ -460,8 +465,7 @@ public class GlobalInputHook : IDisposable
         {
             EmitDragUpdated(hs.pt.x, hs.pt.y);
             return CallNextHookEx(_mouseHookHandle, nCode, wParam, lParam);
-        }
-        else if ((msg == WM_RBUTTONDOWN || msg == WM_RBUTTONUP) && _isDragging)
+        }        else if ((msg == WM_RBUTTONDOWN || msg == WM_RBUTTONUP) && _isDragging)
         {
             _isDragging = false;
             SpotlightOverlay.DebugLog.Write("[Hook] HoldDrag: cancelled by right-click");

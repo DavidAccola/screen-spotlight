@@ -635,15 +635,36 @@
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Grid.Column="0" Style="{StaticResource RowLabel}">
-                                    <Run Text="2"/><Run Text="nd" FontSize="9" BaselineAlignment="TextTop"/><Run Text=" Spotlight"/>
+                                    <Run Text="Additional"/><LineBreak/><Run Text="spotlights"/>
                                 </TextBlock>
                                 <StackPanel Grid.Column="1">
                                     <ComboBox x:Name="SpotlightModeCombo"
                                               SelectionChanged="SpotlightModeCombo_SelectionChanged">
+                                        <ComboBoxItem Content="Multiple can exist" />
+                                        <ComboBoxItem Content="Only one at a time" />
+                                    </ComboBox>
+                                    <TextBlock x:Name="SpotlightModeHint" Margin="0,3,0,0"
+                                               Style="{StaticResource HintText}"
+                                               Foreground="{StaticResource TextSecondary}" />
+                                </StackPanel>
+                            </Grid>
+
+                            <!-- Nested Spotlight Mode -->
+                            <Grid x:Name="NestedSpotlightModeGrid" Margin="0,14,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="130" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Style="{StaticResource RowLabel}">
+                                    <Run Text="Spotlight within"/><LineBreak/><Run Text="Spotlight"/>
+                                </TextBlock>
+                                <StackPanel Grid.Column="1">
+                                    <ComboBox x:Name="NestedSpotlightModeCombo"
+                                              SelectionChanged="NestedSpotlightModeCombo_SelectionChanged">
                                         <ComboBoxItem Content="Stack" />
                                         <ComboBoxItem Content="Replace" />
                                     </ComboBox>
-                                    <TextBlock x:Name="SpotlightModeHint" Margin="0,3,0,0"
+                                    <TextBlock x:Name="NestedSpotlightModeHint" Margin="0,3,0,0"
                                                Style="{StaticResource HintText}"
                                                Foreground="{StaticResource TextSecondary}" />
                                 </StackPanel>

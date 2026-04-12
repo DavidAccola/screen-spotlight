@@ -125,6 +125,7 @@ public partial class App : Application
         {
             _flyoutToolbar = new FlyoutToolbarWindow(_settings);
             _flyoutToolbar.ActiveToolChanged += OnActiveToolChanged;
+            _flyoutToolbar.SetInputHook(_inputHook);
             if (_settings.FlyoutToolbarVisible)
                 _flyoutToolbar.ShowToolbar();
             _trayIcon.SetToolbarVisible(_settings.FlyoutToolbarVisible);

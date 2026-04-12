@@ -98,6 +98,7 @@ public partial class SettingsWindow : Window
         ShowToolNameCheck.IsChecked = _settings.ShowToolNameOnSwitch;
         EscBehaviorCombo.SelectedIndex = (int)_settings.EscBehavior;
         SpotlightModeCombo.SelectedIndex = _settings.CumulativeSpotlights ? 0 : 1;
+        NestedSpotlightModeCombo.SelectedIndex = (int)_settings.NestedSpotlightMode;
         ArrowheadStyleCombo_Init();
         BuildColorPresetSwatches();
         LoadCustomColors();
@@ -139,6 +140,8 @@ public partial class SettingsWindow : Window
 
         _isInitializing = false;
         UpdateSpotlightModeHint();
+        UpdateNestedSpotlightModeHint();
+        UpdateNestedSpotlightModeVisibility();
         Loaded += (_, _) =>
         {
             UpdatePreview(); UpdateArrowPreview(); UpdateBoxPreview(); UpdateHighlightPreview();
@@ -605,6 +608,7 @@ public partial class SettingsWindow : Window
         _settings.CumulativeSpotlights = SpotlightModeCombo.SelectedIndex == 0;
         _settings.Save();
         UpdateSpotlightModeHint();
+        UpdateNestedSpotlightModeVisibility();
     }
 
     private void UpdateSpotlightModeHint()
@@ -613,6 +617,31 @@ public partial class SettingsWindow : Window
         SpotlightModeHint.Text = _settings.CumulativeSpotlights
             ? "New spotlights are added alongside existing ones"
             : "Each new spotlight replaces the previous one";
+    }
+
+    private void UpdateNestedSpotlightModeVisibility()
+    {
+        if (NestedSpotlightModeGrid == null) return;
+        // Only show nested mode when Additional spotlights is set to "Multiple can exist"
+        NestedSpotlightModeGrid.Visibility = _settings.CumulativeSpotlights 
+            ? System.Windows.Visibility.Visible 
+            : System.Windows.Visibility.Collapsed;
+    }
+
+    private void NestedSpotlightModeCombo_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        if (_isInitializing) return;
+        _settings.NestedSpotlightMode = (Models.NestedSpotlightMode)NestedSpotlightModeCombo.SelectedIndex;
+        _settings.Save();
+        UpdateNestedSpotlightModeHint();
+    }
+
+    private void UpdateNestedSpotlightModeHint()
+    {
+        if (NestedSpotlightModeHint == null) return;
+        NestedSpotlightModeHint.Text = _settings.NestedSpotlightMode == Models.NestedSpotlightMode.Darken
+            ? "A spotlight entirely inside another creates a layer of darkness"
+            : "A spotlight entirely inside another replaces the larger spotlight";
     }
 
     // ── Arrow style visual combos ─────────────────────────────────
@@ -1032,6 +1061,7 @@ public partial class SettingsWindow : Window
         FeatherTextBox.Text = _settings.FeatherRadius.ToString();
         PreviewStyleCombo.SelectedIndex = (int)_settings.PreviewStyle;
         SpotlightModeCombo.SelectedIndex = _settings.CumulativeSpotlights ? 0 : 1;
+        NestedSpotlightModeCombo.SelectedIndex = (int)_settings.NestedSpotlightMode;
         LoadCustomColors();
         BuildCustomColorSlots();
         HighlightSelectedPreset();
