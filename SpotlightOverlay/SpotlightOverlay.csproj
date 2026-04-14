@@ -19,7 +19,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <EmbeddedResource Include="assets\spotlightIcon.ico" LogicalName="SpotlightOverlay.app.ico" />
+    <EmbeddedResource Include="assets\spotlightIcon.ico" LogicalName="Screen Spotlight.app.ico" />
     <Resource Include="assets\background.png" />
   </ItemGroup>
 
