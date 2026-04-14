@@ -15,6 +15,7 @@
     <AssemblyTitle>Screen Spotlight</AssemblyTitle>
     <Product>Screen Spotlight</Product>
     <Description>Screen Spotlight — presentation overlay tool</Description>
+    <AssemblyName>Screen Spotlight</AssemblyName>
   </PropertyGroup>
 
   <ItemGroup>
