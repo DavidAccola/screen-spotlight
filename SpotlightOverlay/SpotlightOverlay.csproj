@@ -12,6 +12,9 @@
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <!-- Application icon for the EXE -->
     <ApplicationIcon>assets\spotlightIcon.ico</ApplicationIcon>
+    <AssemblyTitle>Screen Spotlight</AssemblyTitle>
+    <Product>Screen Spotlight</Product>
+    <Description>Screen Spotlight — presentation overlay tool</Description>
   </PropertyGroup>
 
   <ItemGroup>

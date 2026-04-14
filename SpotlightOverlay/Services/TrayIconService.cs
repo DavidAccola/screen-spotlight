@@ -21,7 +21,7 @@ public class TrayIconService : IDisposable
 
     public TrayIconService(Icon icon)
     {
-        _toggleItem = new ToolStripMenuItem("Enable Spotlight");
+        _toggleItem = new ToolStripMenuItem("Enable Screen Spotlight");
         _toggleItem.Click += (s, e) => ToggleSpotlightRequested?.Invoke(this, EventArgs.Empty);
 
         var settingsItem = new ToolStripMenuItem("Settings…");
@@ -51,7 +51,7 @@ public class TrayIconService : IDisposable
         _notifyIcon = new NotifyIcon
         {
             Icon = icon,
-            Text = "Spotlight Overlay",
+            Text = "Screen Spotlight",
             ContextMenuStrip = contextMenu,
             Visible = true
         };
@@ -66,7 +66,7 @@ public class TrayIconService : IDisposable
 
     public void SetEnabled(bool isEnabled)
     {
-        _toggleItem.Text = isEnabled ? "Disable Spotlight" : "Enable Spotlight";
+        _toggleItem.Text = isEnabled ? "Disable Screen Spotlight" : "Enable Screen Spotlight";
     }
 
     public void SetToolbarVisible(bool visible)

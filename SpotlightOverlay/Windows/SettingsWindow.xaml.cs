@@ -1133,7 +1133,7 @@ public partial class SettingsWindow : Window
         if (!IsMouseButtonVk(_settings.ActivationKey)) parts.Add("Click");
         HotkeyDisplay.Text = string.Join(" + ", parts);
         HotkeyHint.Text = "Start using the current tool";
-        HotkeyHint.Foreground = (System.Windows.Media.Brush)FindResource("TextMuted");
+        HotkeyHint.Foreground = (System.Windows.Media.Brush)FindResource("TextSecondary");
         HotkeyHint.Visibility = System.Windows.Visibility.Visible;
         HotkeyRecorderBorder.BorderBrush = (System.Windows.Media.Brush)FindResource("CardBorder");
     }
@@ -1357,7 +1357,7 @@ public partial class SettingsWindow : Window
         parts.Add(VkDisplayName(_settings.ToggleKey));
         ToggleHotkeyDisplay.Text = string.Join(" + ", parts);
         ToggleHotkeyHint.Text = "Toggle all functionality on/off";
-        ToggleHotkeyHint.Foreground = (System.Windows.Media.Brush)FindResource("TextMuted");
+        ToggleHotkeyHint.Foreground = (System.Windows.Media.Brush)FindResource("TextSecondary");
         ToggleHotkeyHint.Visibility = System.Windows.Visibility.Visible;
         ToggleHotkeyBorder.BorderBrush = (System.Windows.Media.Brush)FindResource("CardBorder");
     }
@@ -1401,7 +1401,7 @@ public partial class SettingsWindow : Window
         parts.Add(VkDisplayName(_settings.ToggleToolKey));
         ToggleToolHotkeyDisplay.Text = string.Join(" + ", parts);
         ToggleToolHotkeyHint.Text = "Cycle to the next tool";
-        ToggleToolHotkeyHint.Foreground = (System.Windows.Media.Brush)FindResource("TextMuted");
+        ToggleToolHotkeyHint.Foreground = (System.Windows.Media.Brush)FindResource("TextSecondary");
         ToggleToolHotkeyHint.Visibility = System.Windows.Visibility.Visible;
         ToggleToolHotkeyBorder.BorderBrush = (System.Windows.Media.Brush)FindResource("CardBorder");
     }
@@ -2954,7 +2954,7 @@ public partial class SettingsWindow : Window
             AvailableToolsList.Children.Add(new TextBlock
             {
                 Text = "All tools are currently included in the toolbar",
-                Foreground = new SolidColorBrush(Color.FromRgb(0x70, 0x70, 0x70)),
+                Foreground = new SolidColorBrush(Color.FromRgb(0x99, 0x99, 0x99)),
                 FontSize = 11,
                 Margin = new Thickness(4, 6, 4, 6),
                 TextWrapping = TextWrapping.Wrap

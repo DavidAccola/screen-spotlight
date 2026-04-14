@@ -76,7 +76,7 @@ public partial class App : Application
         _trayIcon = new TrayIconService(LoadApplicationIcon());
 
         // Wire hook error reporting to tray balloon notifications (Req 2.5)
-        _inputHook.OnError = error => _trayIcon.ShowBalloon("Spotlight Overlay", error);
+        _inputHook.OnError = error => _trayIcon.ShowBalloon("Screen Spotlight", error);
 
         // Install hooks and enable by default
         _inputHook.Install();

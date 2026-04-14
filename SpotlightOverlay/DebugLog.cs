@@ -4,6 +4,7 @@ namespace SpotlightOverlay;
 
 /// <summary>
 /// Simple file-based debug logger. Writes to spotlight-debug.log in the app directory.
+/// Only active in DEBUG builds — no-ops in Release.
 /// </summary>
 internal static class DebugLog
 {
@@ -11,6 +12,7 @@ internal static class DebugLog
         AppDomain.CurrentDomain.BaseDirectory, "spotlight-debug.log");
     private static readonly object Lock = new();
 
+    [System.Diagnostics.Conditional("DEBUG")]
     public static void Write(string message)
     {
         lock (Lock)
