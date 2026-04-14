@@ -4,25 +4,52 @@
         Title="Reset All Settings"
         Width="360" SizeToContent="Height"
         ResizeMode="NoResize"
+        WindowStyle="None"
+        AllowsTransparency="True"
         WindowStartupLocation="CenterOwner"
-        Background="#1E1E1E"
+        Background="Transparent"
         ShowInTaskbar="False">
     <Window.Resources>
-        <SolidColorBrush x:Key="CardBg"       Color="#2D2D2D" />
-        <SolidColorBrush x:Key="CardBorder"   Color="#3E3E3E" />
-        <SolidColorBrush x:Key="TextPrimary"  Color="#E0E0E0" />
+        <SolidColorBrush x:Key="CardBg"        Color="#2D2D2D" />
+        <SolidColorBrush x:Key="CardBorder"    Color="#3E3E3E" />
+        <SolidColorBrush x:Key="TextPrimary"   Color="#E0E0E0" />
         <SolidColorBrush x:Key="TextSecondary" Color="#999999" />
-        <SolidColorBrush x:Key="Accent"       Color="#5B9BD5" />
-        <SolidColorBrush x:Key="ControlBg"    Color="#383838" />
-        <SolidColorBrush x:Key="ControlHover" Color="#434343" />
-        <SolidColorBrush x:Key="DangerBg"     Color="#5C2020" />
-        <SolidColorBrush x:Key="DangerHover"  Color="#6E2828" />
+        <SolidColorBrush x:Key="ControlBg"     Color="#383838" />
+        <SolidColorBrush x:Key="ControlHover"  Color="#434343" />
+        <SolidColorBrush x:Key="DangerBg"      Color="#5C2020" />
+        <SolidColorBrush x:Key="DangerHover"   Color="#6E2828" />
     </Window.Resources>
 
     <Border Background="{StaticResource CardBg}"
             BorderBrush="{StaticResource CardBorder}" BorderThickness="1"
-            CornerRadius="8" Margin="1">
-        <StackPanel Margin="24,20,24,20">
+            CornerRadius="8" Margin="6"
+            MouseLeftButtonDown="Border_MouseLeftButtonDown">
+        <Border.Effect>
+            <DropShadowEffect Color="Black" BlurRadius="12" ShadowDepth="3" Opacity="0.5" />
+        </Border.Effect>
+        <StackPanel Margin="24,16,24,20">
+
+            <!-- Close button -->
+            <Grid Margin="0,0,-8,4">
+                <Button HorizontalAlignment="Right" Width="24" Height="24"
+                        Cursor="Hand" Click="Cancel_Click">
+                    <Button.Template>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="Bd" Background="Transparent" CornerRadius="4"
+                                    Width="24" Height="24">
+                                <TextBlock Text="✕" FontSize="11" Foreground="#999999"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="#C42B1C" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Button.Template>
+                </Button>
+            </Grid>
+
             <!-- Icon + Title -->
             <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
                 <TextBlock Text="⚠" FontSize="18" Foreground="#E8A838"
@@ -32,11 +59,13 @@
                            Foreground="{StaticResource TextPrimary}"
                            VerticalAlignment="Center" />
             </StackPanel>
+
             <!-- Body -->
             <TextBlock Text="This will reset every setting across all tabs to their defaults. This cannot be undone."
                        Foreground="{StaticResource TextSecondary}"
                        FontSize="13" TextWrapping="Wrap"
                        Margin="0,0,0,20" />
+
             <!-- Buttons -->
             <Grid>
                 <Grid.ColumnDefinitions>
@@ -44,7 +73,6 @@
                     <ColumnDefinition Width="8" />
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
-                <!-- Cancel -->
                 <Button Grid.Column="0" Content="Cancel" Click="Cancel_Click"
                         HorizontalAlignment="Stretch" Padding="0,10"
                         Cursor="Hand" FontSize="13"
@@ -64,7 +92,6 @@
                         </ControlTemplate>
                     </Button.Template>
                 </Button>
-                <!-- Reset -->
                 <Button Grid.Column="2" Content="Reset All" Click="Confirm_Click"
                         HorizontalAlignment="Stretch" Padding="0,10"
                         Cursor="Hand" FontSize="13"
@@ -85,6 +112,7 @@
                     </Button.Template>
                 </Button>
             </Grid>
+
         </StackPanel>
     </Border>
 </Window>

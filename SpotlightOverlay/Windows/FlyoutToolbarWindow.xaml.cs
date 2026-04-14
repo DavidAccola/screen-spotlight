@@ -149,6 +149,9 @@ public partial class FlyoutToolbarWindow : Window
             // Highlight the default active tool (Spotlight)
             HighlightActiveToolButton();
 
+            // Apply saved tool order
+            ApplyToolOrder();
+
             // Generate the spotlight icon using the actual renderer pipeline
             SpotlightIcon.Source = BuildSpotlightIconBitmap(16, 13, featherRadius: 3);
 
@@ -935,7 +938,70 @@ public partial class FlyoutToolbarWindow : Window
                 if (_settings.FlyoutToolbarVisible) ShowToolbar();
                 else HideToolbar();
             }
+
+            ApplyToolOrder();
         });
+    }
+
+    /// <summary>
+    /// Reorders and shows/hides tool buttons in ButtonPanel to match ToolOrder setting.
+    /// Settings button always stays at the bottom.
+    /// </summary>
+    private void ApplyToolOrder()
+    {
+        var activeTools = SettingsService.ParseActiveToolOrder(_settings.ToolOrder);
+        bool settingsPresent = _settings.ToolOrder.Contains("Settings", StringComparison.OrdinalIgnoreCase);
+        bool settingsAtTop = _settings.ToolOrder.StartsWith("Settings", StringComparison.OrdinalIgnoreCase);
+
+        var buttonMap = new System.Collections.Generic.Dictionary<ToolType, Button>
+        {
+            { ToolType.Spotlight, SpotlightButton },
+            { ToolType.Arrow,     ArrowButton },
+            { ToolType.Box,       BoxButton },
+            { ToolType.Highlight, HighlightButton },
+            { ToolType.Steps,     StepsButton },
+        };
+
+        // Remove all tool buttons, separator, and settings button from panel
+        foreach (var btn in buttonMap.Values)
+            ButtonPanel.Children.Remove(btn);
+        ButtonPanel.Children.Remove(Separator);
+        ButtonPanel.Children.Remove(SettingsButton);
+
+        if (settingsPresent && settingsAtTop)
+        {
+            ButtonPanel.Children.Insert(1, Separator);
+            ButtonPanel.Children.Insert(1, SettingsButton);
+            int insertAt = 3;
+            foreach (var tool in activeTools)
+            {
+                buttonMap[tool].Visibility = Visibility.Visible;
+                ButtonPanel.Children.Insert(insertAt++, buttonMap[tool]);
+            }
+        }
+        else
+        {
+            int insertAt = 1;
+            foreach (var tool in activeTools)
+            {
+                buttonMap[tool].Visibility = Visibility.Visible;
+                ButtonPanel.Children.Insert(insertAt++, buttonMap[tool]);
+            }
+            if (settingsPresent)
+            {
+                int endIdx = ButtonPanel.Children.Count - 1;
+                ButtonPanel.Children.Insert(endIdx, Separator);
+                ButtonPanel.Children.Insert(endIdx + 1, SettingsButton);
+            }
+        }
+
+        // Hide buttons not in active list
+        foreach (var tool in buttonMap.Keys)
+            if (!activeTools.Contains(tool))
+                buttonMap[tool].Visibility = Visibility.Collapsed;
+
+        Separator.Visibility = settingsPresent ? Visibility.Visible : Visibility.Collapsed;
+        SettingsButton.Visibility = settingsPresent ? Visibility.Visible : Visibility.Collapsed;
     }
 
     // ── Fullscreen Detection ─────────────────────────────────────────
@@ -1092,7 +1158,7 @@ public partial class FlyoutToolbarWindow : Window
     /// a white rectangle with a feathered rectangular cutout (transparent center),
     /// using CombinedGeometry + BlurEffect on a RenderTargetBitmap.
     /// </summary>
-    private static System.Windows.Media.Imaging.BitmapSource BuildSpotlightIconBitmap(
+    internal static System.Windows.Media.Imaging.BitmapSource BuildSpotlightIconBitmap(
         int w, int h, int featherRadius)
     {
         // The cutout is centered, leaving a featherRadius-wide border on each side

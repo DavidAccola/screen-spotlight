@@ -271,14 +271,14 @@ public partial class App : Application
     }
 
     /// <summary>
-    /// Cycles to the next tool in toolbar order (Spotlight → Arrow → ...).
+    /// Cycle to the next tool in toolbar order (Spotlight → Arrow → ...).
     /// </summary>
     private void OnToggleTool(object? sender, EventArgs e)
     {
         Dispatcher.BeginInvoke(() =>
         {
             if (_flyoutToolbar == null) return;
-            var allTools = new[] { ToolType.Spotlight, ToolType.Arrow, ToolType.Box, ToolType.Highlight, ToolType.Steps };
+            var allTools = SettingsService.ParseToolOrder(_settings.ToolOrder).ToArray();
             int current = Array.IndexOf(allTools, _flyoutToolbar.ActiveTool);
             var next = allTools[(current + 1) % allTools.Length];
             _flyoutToolbar.SetActiveToolExternal(next);

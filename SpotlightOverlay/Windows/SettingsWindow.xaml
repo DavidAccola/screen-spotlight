@@ -277,7 +277,7 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="TabItem">
-                        <Border x:Name="TabBorder" Padding="16,8" Margin="0,0,2,0"
+                        <Border x:Name="TabBorder" Padding="10,8" Margin="0,0,2,0"
                                 Background="Transparent" BorderThickness="0,0,0,2"
                                 BorderBrush="Transparent" Cursor="Hand">
                             <ContentPresenter x:Name="ContentSite"
@@ -301,6 +301,17 @@
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
+        </Style>
+
+        <!-- Dark mode tooltip -->
+        <Style TargetType="ToolTip">
+            <Setter Property="Background" Value="#2D2D2D" />
+            <Setter Property="Foreground" Value="#E0E0E0" />
+            <Setter Property="BorderBrush" Value="#3E3E3E" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="8,5" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="HasDropShadow" Value="True" />
         </Style>
     </Window.Resources>
 
@@ -360,21 +371,6 @@
                                 </ComboBox>
                             </Grid>
                             <Border Style="{StaticResource CardSep}" />
-                            <!-- Show tool name on switch -->
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="130" />
-                                    <ColumnDefinition Width="*" />
-                                </Grid.ColumnDefinitions>
-                                <TextBlock Grid.Column="0" Text="Tool name" Style="{StaticResource RowLabel}" />
-                                <CheckBox Grid.Column="1" x:Name="ShowToolNameCheck"
-                                          Style="{StaticResource DarkToggle}"
-                                          Content="Show on switch"
-                                          Foreground="{StaticResource TextPrimary}" FontSize="13"
-                                          Checked="ShowToolNameCheck_Changed"
-                                          Unchecked="ShowToolNameCheck_Changed" />
-                            </Grid>
-                            <Border Style="{StaticResource CardSep}" />
                             <!-- Esc behavior -->
                             <Grid>
                                 <Grid.ColumnDefinitions>
@@ -409,14 +405,15 @@
                                             Background="{StaticResource ControlBg}"
                                             BorderBrush="{StaticResource CardBorder}" BorderThickness="1"
                                             CornerRadius="4" Padding="10,6" Cursor="Hand"
-                                            MouseLeftButtonDown="HotkeyRecorder_Click">
+                                            MouseLeftButtonDown="HotkeyRecorder_Click"
+                                            ToolTip="Click to change. Press keys or mouse buttons.">
                                         <TextBlock x:Name="HotkeyDisplay"
                                                    Foreground="{StaticResource TextPrimary}"
                                                    FontSize="13" Text="Ctrl + Shift + Click" />
                                     </Border>
                                     <TextBlock x:Name="HotkeyHint" Margin="0,3,0,0"
                                                Style="{StaticResource HintText}"
-                                               Text="Click to change, then press a modifier key" />
+                                               Text="Start using the current tool" />
                                 </StackPanel>
                             </Grid>
                             <Border Style="{StaticResource CardSep}" />
@@ -432,14 +429,15 @@
                                             Background="{StaticResource ControlBg}"
                                             BorderBrush="{StaticResource CardBorder}" BorderThickness="1"
                                             CornerRadius="4" Padding="10,6" Cursor="Hand"
-                                            MouseLeftButtonDown="ToggleToolHotkeyRecorder_Click">
+                                            MouseLeftButtonDown="ToggleToolHotkeyRecorder_Click"
+                                            ToolTip="Click to change. Press keys or mouse buttons.">
                                         <TextBlock x:Name="ToggleToolHotkeyDisplay"
                                                    Foreground="{StaticResource TextPrimary}"
                                                    FontSize="13" Text="Ctrl + Shift + Right Click" />
                                     </Border>
                                     <TextBlock x:Name="ToggleToolHotkeyHint" Margin="0,3,0,0"
                                                Style="{StaticResource HintText}"
-                                               Text="Click to change — press keys or mouse buttons" />
+                                               Text="Cycle to the next tool" />
                                 </StackPanel>
                             </Grid>
                             <Border Style="{StaticResource CardSep}" />
@@ -449,20 +447,21 @@
                                     <ColumnDefinition Width="130" />
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Grid.Column="0" Text="Toggle On/Off" Style="{StaticResource RowLabel}" />
+                                <TextBlock Grid.Column="0" Text="Pause app" Style="{StaticResource RowLabel}" />
                                 <StackPanel Grid.Column="1">
                                     <Border x:Name="ToggleHotkeyBorder"
                                             Background="{StaticResource ControlBg}"
                                             BorderBrush="{StaticResource CardBorder}" BorderThickness="1"
                                             CornerRadius="4" Padding="10,6" Cursor="Hand"
-                                            MouseLeftButtonDown="ToggleHotkeyRecorder_Click">
+                                            MouseLeftButtonDown="ToggleHotkeyRecorder_Click"
+                                            ToolTip="Click to change. Press keys or mouse buttons.">
                                         <TextBlock x:Name="ToggleHotkeyDisplay"
                                                    Foreground="{StaticResource TextPrimary}"
                                                    FontSize="13" Text="Ctrl + Shift + Q" />
                                     </Border>
                                     <TextBlock x:Name="ToggleHotkeyHint" Margin="0,3,0,0"
                                                Style="{StaticResource HintText}"
-                                               Text="Click to change, then press modifier(s) + key" />
+                                               Text="Toggle all functionality on/off" />
                                 </StackPanel>
                             </Grid>
                         </StackPanel>
@@ -1333,6 +1332,102 @@
                             Cursor="Hand" FontSize="13"
                             Foreground="{StaticResource TextSecondary}"
                             Background="Transparent" BorderThickness="0">
+                        <Button.Template>
+                            <ControlTemplate TargetType="Button">
+                                <Border x:Name="Bd" Background="{StaticResource ControlBg}"
+                                        CornerRadius="6" Padding="{TemplateBinding Padding}">
+                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="Bd" Property="Background" Value="{StaticResource ControlHover}" />
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Button.Template>
+                    </Button>
+
+                </StackPanel>
+            </ScrollViewer>
+        </TabItem>
+
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <!-- TOOLBAR TAB                                            -->
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <TabItem Header="Toolbar">
+            <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0">
+                <StackPanel Margin="16,14,16,16">
+
+                    <!-- ═══ VISIBILITY section ═══ -->
+                    <TextBlock Text="VISIBILITY" Style="{StaticResource H1}" />
+                    <Border Background="{StaticResource CardBg}" CornerRadius="6"
+                            BorderBrush="{StaticResource CardBorder}" BorderThickness="1"
+                            Padding="14,10" Margin="0,0,0,14">
+                        <StackPanel>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="130" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Show toolbar" Style="{StaticResource RowLabel}" />
+                                <CheckBox Grid.Column="1" x:Name="ShowToolbarCheck"
+                                          Style="{StaticResource DarkToggle}"
+                                          Foreground="{StaticResource TextPrimary}" FontSize="13"
+                                          Checked="ShowToolbarCheck_Changed"
+                                          Unchecked="ShowToolbarCheck_Changed" />
+                            </Grid>
+                            <Border Style="{StaticResource CardSep}" />
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="130" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Show tool name" Style="{StaticResource RowLabel}" />
+                                <CheckBox Grid.Column="1" x:Name="ShowToolNameCheck"
+                                          Style="{StaticResource DarkToggle}"
+                                          Foreground="{StaticResource TextPrimary}" FontSize="13"
+                                          Checked="ShowToolNameCheck_Changed"
+                                          Unchecked="ShowToolNameCheck_Changed" />
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- ═══ BUTTON ORDER section ═══ -->
+                    <TextBlock Text="BUTTON ORDER" Style="{StaticResource H1}" />
+                    <Border Background="{StaticResource CardBg}" CornerRadius="6"
+                            BorderBrush="{StaticResource CardBorder}" BorderThickness="1"
+                            Padding="14,10" Margin="0,0,0,6">
+                        <StackPanel>
+                            <TextBlock Foreground="{StaticResource TextMuted}" FontSize="11"
+                                       Margin="0,0,0,10" TextWrapping="Wrap"
+                                       Text="Drag to reorder. The toggle-tool hotkey cycles through active tools in this order." />
+
+                            <!-- Active tools list -->
+                            <TextBlock Text="Active" Foreground="{StaticResource TextSecondary}"
+                                       FontSize="11" FontWeight="SemiBold" Margin="0,0,0,6" />
+                            <Border x:Name="ActiveToolsDropTarget"
+                                    Background="#252525" CornerRadius="4"
+                                    BorderBrush="{StaticResource CardBorder}" BorderThickness="1"
+                                    MinHeight="44" Padding="4">
+                                <StackPanel x:Name="ActiveToolsList" />
+                            </Border>
+
+                            <TextBlock Text="Available" Foreground="{StaticResource TextSecondary}"
+                                       FontSize="11" FontWeight="SemiBold" Margin="0,12,0,6" />
+                            <Border Background="#252525" CornerRadius="4"
+                                    BorderBrush="{StaticResource CardBorder}" BorderThickness="1"
+                                    MinHeight="44" Padding="4">
+                                <StackPanel x:Name="AvailableToolsList" />
+                            </Border>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- ═══ Reset ═══ -->
+                    <Button Content="Reset Toolbar Settings" Click="ResetToolbarSettings_Click"
+                            HorizontalAlignment="Stretch" Padding="0,10"
+                            Cursor="Hand" FontSize="13"
+                            Foreground="{StaticResource TextSecondary}"
+                            Background="Transparent" BorderThickness="0" Margin="0,8,0,6">
                         <Button.Template>
                             <ControlTemplate TargetType="Button">
                                 <Border x:Name="Bd" Background="{StaticResource ControlBg}"

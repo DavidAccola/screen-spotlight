@@ -13,6 +13,8 @@ using SpotlightOverlay.Services;
 using Color = System.Windows.Media.Color;
 using Rectangle = System.Windows.Shapes.Rectangle;
 using Size = System.Windows.Size;
+using WPoint = System.Windows.Point;
+using WButton = System.Windows.Controls.Button;
 
 namespace SpotlightOverlay.Windows;
 
@@ -95,7 +97,6 @@ public partial class SettingsWindow : Window
         DragStyleCombo.SelectedIndex = (int)_settings.DragStyle;
         BackgroundCombo.SelectedIndex = _settings.FreezeScreen ? 1 : 0;
         FadeModeCombo.SelectedIndex = (int)_settings.FadeMode;
-        ShowToolNameCheck.IsChecked = _settings.ShowToolNameOnSwitch;
         EscBehaviorCombo.SelectedIndex = (int)_settings.EscBehavior;
         SpotlightModeCombo.SelectedIndex = _settings.CumulativeSpotlights ? 0 : 1;
         NestedSpotlightModeCombo.SelectedIndex = (int)_settings.NestedSpotlightMode;
@@ -142,6 +143,7 @@ public partial class SettingsWindow : Window
         UpdateSpotlightModeHint();
         UpdateNestedSpotlightModeHint();
         UpdateNestedSpotlightModeVisibility();
+        InitToolbarTab();
         Loaded += (_, _) =>
         {
             UpdatePreview(); UpdateArrowPreview(); UpdateBoxPreview(); UpdateHighlightPreview();
@@ -1045,7 +1047,6 @@ public partial class SettingsWindow : Window
         DragStyleCombo.SelectedIndex = (int)_settings.DragStyle;
         BackgroundCombo.SelectedIndex = _settings.FreezeScreen ? 1 : 0;
         FadeModeCombo.SelectedIndex = (int)_settings.FadeMode;
-        ShowToolNameCheck.IsChecked = _settings.ShowToolNameOnSwitch;
         EscBehaviorCombo.SelectedIndex = (int)_settings.EscBehavior;
         UpdateHotkeyDisplay();
         UpdateToggleHotkeyDisplay();
@@ -1131,8 +1132,9 @@ public partial class SettingsWindow : Window
         if (_settings.ActivationKey != 0) parts.Add(VkDisplayName(_settings.ActivationKey));
         if (!IsMouseButtonVk(_settings.ActivationKey)) parts.Add("Click");
         HotkeyDisplay.Text = string.Join(" + ", parts);
-        HotkeyHint.Text = "Click to change — press keys or mouse buttons";
-        HotkeyHint.Foreground = (System.Windows.Media.Brush)FindResource("TextSecondary");
+        HotkeyHint.Text = "Start using the current tool";
+        HotkeyHint.Foreground = (System.Windows.Media.Brush)FindResource("TextMuted");
+        HotkeyHint.Visibility = System.Windows.Visibility.Visible;
         HotkeyRecorderBorder.BorderBrush = (System.Windows.Media.Brush)FindResource("CardBorder");
     }
 
@@ -1144,6 +1146,8 @@ public partial class SettingsWindow : Window
         _pendingActivationMod = null;
         HotkeyDisplay.Text = "Press modifier(s) + key, or a mouse button...";
         HotkeyHint.Text = "e.g. Ctrl, Ctrl+Space, or Mouse 4";
+        HotkeyHint.Foreground = (System.Windows.Media.Brush)FindResource("TextSecondary");
+        HotkeyHint.Visibility = System.Windows.Visibility.Visible;
         HotkeyRecorderBorder.BorderBrush = (System.Windows.Media.Brush)FindResource("Accent");
         PreviewKeyDown += HotkeyRecorder_PreviewKeyDown;
         PreviewMouseDown += HotkeyRecorder_PreviewMouseDown;
@@ -1183,8 +1187,9 @@ public partial class SettingsWindow : Window
         // Check conflict with toggle
         if (mod == _settings.ToggleModifier && vk == _settings.ToggleKey)
         {
-            HotkeyHint.Text = "⚠ Same as Toggle On/Off hotkey — pick a different combo";
+            HotkeyHint.Text = "⚠ Same as Pause app hotkey — pick a different combo";
             HotkeyHint.Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xA8, 0x38));
+            HotkeyHint.Visibility = System.Windows.Visibility.Visible;
             return;
         }
 
@@ -1260,6 +1265,7 @@ public partial class SettingsWindow : Window
         {
             HotkeyHint.Text = "⚠ Must include at least one modifier (Ctrl, Alt, Shift)";
             HotkeyHint.Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xA8, 0x38));
+            HotkeyHint.Visibility = System.Windows.Visibility.Visible;
             return;
         }
 
@@ -1269,8 +1275,9 @@ public partial class SettingsWindow : Window
         // Check conflict with toggle hotkey
         if (mod.Value == _settings.ToggleModifier && vk == _settings.ToggleKey)
         {
-            HotkeyHint.Text = "⚠ Same as Toggle On/Off hotkey — pick a different combo";
+            HotkeyHint.Text = "⚠ Same as Pause app hotkey — pick a different combo";
             HotkeyHint.Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xA8, 0x38));
+            HotkeyHint.Visibility = System.Windows.Visibility.Visible;
             return;
         }
 
@@ -1292,8 +1299,9 @@ public partial class SettingsWindow : Window
         if (mod == _settings.ToggleModifier && _settings.ActivationKey != 0 
             && _settings.ActivationKey == _settings.ToggleKey)
         {
-            HotkeyHint.Text = "⚠ Would conflict with Toggle On/Off hotkey";
+            HotkeyHint.Text = "⚠ Would conflict with Pause app hotkey";
             HotkeyHint.Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xA8, 0x38));
+            HotkeyHint.Visibility = System.Windows.Visibility.Visible;
             return;
         }
 
@@ -1308,6 +1316,7 @@ public partial class SettingsWindow : Window
         {
             HotkeyHint.Text = "⚠ " + warning;
             HotkeyHint.Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xA8, 0x38));
+            HotkeyHint.Visibility = System.Windows.Visibility.Visible;
         }
     }
 
@@ -1347,8 +1356,9 @@ public partial class SettingsWindow : Window
         if (!string.IsNullOrEmpty(modDisplay)) parts.Add(modDisplay);
         parts.Add(VkDisplayName(_settings.ToggleKey));
         ToggleHotkeyDisplay.Text = string.Join(" + ", parts);
-        ToggleHotkeyHint.Text = "Click to change — press keys or mouse buttons";
-        ToggleHotkeyHint.Foreground = (System.Windows.Media.Brush)FindResource("TextSecondary");
+        ToggleHotkeyHint.Text = "Toggle all functionality on/off";
+        ToggleHotkeyHint.Foreground = (System.Windows.Media.Brush)FindResource("TextMuted");
+        ToggleHotkeyHint.Visibility = System.Windows.Visibility.Visible;
         ToggleHotkeyBorder.BorderBrush = (System.Windows.Media.Brush)FindResource("CardBorder");
     }
 
@@ -1360,6 +1370,8 @@ public partial class SettingsWindow : Window
         if (_inputHook != null) _inputHook.IsRecordingHotkey = true;
         ToggleHotkeyDisplay.Text = "Press modifier(s) + key, or a mouse button...";
         ToggleHotkeyHint.Text = "e.g. Ctrl+Shift+Q, or Mouse 4";
+        ToggleHotkeyHint.Foreground = (System.Windows.Media.Brush)FindResource("TextSecondary");
+        ToggleHotkeyHint.Visibility = System.Windows.Visibility.Visible;
         ToggleHotkeyBorder.BorderBrush = (System.Windows.Media.Brush)FindResource("Accent");
         PreviewKeyDown += ToggleHotkeyRecorder_PreviewKeyDown;
         PreviewMouseDown += ToggleHotkeyRecorder_PreviewMouseDown;
@@ -1388,8 +1400,9 @@ public partial class SettingsWindow : Window
         if (!string.IsNullOrEmpty(modDisplay)) parts.Add(modDisplay);
         parts.Add(VkDisplayName(_settings.ToggleToolKey));
         ToggleToolHotkeyDisplay.Text = string.Join(" + ", parts);
-        ToggleToolHotkeyHint.Text = "Click to change — press keys or mouse buttons";
-        ToggleToolHotkeyHint.Foreground = (System.Windows.Media.Brush)FindResource("TextSecondary");
+        ToggleToolHotkeyHint.Text = "Cycle to the next tool";
+        ToggleToolHotkeyHint.Foreground = (System.Windows.Media.Brush)FindResource("TextMuted");
+        ToggleToolHotkeyHint.Visibility = System.Windows.Visibility.Visible;
         ToggleToolHotkeyBorder.BorderBrush = (System.Windows.Media.Brush)FindResource("CardBorder");
     }
 
@@ -1401,6 +1414,8 @@ public partial class SettingsWindow : Window
         if (_inputHook != null) _inputHook.IsRecordingHotkey = true;
         ToggleToolHotkeyDisplay.Text = "Press modifier(s) + key, or a mouse button...";
         ToggleToolHotkeyHint.Text = "e.g. Ctrl+Shift+Right Click, or Mouse 4";
+        ToggleToolHotkeyHint.Foreground = (System.Windows.Media.Brush)FindResource("TextSecondary");
+        ToggleToolHotkeyHint.Visibility = System.Windows.Visibility.Visible;
         ToggleToolHotkeyBorder.BorderBrush = (System.Windows.Media.Brush)FindResource("Accent");
         PreviewKeyDown += ToggleToolHotkeyRecorder_PreviewKeyDown;
         PreviewMouseDown += ToggleToolHotkeyRecorder_PreviewMouseDown;
@@ -1438,12 +1453,14 @@ public partial class SettingsWindow : Window
         {
             ToggleToolHotkeyHint.Text = "⚠ Same as Activation hotkey — pick a different combo";
             ToggleToolHotkeyHint.Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xA8, 0x38));
+            ToggleToolHotkeyHint.Visibility = System.Windows.Visibility.Visible;
             return;
         }
         if (mod == _settings.ToggleModifier && vk == _settings.ToggleKey)
         {
-            ToggleToolHotkeyHint.Text = "⚠ Same as Toggle On/Off hotkey — pick a different combo";
+            ToggleToolHotkeyHint.Text = "⚠ Same as Pause app hotkey — pick a different combo";
             ToggleToolHotkeyHint.Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xA8, 0x38));
+            ToggleToolHotkeyHint.Visibility = System.Windows.Visibility.Visible;
             return;
         }
 
@@ -1485,6 +1502,7 @@ public partial class SettingsWindow : Window
         {
             ToggleToolHotkeyHint.Text = "⚠ Must include at least one modifier (Ctrl, Alt, Shift)";
             ToggleToolHotkeyHint.Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xA8, 0x38));
+            ToggleToolHotkeyHint.Visibility = System.Windows.Visibility.Visible;
             return;
         }
 
@@ -1495,12 +1513,14 @@ public partial class SettingsWindow : Window
         {
             ToggleToolHotkeyHint.Text = "⚠ Same as Activation hotkey — pick a different combo";
             ToggleToolHotkeyHint.Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xA8, 0x38));
+            ToggleToolHotkeyHint.Visibility = System.Windows.Visibility.Visible;
             return;
         }
         if (mod.Value == _settings.ToggleModifier && vk == _settings.ToggleKey)
         {
-            ToggleToolHotkeyHint.Text = "⚠ Same as Toggle On/Off hotkey — pick a different combo";
+            ToggleToolHotkeyHint.Text = "⚠ Same as Pause app hotkey — pick a different combo";
             ToggleToolHotkeyHint.Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xA8, 0x38));
+            ToggleToolHotkeyHint.Visibility = System.Windows.Visibility.Visible;
             return;
         }
 
@@ -1530,6 +1550,7 @@ public partial class SettingsWindow : Window
         {
             ToggleHotkeyHint.Text = "⚠ Same as Activation hotkey — pick a different combo";
             ToggleHotkeyHint.Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xA8, 0x38));
+            ToggleHotkeyHint.Visibility = System.Windows.Visibility.Visible;
             return;
         }
 
@@ -1575,6 +1596,7 @@ public partial class SettingsWindow : Window
         {
             ToggleHotkeyHint.Text = "⚠ Must include at least one modifier (Ctrl, Alt, Shift)";
             ToggleHotkeyHint.Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xA8, 0x38));
+            ToggleHotkeyHint.Visibility = System.Windows.Visibility.Visible;
             return;
         }
 
@@ -1586,6 +1608,7 @@ public partial class SettingsWindow : Window
         {
             ToggleHotkeyHint.Text = "⚠ Same as Activation hotkey — pick a different combo";
             ToggleHotkeyHint.Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xA8, 0x38));
+            ToggleHotkeyHint.Visibility = System.Windows.Visibility.Visible;
             return;
         }
 
@@ -2785,6 +2808,546 @@ public partial class SettingsWindow : Window
 
         double s = max > 0 ? delta / max : 0;
         return (h, s, max);
+    }
+
+    // ── Toolbar Tab ────────────────────────────────────────────────
+
+    private void InitToolbarTab()
+    {
+        ShowToolbarCheck.IsChecked = _settings.FlyoutToolbarVisible;
+        ShowToolNameCheck.IsChecked = _settings.ShowToolNameOnSwitch;
+        RebuildToolLists();
+    }
+
+    private static string ToolLabel(ToolType t) => t switch
+    {
+        ToolType.Spotlight => "Spotlight",
+        ToolType.Arrow     => "Arrow",
+        ToolType.Box       => "Box",
+        ToolType.Highlight => "Highlighter",
+        ToolType.Steps     => "Steps",
+        _                  => t.ToString()
+    };
+
+    private const string SettingsTag = "Settings";
+
+    private static UIElement BuildToolIcon(ToolType tool)
+    {
+        const double size = 18;
+        switch (tool)
+        {
+            case ToolType.Spotlight:
+            {
+                var img = new System.Windows.Controls.Image
+                {
+                    Width = size, Height = size,
+                    Source = FlyoutToolbarWindow.BuildSpotlightIconBitmap(16, 13, featherRadius: 3),
+                    VerticalAlignment = VerticalAlignment.Center
+                };
+                return img;
+            }
+            case ToolType.Arrow:
+                return new TextBlock
+                {
+                    Text = "\u279C", FontSize = size,
+                    Foreground = System.Windows.Media.Brushes.White,
+                    VerticalAlignment = VerticalAlignment.Center
+                };
+            case ToolType.Box:
+            {
+                var vb = new System.Windows.Controls.Viewbox { Width = size, Height = size };
+                var rect = new System.Windows.Shapes.Rectangle
+                {
+                    Width = 16, Height = 13,
+                    Stroke = System.Windows.Media.Brushes.White,
+                    StrokeThickness = 1.5,
+                    Fill = System.Windows.Media.Brushes.Transparent
+                };
+                vb.Child = rect;
+                return vb;
+            }
+            case ToolType.Highlight:
+                return new TextBlock
+                {
+                    Text = "\U0001F58D", FontSize = size,
+                    Foreground = System.Windows.Media.Brushes.White,
+                    VerticalAlignment = VerticalAlignment.Center
+                };
+            case ToolType.Steps:
+            {
+                var vb = new System.Windows.Controls.Viewbox { Width = size, Height = size };
+                var grid = new Grid { Width = 18, Height = 26 };
+                var path = new System.Windows.Shapes.Path
+                {
+                    Fill = System.Windows.Media.Brushes.White,
+                    Stroke = System.Windows.Media.Brushes.Transparent,
+                    Data = System.Windows.Media.Geometry.Parse(
+                        "M 2,8 A 7,7 0 1 1 16,8 Q 16,13.1 9,23.4 Q 2,13.1 2,8 Z")
+                };
+                var num = new TextBlock
+                {
+                    Text = "1", FontSize = 10, FontWeight = FontWeights.Bold,
+                    Foreground = new SolidColorBrush(Color.FromRgb(0xCC, 0x22, 0x22)),
+                    HorizontalAlignment = System.Windows.HorizontalAlignment.Center,
+                    VerticalAlignment = System.Windows.VerticalAlignment.Top,
+                    Margin = new Thickness(0, 2, 0, 0),
+                    IsHitTestVisible = false
+                };
+                grid.Children.Add(path);
+                grid.Children.Add(num);
+                vb.Child = grid;
+                return vb;
+            }
+            default:
+                return new TextBlock { Width = size };
+        }
+    }
+
+    private static UIElement BuildSettingsIcon()
+    {
+        const double size = 18;
+        var vb = new System.Windows.Controls.Viewbox { Width = size, Height = size };
+
+        // Build PathGeometry directly so we can set FillRule (Geometry.Parse returns StreamGeometry)
+        var outerFigures =
+            "M 12,15.5 C 10.07,15.5 8.5,13.93 8.5,12 C 8.5,10.07 10.07,8.5 12,8.5 C 13.93,8.5 15.5,10.07 15.5,12 C 15.5,13.93 13.93,15.5 12,15.5 Z " +
+            "M 19.43,12.97 C 19.47,12.65 19.5,12.33 19.5,12 C 19.5,11.67 19.47,11.34 19.43,11.03 L 21.54,9.37 C 21.73,9.22 21.78,8.95 21.66,8.73 L 19.66,5.27 C 19.54,5.05 19.27,4.97 19.05,5.05 L 16.56,6.05 C 16.04,5.65 15.48,5.32 14.87,5.07 L 14.49,2.42 C 14.46,2.18 14.25,2 14,2 L 10,2 C 9.75,2 9.54,2.18 9.51,2.42 L 9.13,5.07 C 8.52,5.32 7.96,5.66 7.44,6.05 L 4.95,5.05 C 4.72,4.96 4.46,5.05 4.34,5.27 L 2.34,8.73 C 2.21,8.95 2.27,9.22 2.46,9.37 L 4.57,11.03 C 4.53,11.34 4.5,11.67 4.5,12 C 4.5,12.33 4.53,12.65 4.57,12.97 L 2.46,14.63 C 2.27,14.78 2.21,15.05 2.34,15.27 L 4.34,18.73 C 4.46,18.95 4.73,19.03 4.95,18.95 L 7.44,17.95 C 7.96,18.35 8.52,18.68 9.13,18.93 L 9.51,21.58 C 9.54,21.82 9.75,22 10,22 L 14,22 C 14.25,22 14.46,21.82 14.49,21.58 L 14.87,18.93 C 15.48,18.68 16.04,18.34 16.56,17.95 L 19.05,18.95 C 19.28,19.04 19.54,18.95 19.66,18.73 L 21.66,15.27 C 21.78,15.05 21.73,14.78 21.54,14.63 Z";
+
+        var pg = System.Windows.Media.PathGeometry.CreateFromGeometry(
+            System.Windows.Media.Geometry.Parse(outerFigures));
+        pg.FillRule = System.Windows.Media.FillRule.EvenOdd;
+
+        var path = new System.Windows.Shapes.Path
+        {
+            Fill = System.Windows.Media.Brushes.White,
+            Stretch = System.Windows.Media.Stretch.Uniform,
+            Data = pg
+        };
+        vb.Child = path;
+        return vb;
+    }
+
+    private void RebuildToolLists()
+    {
+        var allTools = new[] { ToolType.Spotlight, ToolType.Arrow, ToolType.Box, ToolType.Highlight, ToolType.Steps };
+        var active = SettingsService.ParseActiveToolOrder(_settings.ToolOrder);
+        var available = allTools.Where(t => !active.Contains(t)).ToList();
+        bool settingsPresent = _settings.ToolOrder.Contains("Settings", StringComparison.OrdinalIgnoreCase);
+        bool settingsAtTop = _settings.ToolOrder.StartsWith("Settings", StringComparison.OrdinalIgnoreCase);
+
+        ActiveToolsList.Children.Clear();
+        AvailableToolsList.Children.Clear();
+
+        if (settingsPresent && settingsAtTop)
+            ActiveToolsList.Children.Add(BuildSettingsRow());
+
+        foreach (var tool in active)
+            ActiveToolsList.Children.Add(BuildToolRow(tool, isActive: true));
+
+        if (settingsPresent && !settingsAtTop)
+            ActiveToolsList.Children.Add(BuildSettingsRow());
+
+        // Available section
+        bool anyAvailable = available.Count > 0 || !settingsPresent;
+        if (!anyAvailable)
+        {
+            AvailableToolsList.Children.Add(new TextBlock
+            {
+                Text = "All tools are currently included in the toolbar",
+                Foreground = new SolidColorBrush(Color.FromRgb(0x70, 0x70, 0x70)),
+                FontSize = 11,
+                Margin = new Thickness(4, 6, 4, 6),
+                TextWrapping = TextWrapping.Wrap
+            });
+        }
+        else
+        {
+            foreach (var tool in available)
+                AvailableToolsList.Children.Add(BuildToolRow(tool, isActive: false));
+
+            if (!settingsPresent)
+                AvailableToolsList.Children.Add(BuildAvailableSettingsRow());
+        }
+    }
+
+    private UIElement BuildAvailableSettingsRow()
+    {
+        var row = new Border
+        {
+            Background = new SolidColorBrush(Color.FromRgb(0x38, 0x38, 0x38)),
+            CornerRadius = new CornerRadius(4),
+            Margin = new Thickness(0, 2, 0, 2),
+            Padding = new Thickness(8, 5, 6, 5),
+            Tag = SettingsTag
+        };
+
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var iconContainer = new Border { Width = 24, Child = BuildSettingsIcon(), VerticalAlignment = VerticalAlignment.Center };
+        Grid.SetColumn(iconContainer, 0);
+        grid.Children.Add(iconContainer);
+
+        var label = new TextBlock
+        {
+            Text = "Settings",
+            Foreground = new SolidColorBrush(Color.FromRgb(0xE0, 0xE0, 0xE0)),
+            FontSize = 13,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        Grid.SetColumn(label, 1);
+        grid.Children.Add(label);
+
+        var addBtn = BuildIconButton(isRemove: false, tag: SettingsTag);
+        Grid.SetColumn(addBtn, 2);
+        grid.Children.Add(addBtn);
+
+        row.Child = grid;
+        return row;
+    }
+
+    private UIElement BuildSettingsRow()
+    {
+        var row = new Border
+        {
+            Background = new SolidColorBrush(Color.FromRgb(0x38, 0x38, 0x38)),
+            CornerRadius = new CornerRadius(4),
+            Margin = new Thickness(0, 2, 0, 2),
+            Padding = new Thickness(8, 5, 6, 5),
+            Cursor = System.Windows.Input.Cursors.SizeAll,
+            Tag = SettingsTag
+        };
+
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var iconContainer = new Border { Width = 24, Child = BuildSettingsIcon(), VerticalAlignment = VerticalAlignment.Center };
+        Grid.SetColumn(iconContainer, 0);
+        grid.Children.Add(iconContainer);
+
+        var label = new TextBlock
+        {
+            Text = "Settings",
+            Foreground = new SolidColorBrush(Color.FromRgb(0xE0, 0xE0, 0xE0)),
+            FontSize = 13,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        Grid.SetColumn(label, 1);
+        grid.Children.Add(label);
+
+        var removeBtn = BuildIconButton(isRemove: true, tag: SettingsTag);
+        Grid.SetColumn(removeBtn, 2);
+        grid.Children.Add(removeBtn);
+
+        row.Child = grid;
+        row.MouseLeftButtonDown += ToolRow_MouseLeftButtonDown;
+        row.MouseMove += ToolRow_MouseMove;
+        row.MouseLeftButtonUp += ToolRow_MouseLeftButtonUp;
+        row.MouseEnter += ToolRow_MouseEnter;
+        return row;
+    }
+
+    private UIElement BuildToolRow(ToolType tool, bool isActive)
+    {
+        var row = new Border
+        {
+            Background = new SolidColorBrush(Color.FromRgb(0x38, 0x38, 0x38)),
+            CornerRadius = new CornerRadius(4),
+            Margin = new Thickness(0, 2, 0, 2),
+            Padding = new Thickness(8, 5, 6, 5),
+            Cursor = System.Windows.Input.Cursors.SizeAll,
+            Tag = tool
+        };
+
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); // icon
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) }); // label
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); // button
+
+        var icon = BuildToolIcon(tool);
+        var iconContainer = new Border { Width = 24, Child = icon, VerticalAlignment = VerticalAlignment.Center };
+        Grid.SetColumn(iconContainer, 0);
+        grid.Children.Add(iconContainer);
+
+        var label = new TextBlock
+        {
+            Text = ToolLabel(tool),
+            Foreground = new SolidColorBrush(Color.FromRgb(0xE0, 0xE0, 0xE0)),
+            FontSize = 13,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        Grid.SetColumn(label, 1);
+        grid.Children.Add(label);
+
+        var iconBtn = BuildIconButton(isActive, tool);
+        Grid.SetColumn(iconBtn, 2);
+        grid.Children.Add(iconBtn);
+
+        row.Child = grid;
+
+        if (isActive)
+        {
+            row.MouseLeftButtonDown += ToolRow_MouseLeftButtonDown;
+            row.MouseMove += ToolRow_MouseMove;
+            row.MouseLeftButtonUp += ToolRow_MouseLeftButtonUp;
+            row.MouseEnter += ToolRow_MouseEnter;
+        }
+
+        return row;
+    }
+
+    private UIElement BuildIconButton(bool isRemove, object tag)
+    {
+        // Transparent by default, colored background only on hover
+        var transparentBg = System.Windows.Media.Brushes.Transparent;
+        var hoverBg = isRemove
+            ? new SolidColorBrush(Color.FromRgb(0xC4, 0x2B, 0x1C))
+            : new SolidColorBrush(Color.FromRgb(0x1A, 0x5C, 0x9E));
+
+        var border = new Border
+        {
+            Width = 24, Height = 24,
+            CornerRadius = new CornerRadius(4),
+            Background = transparentBg,
+            Cursor = System.Windows.Input.Cursors.Hand,
+            Tag = tag
+        };
+
+        var icon = new TextBlock
+        {
+            Text = isRemove ? "×" : "+",
+            FontSize = 17,
+            FontWeight = FontWeights.Bold,
+            Foreground = isRemove
+                ? new SolidColorBrush(Color.FromRgb(0xAA, 0xAA, 0xAA))
+                : new SolidColorBrush(Color.FromRgb(0x5B, 0x9B, 0xD5)),
+            HorizontalAlignment = System.Windows.HorizontalAlignment.Center,
+            VerticalAlignment = System.Windows.VerticalAlignment.Center,
+            IsHitTestVisible = false,
+        };
+        border.Child = icon;
+
+        border.MouseEnter += (_, _) =>
+        {
+            border.Background = hoverBg;
+            icon.Foreground = System.Windows.Media.Brushes.White;
+        };
+        border.MouseLeave += (_, _) =>
+        {
+            border.Background = transparentBg;
+            icon.Foreground = isRemove
+                ? new SolidColorBrush(Color.FromRgb(0xAA, 0xAA, 0xAA))
+                : new SolidColorBrush(Color.FromRgb(0x5B, 0x9B, 0xD5));
+        };
+
+        // Use PreviewMouseLeftButtonDown to intercept before the row's drag handler
+        border.PreviewMouseLeftButtonDown += (s, e) =>
+        {
+            e.Handled = true; // stop drag from starting
+            if (isRemove) ToolRemove_Click(s, new RoutedEventArgs());
+            else ToolAdd_Click(s, new RoutedEventArgs());
+        };
+
+        return border;
+    }
+
+    private void ToolRemove_Click(object sender, RoutedEventArgs e)
+    {
+        var tag = (sender as FrameworkElement)?.Tag;
+
+        if (tag is string s && s == SettingsTag)
+        {
+            // Remove Settings button from toolbar
+            _settings.ToolOrder = _settings.ToolOrder
+                .Replace("Settings,", "", StringComparison.OrdinalIgnoreCase)
+                .Replace(",Settings", "", StringComparison.OrdinalIgnoreCase)
+                .Replace("Settings", "", StringComparison.OrdinalIgnoreCase);
+            _settings.Save();
+            RebuildToolLists();
+            return;
+        }
+
+        if (tag is ToolType tool)
+        {
+            var order = SettingsService.ParseActiveToolOrder(_settings.ToolOrder);
+            if (order.Count <= 1) return;
+            order.Remove(tool);
+            bool settingsAtTop = _settings.ToolOrder.StartsWith("Settings", StringComparison.OrdinalIgnoreCase);
+            bool settingsPresent = _settings.ToolOrder.Contains("Settings", StringComparison.OrdinalIgnoreCase);
+            string prefix = settingsPresent && settingsAtTop ? "Settings," : "";
+            string suffix = settingsPresent && !settingsAtTop ? ",Settings" : "";
+            _settings.ToolOrder = prefix + SettingsService.SerializeToolOrder(order) + suffix;
+            _settings.Save();
+            RebuildToolLists();
+        }
+    }
+
+    private void ToolAdd_Click(object sender, RoutedEventArgs e)
+    {
+        var tag = (sender as FrameworkElement)?.Tag;
+
+        if (tag is string s && s == SettingsTag)
+        {
+            // Add Settings back at bottom
+            var toolPart = SettingsService.SerializeToolOrder(SettingsService.ParseActiveToolOrder(_settings.ToolOrder));
+            _settings.ToolOrder = toolPart + ",Settings";
+            _settings.Save();
+            RebuildToolLists();
+            return;
+        }
+
+        if (tag is ToolType tool)
+        {
+            var order = SettingsService.ParseActiveToolOrder(_settings.ToolOrder);
+            if (!order.Contains(tool)) order.Add(tool);
+            bool settingsAtTop = _settings.ToolOrder.StartsWith("Settings", StringComparison.OrdinalIgnoreCase);
+            bool settingsPresent = _settings.ToolOrder.Contains("Settings", StringComparison.OrdinalIgnoreCase);
+            string prefix = settingsPresent && settingsAtTop ? "Settings," : "";
+            string suffix = settingsPresent && !settingsAtTop ? ",Settings" : "";
+            _settings.ToolOrder = prefix + SettingsService.SerializeToolOrder(order) + suffix;
+            _settings.Save();
+            RebuildToolLists();
+        }
+    }
+
+    // ── Drag-to-reorder ────────────────────────────────────────────
+
+    private Border? _dragRow;
+    private int _dragSourceIndex;
+    private bool _isDraggingToolRow;
+    private WPoint _toolDragStart;
+
+    private void ToolRow_MouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        if (sender is Border row)
+        {
+            _dragRow = row;
+            _dragSourceIndex = ActiveToolsList.Children.IndexOf(row);
+            _toolDragStart = e.GetPosition(ActiveToolsList);
+            _isDraggingToolRow = false;
+            row.CaptureMouse();
+            e.Handled = true;
+        }
+    }
+
+    private void ToolRow_MouseMove(object sender, System.Windows.Input.MouseEventArgs e)
+    {
+        if (_dragRow == null || e.LeftButton != System.Windows.Input.MouseButtonState.Pressed) return;
+
+        var pos = e.GetPosition(ActiveToolsList);
+        if (!_isDraggingToolRow)
+        {
+            if (Math.Abs(pos.Y - _toolDragStart.Y) < 4) return;
+            _isDraggingToolRow = true;
+        }
+
+        bool isSettingsRow = _dragRow.Tag is string st && st == SettingsTag;
+
+        if (isSettingsRow)
+        {
+            // Settings snaps only to first or last — determine by which half cursor is in
+            double totalHeight = ActiveToolsList.ActualHeight;
+            bool goTop = pos.Y < totalHeight / 2;
+            int currentIndex = ActiveToolsList.Children.IndexOf(_dragRow);
+            int targetIndex = goTop ? 0 : ActiveToolsList.Children.Count - 1;
+            if (targetIndex != currentIndex)
+            {
+                ActiveToolsList.Children.Remove(_dragRow);
+                ActiveToolsList.Children.Insert(targetIndex, _dragRow);
+            }
+        }
+        else
+        {
+            // Normal reorder — but don't allow dropping into the Settings row's slot
+            int targetIndex = GetDropIndex(pos.Y);
+            int currentIndex = ActiveToolsList.Children.IndexOf(_dragRow);
+
+            // Clamp so we never land on the Settings row's position
+            var rows = ActiveToolsList.Children.OfType<Border>().ToList();
+            int settingsIdx = rows.FindIndex(b => b.Tag is string s && s == SettingsTag);
+            if (settingsIdx == 0 && targetIndex == 0) targetIndex = 1;
+            else if (settingsIdx == rows.Count - 1 && targetIndex == rows.Count - 1) targetIndex = rows.Count - 2;
+
+            if (targetIndex != currentIndex && targetIndex >= 0 && targetIndex < ActiveToolsList.Children.Count)
+            {
+                ActiveToolsList.Children.Remove(_dragRow);
+                ActiveToolsList.Children.Insert(targetIndex, _dragRow);
+            }
+        }
+    }
+
+    private void ToolRow_MouseLeftButtonUp(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        if (_dragRow == null) return;
+        _dragRow.ReleaseMouseCapture();
+
+        if (_isDraggingToolRow)
+        {
+            var rows = ActiveToolsList.Children.OfType<Border>().ToList();
+            var settingsRow = rows.FirstOrDefault(b => b.Tag is string st && st == SettingsTag);
+            var toolRows = rows.Where(b => b.Tag is ToolType).ToList();
+
+            bool settingsAtTop = false;
+            if (settingsRow != null)
+            {
+                int settingsIdx = rows.IndexOf(settingsRow);
+                int midpoint = rows.Count / 2;
+                settingsAtTop = settingsIdx < midpoint;
+
+                // Clamp Settings to top or bottom in UI
+                rows.Remove(settingsRow);
+                if (settingsAtTop) rows.Insert(0, settingsRow);
+                else rows.Add(settingsRow);
+                ActiveToolsList.Children.Clear();
+                foreach (var r in rows) ActiveToolsList.Children.Add(r);
+            }
+
+            var toolPart = SettingsService.SerializeToolOrder(toolRows.Select(b => (ToolType)b.Tag!).ToList());
+            bool settingsPresent = settingsRow != null;
+            _settings.ToolOrder = settingsPresent
+                ? (settingsAtTop ? "Settings," + toolPart : toolPart + ",Settings")
+                : toolPart;
+            _settings.Save();
+        }
+
+        _dragRow = null;
+        _isDraggingToolRow = false;
+        e.Handled = true;
+    }
+
+    private void ToolRow_MouseEnter(object sender, System.Windows.Input.MouseEventArgs e) { }
+
+    private int GetDropIndex(double y)
+    {
+        int i = 0;
+        foreach (Border child in ActiveToolsList.Children.OfType<Border>())
+        {
+            var pos = child.TranslatePoint(new System.Windows.Point(0, child.ActualHeight / 2), ActiveToolsList);
+            if (y < pos.Y) return i;
+            i++;
+        }
+        return ActiveToolsList.Children.Count - 1;
+    }
+
+    private void ShowToolbarCheck_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_isInitializing) return;
+        _settings.FlyoutToolbarVisible = ShowToolbarCheck.IsChecked == true;
+        _settings.Save();
+    }
+
+    private void ResetToolbarSettings_Click(object sender, RoutedEventArgs e)
+    {
+        _settings.ResetToolbarSettings();
+        _isInitializing = true;
+        ShowToolbarCheck.IsChecked = _settings.FlyoutToolbarVisible;
+        ShowToolNameCheck.IsChecked = _settings.ShowToolNameOnSwitch;
+        _isInitializing = false;
+        RebuildToolLists();
     }
 
 }

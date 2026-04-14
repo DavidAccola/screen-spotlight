@@ -58,6 +58,7 @@ public class SettingsService
     private const StepsTailDirection DefaultStepsTailDirection = StepsTailDirection.Free;
     private const EscBehavior DefaultEscBehavior = EscBehavior.UndoThenExit;
     private const NestedSpotlightMode DefaultNestedSpotlightMode = NestedSpotlightMode.Darken;
+    private const string DefaultToolOrder = "Spotlight,Arrow,Box,Highlight,Steps,Settings";
     private const string SettingsFileName = "Settings.json";
 
     private readonly string _settingsFilePath;
@@ -106,6 +107,7 @@ public class SettingsService
     public StepsTailDirection StepsTailDirection { get; set; } = DefaultStepsTailDirection;
     public EscBehavior EscBehavior { get; set; } = DefaultEscBehavior;
     public NestedSpotlightMode NestedSpotlightMode { get; set; } = DefaultNestedSpotlightMode;
+    public string ToolOrder { get; set; } = DefaultToolOrder;
 
     /// <summary>Fired after Save() so listeners can react to any setting change.</summary>
     public event EventHandler? SettingsChanged;
@@ -238,6 +240,8 @@ public class SettingsService
         StepsTailDirection = DefaultStepsTailDirection;
         EscBehavior = DefaultEscBehavior;
         NestedSpotlightMode = DefaultNestedSpotlightMode;
+        ToolOrder = DefaultToolOrder;
+
     }
 
     public void Load()
@@ -297,18 +301,21 @@ public class SettingsService
         ShowToolNameOnSwitch = v.ShowToolNameOnSwitch;
         StepsTailDirection = v.StepsTailDirection;
         EscBehavior = v.EscBehavior;
+        NestedSpotlightMode = v.NestedSpotlightMode;
+        ToolOrder = v.ToolOrder;
+
     }
 
     public void Save()
     {
-        var json = Serialize(new AppSettings(OverlayOpacity, FeatherRadius, PreviewStyle, DragStyle, FreezeScreen, ActivationModifier, ActivationKey, ToggleModifier, ToggleKey, CumulativeSpotlights, ToolbarAnchorEdge, FlyoutToolbarVisible, ArrowheadStyle, ArrowEndStyle, ArrowLineStyle, ArrowColor, ArrowLeftEndSize, ArrowLineThickness, ArrowRightEndSize, SyncArrowEndStyle, SyncArrowEndSize, CustomColors, ToggleToolModifier, ToggleToolKey, FadeMode, BoxColor, BoxLineThickness, HighlightColor, HighlightOpacity, StepsFontFamily, StepsFontSize, StepsShape, StepsOutlineEnabled, StepsSize, StepsFillColor, StepsOutlineColor, StepsFontBold, StepsFontColor, NubFraction, NubAnchorEdge, NubMonitorFingerprint, ShowToolNameOnSwitch, StepsTailDirection, EscBehavior));
+        var json = Serialize(new AppSettings(OverlayOpacity, FeatherRadius, PreviewStyle, DragStyle, FreezeScreen, ActivationModifier, ActivationKey, ToggleModifier, ToggleKey, CumulativeSpotlights, ToolbarAnchorEdge, FlyoutToolbarVisible, ArrowheadStyle, ArrowEndStyle, ArrowLineStyle, ArrowColor, ArrowLeftEndSize, ArrowLineThickness, ArrowRightEndSize, SyncArrowEndStyle, SyncArrowEndSize, CustomColors, ToggleToolModifier, ToggleToolKey, FadeMode, BoxColor, BoxLineThickness, HighlightColor, HighlightOpacity, StepsFontFamily, StepsFontSize, StepsShape, StepsOutlineEnabled, StepsSize, StepsFillColor, StepsOutlineColor, StepsFontBold, StepsFontColor, NubFraction, NubAnchorEdge, NubMonitorFingerprint, ShowToolNameOnSwitch, StepsTailDirection, EscBehavior, NestedSpotlightMode, ToolOrder));
         File.WriteAllText(_settingsFilePath, json);
         SettingsChanged?.Invoke(this, EventArgs.Empty);
     }
 
     public static AppSettings Deserialize(string json) =>
         JsonSerializer.Deserialize<AppSettings>(json)
-        ?? new AppSettings(DefaultOverlayOpacity, DefaultFeatherRadius, DefaultPreviewStyle, DefaultDragStyle, DefaultFreezeScreen, DefaultActivationModifier, DefaultActivationKey, DefaultToggleModifier, DefaultToggleKey, DefaultCumulativeSpotlights, DefaultToolbarAnchorEdge, DefaultFlyoutToolbarVisible, DefaultArrowheadStyle, DefaultArrowEndStyle, DefaultArrowLineStyle, DefaultArrowColor, DefaultArrowLeftEndSize, DefaultArrowLineThickness, DefaultArrowRightEndSize, DefaultSyncArrowEndStyle, DefaultSyncArrowEndSize, DefaultCustomColors, DefaultToggleToolModifier, DefaultToggleToolKey, DefaultFadeMode, DefaultBoxColor, DefaultBoxLineThickness, DefaultHighlightColor, DefaultHighlightOpacity, DefaultStepsFontFamily, DefaultStepsFontSize, DefaultStepsShape, DefaultStepsOutlineEnabled, DefaultStepsSize, DefaultStepsFillColor, DefaultStepsOutlineColor, DefaultStepsFontBold, DefaultStepsFontColor, null, DefaultNubAnchorEdge, DefaultNubMonitorFingerprint, DefaultShowToolNameOnSwitch, DefaultStepsTailDirection, DefaultEscBehavior);
+        ?? new AppSettings(DefaultOverlayOpacity, DefaultFeatherRadius, DefaultPreviewStyle, DefaultDragStyle, DefaultFreezeScreen, DefaultActivationModifier, DefaultActivationKey, DefaultToggleModifier, DefaultToggleKey, DefaultCumulativeSpotlights, DefaultToolbarAnchorEdge, DefaultFlyoutToolbarVisible, DefaultArrowheadStyle, DefaultArrowEndStyle, DefaultArrowLineStyle, DefaultArrowColor, DefaultArrowLeftEndSize, DefaultArrowLineThickness, DefaultArrowRightEndSize, DefaultSyncArrowEndStyle, DefaultSyncArrowEndSize, DefaultCustomColors, DefaultToggleToolModifier, DefaultToggleToolKey, DefaultFadeMode, DefaultBoxColor, DefaultBoxLineThickness, DefaultHighlightColor, DefaultHighlightOpacity, DefaultStepsFontFamily, DefaultStepsFontSize, DefaultStepsShape, DefaultStepsOutlineEnabled, DefaultStepsSize, DefaultStepsFillColor, DefaultStepsOutlineColor, DefaultStepsFontBold, DefaultStepsFontColor, null, DefaultNubAnchorEdge, DefaultNubMonitorFingerprint, DefaultShowToolNameOnSwitch, DefaultStepsTailDirection, DefaultEscBehavior, DefaultNestedSpotlightMode, DefaultToolOrder);
 
     public static string Serialize(AppSettings settings) =>
         JsonSerializer.Serialize(settings);
@@ -355,7 +362,61 @@ public class SettingsService
         var nubMonitorFingerprint = s.NubMonitorFingerprint ?? DefaultNubMonitorFingerprint;
         var stepsTailDirection = Enum.IsDefined(s.StepsTailDirection) ? s.StepsTailDirection : DefaultStepsTailDirection;
         var escBehavior = Enum.IsDefined(s.EscBehavior) ? s.EscBehavior : DefaultEscBehavior;
-        return new AppSettings(opacity, radius, preview, drag, s.FreezeScreen, modifier, activationKey, toggleMod, toggleKey, s.CumulativeSpotlights, anchorEdge, s.FlyoutToolbarVisible, arrowheadStyle, arrowEndStyle, arrowLineStyle, arrowColor, leftSize, lineThick, rightSize, s.SyncArrowEndStyle, s.SyncArrowEndSize, s.CustomColors ?? DefaultCustomColors, toggleToolMod, toggleToolKey, fadeMode, boxColor, boxLineThick, highlightColor, highlightOpacity, stepsFontFamily, stepsFontSize, stepsShape, s.StepsOutlineEnabled, stepsSize, stepsFillColor, stepsOutlineColor, s.StepsFontBold, stepsFontColor, nubFraction, nubAnchorEdge, nubMonitorFingerprint, s.ShowToolNameOnSwitch, stepsTailDirection, escBehavior);
+        var toolOrder = ValidateToolOrder(s.ToolOrder);
+        return new AppSettings(opacity, radius, preview, drag, s.FreezeScreen, modifier, activationKey, toggleMod, toggleKey, s.CumulativeSpotlights, anchorEdge, s.FlyoutToolbarVisible, arrowheadStyle, arrowEndStyle, arrowLineStyle, arrowColor, leftSize, lineThick, rightSize, s.SyncArrowEndStyle, s.SyncArrowEndSize, s.CustomColors ?? DefaultCustomColors, toggleToolMod, toggleToolKey, fadeMode, boxColor, boxLineThick, highlightColor, highlightOpacity, stepsFontFamily, stepsFontSize, stepsShape, s.StepsOutlineEnabled, stepsSize, stepsFillColor, stepsOutlineColor, s.StepsFontBold, stepsFontColor, nubFraction, nubAnchorEdge, nubMonitorFingerprint, s.ShowToolNameOnSwitch, stepsTailDirection, escBehavior, s.NestedSpotlightMode, toolOrder);
+    }
+
+    public void ResetToolbarSettings()
+    {
+        FlyoutToolbarVisible = DefaultFlyoutToolbarVisible;
+        ShowToolNameOnSwitch = DefaultShowToolNameOnSwitch;
+        ToolOrder = DefaultToolOrder;
+
+        Save();
+    }
+
+    public static List<ToolType> ParseToolOrder(string toolOrder)
+    {
+        var allTools = new[] { ToolType.Spotlight, ToolType.Arrow, ToolType.Box, ToolType.Highlight, ToolType.Steps };
+        var result = new List<ToolType>();
+        foreach (var part in toolOrder.Split(','))
+        {
+            if (Enum.TryParse<ToolType>(part.Trim(), out var t) && !result.Contains(t))
+                result.Add(t);
+        }
+        // Append any missing tools at the end (ensures all tools are always present)
+        foreach (var t in allTools)
+            if (!result.Contains(t)) result.Add(t);
+        return result;
+    }
+
+    /// <summary>Parses only the tools explicitly listed — does not append missing tools.</summary>
+    public static List<ToolType> ParseActiveToolOrder(string toolOrder)
+    {
+        var result = new List<ToolType>();
+        foreach (var part in toolOrder.Split(','))
+        {
+            var trimmed = part.Trim();
+            if (trimmed.Equals("Settings", StringComparison.OrdinalIgnoreCase)) continue;
+            if (Enum.TryParse<ToolType>(trimmed, out var t) && !result.Contains(t))
+                result.Add(t);
+        }
+        return result;
+    }
+
+    public static string SerializeToolOrder(IEnumerable<ToolType> tools) =>
+        string.Join(",", tools.Select(t => t.ToString()));
+
+    private static string ValidateToolOrder(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return DefaultToolOrder;
+        // Preserve Settings token position; validate tool entries
+        bool settingsAtTop = raw.StartsWith("Settings", StringComparison.OrdinalIgnoreCase);
+        bool settingsPresent = raw.Contains("Settings", StringComparison.OrdinalIgnoreCase);
+        var toolPart = SerializeToolOrder(ParseToolOrder(raw));
+        if (!settingsPresent)
+            return toolPart + ",Settings"; // migrate old settings: add Settings at bottom
+        return settingsAtTop ? "Settings," + toolPart : toolPart + ",Settings";
     }
 
     private static bool IsValidHexColor(string? color)

@@ -213,7 +213,7 @@ public partial class FlyoutNotification : Window
     /// </summary>
     private static double MeasureLongestToolName()
     {
-        string[] names = ["Spotlight", "Highlight", "Arrow", "Box", "Steps"];
+        string[] names = ["Spotlight", "Highlighter", "Arrow", "Box", "Steps"];
         double maxTextWidth = 0;
         foreach (var name in names)
         {

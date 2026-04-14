@@ -48,7 +48,8 @@ public record AppSettings(
     bool ShowToolNameOnSwitch = true,
     StepsTailDirection StepsTailDirection = StepsTailDirection.Free,
     EscBehavior EscBehavior = EscBehavior.UndoThenExit,
-    NestedSpotlightMode NestedSpotlightMode = NestedSpotlightMode.Darken);
+    NestedSpotlightMode NestedSpotlightMode = NestedSpotlightMode.Darken,
+    string ToolOrder = "Spotlight,Arrow,Box,Highlight,Steps,Settings");
 
 public enum StepsTailDirection
 {
@@ -64,8 +65,8 @@ public enum EscBehavior
 
 public enum NestedSpotlightMode
 {
-    Darken = 0,   // Nested spotlight creates darkness layer in surrounding area (can be cut through)
-    Replace = 1   // Nested spotlight replaces parent - parent area goes full darkness
+    Darken = 0,
+    Replace = 1
 }
 
 public enum PreviewStyle
