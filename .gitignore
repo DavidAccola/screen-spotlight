@@ -17,3 +17,4 @@ test-spotlight.ps1
 SpotlightOverlay.Tests/
 .kiro/
 rebuild.ps1
+installer-output/
