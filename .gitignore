@@ -13,3 +13,7 @@ requirements.md
 tasks.md
 .config.kiro
 bugfix.md
+test-spotlight.ps1
+SpotlightOverlay.Tests/
+.kiro/
+rebuild.ps1
