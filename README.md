@@ -54,21 +54,21 @@ All hotkeys are configurable in Settings > General.
 
 ## Installation
 
-Download the latest release from the [Releases](../../releases) page and run `SpotlightOverlay.exe`. No installer required. It's a single self-contained executable.
+Download the latest release from the [Releases](../../releases) page. Available as an installer (EXE - no admin permissions required) or ZIP.
 
-The app runs in the system tray. Left-click the tray icon to open Settings; right-click for the context menu.
+The app runs in the system tray. Left-click the tray icon to open Settings.
 
 ---
 
 ## Building from source
 
 ```
-git clone https://github.com/YOUR_USERNAME/screen-spotlight.git
+git clone https://github.com/DavidAccola/screen-spotlight.git
 cd screen-spotlight
 dotnet build SpotlightOverlay
 ```
 
-To publish a self-contained single-file release build:
+To publish a self-contained release build:
 
 ```
 dotnet publish SpotlightOverlay -c Release
