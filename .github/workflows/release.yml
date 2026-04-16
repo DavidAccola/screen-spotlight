@@ -1,0 +1,66 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*' # Triggers the workflow automatically when you push a tag like v1.0.1
+
+jobs:
+  build:
+    runs-on: windows-latest
+    permissions:
+      contents: write # Needed to upload files to a GitHub Release
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x' 
+
+      - name: Get Version from Tag
+        id: get_version
+        shell: bash
+        # Extracts just the numbers from the tag (e.g. 'v1.0.1' becomes '1.0.1')
+        run: |
+          TAG=${GITHUB_REF#refs/tags/}
+          VERSION=${TAG#v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Update Version in installer.iss
+        shell: powershell
+        # Injects the tag version dynamically into the Inno Setup script
+        run: |
+          $version = "${{ steps.get_version.outputs.version }}"
+          (Get-Content installer.iss) -replace '#define MyAppVersion ".*"', "#define MyAppVersion ""$version""" | Set-Content installer.iss
+
+      - name: Publish .NET Project
+        run: dotnet publish SpotlightOverlay\SpotlightOverlay.csproj -c Release
+
+      - name: Create Portable ZIP
+        shell: powershell
+        run: |
+          $publishDir = "SpotlightOverlay\bin\Release\net8.0-windows\win-x64\publish"
+          $zipOutDir = "installer-output"
+          New-Item -ItemType Directory -Path $zipOutDir -Force | Out-Null
+          
+          $tempDir = Join-Path $env:TEMP "Screen Spotlight"
+          New-Item -ItemType Directory -Path $tempDir -Force | Out-Null
+          
+          Copy-Item -Path "$publishDir\*" -Destination $tempDir -Recurse
+          $zipPath = Join-Path $zipOutDir "Screen Spotlight v${{ steps.get_version.outputs.version }}.zip"
+          Compress-Archive -Path $tempDir -DestinationPath $zipPath
+
+      - name: Compile Inno Setup Installer
+        # Windows GitHub runners have Inno Setup pre-installed at this exact location
+        run: '& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "installer.iss"'
+
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            installer-output/Screen Spotlight Setup v*.exe
+            installer-output/Screen Spotlight v*.zip
+          generate_release_notes: true
