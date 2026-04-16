@@ -125,4 +125,72 @@ public static class MonitorHelper
     /// </summary>
     public static string BuildFingerprint(MonitorInfo monitor)
         => BuildFingerprint(monitor.DeviceName, monitor.PhysicalWidth, monitor.PhysicalHeight);
+
+    /// <summary>
+    /// Returns the DIP work area of the monitor containing the given DIP point.
+    /// Falls back to the nearest monitor if the point is between monitors (e.g. during drag).
+    /// </summary>
+    public static System.Windows.Rect GetWorkAreaForPoint(System.Windows.Point dipPoint)
+    {
+        var monitors = GetAllMonitors();
+        foreach (var m in monitors)
+            if (m.WorkArea.Contains(dipPoint))
+                return m.WorkArea;
+
+        // Point is outside all work areas (e.g. in a gap or on a taskbar) — find nearest
+        MonitorInfo? nearest = null;
+        double bestDist = double.MaxValue;
+        foreach (var m in monitors)
+        {
+            double dist = DistanceToRect(dipPoint, m.WorkArea);
+            if (dist < bestDist) { bestDist = dist; nearest = m; }
+        }
+        return nearest?.WorkArea ?? monitors[0].WorkArea;
+    }
+
+    /// <summary>
+    /// Returns the full monitor bounds (including taskbar area) in DIPs for the monitor
+    /// containing the given DIP point. Used for drag clamping where the nub should be
+    /// draggable onto the taskbar area.
+    /// </summary>
+    public static System.Windows.Rect GetMonitorBoundsForPoint(System.Windows.Point dipPoint)
+    {
+        var screen = WinFormsScreen.AllScreens
+            .FirstOrDefault(s =>
+            {
+                double scale = GetDpiScale(new System.Windows.Point(s.Bounds.X, s.Bounds.Y));
+                var dipBounds = new System.Windows.Rect(
+                    s.Bounds.X / scale, s.Bounds.Y / scale,
+                    s.Bounds.Width / scale, s.Bounds.Height / scale);
+                return dipBounds.Contains(dipPoint);
+            });
+
+        if (screen == null)
+        {
+            // Nearest screen by work area
+            var workArea = GetWorkAreaForPoint(dipPoint);
+            screen = WinFormsScreen.AllScreens
+                .FirstOrDefault(s =>
+                {
+                    double scale = GetDpiScale(new System.Windows.Point(s.Bounds.X, s.Bounds.Y));
+                    return Math.Abs(s.WorkingArea.X / scale - workArea.X) < 1;
+                }) ?? WinFormsScreen.PrimaryScreen!;
+        }
+
+        double sc = GetDpiScale(new System.Windows.Point(screen.Bounds.X, screen.Bounds.Y));
+        return new System.Windows.Rect(
+            screen.Bounds.X / sc, screen.Bounds.Y / sc,
+            screen.Bounds.Width / sc, screen.Bounds.Height / sc);
+    }
+
+    /// <summary>
+    /// Returns the minimum distance from a point to a rectangle.
+    /// Returns 0 if the point is inside the rectangle.
+    /// </summary>
+    private static double DistanceToRect(System.Windows.Point p, System.Windows.Rect r)
+    {
+        double dx = Math.Max(r.Left - p.X, Math.Max(0, p.X - r.Right));
+        double dy = Math.Max(r.Top - p.Y, Math.Max(0, p.Y - r.Bottom));
+        return Math.Sqrt(dx * dx + dy * dy);
+    }
 }

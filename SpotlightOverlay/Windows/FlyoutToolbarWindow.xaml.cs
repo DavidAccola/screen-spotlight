@@ -448,7 +448,7 @@ public partial class FlyoutToolbarWindow : Window
             SizeToContent = SizeToContent.WidthAndHeight;
             UpdateLayout();
 
-            var workArea = SystemParameters.WorkArea;
+            var workArea = GetWorkAreaForNub();
 
             // Compute expanded window position so nub stays at _nubScreenPos
             switch (_anchorEdge)
@@ -517,7 +517,7 @@ public partial class FlyoutToolbarWindow : Window
         // Ensure no stale nub margin persists — collapsed window IS the nub
         NubHandle.Margin = new Thickness(0);
 
-        var workArea = workAreaOverride ?? SystemParameters.WorkArea;
+        var workArea = workAreaOverride ?? GetWorkAreaForNub();
         switch (_anchorEdge)
         {
             case AnchorEdge.Right:
@@ -533,6 +533,18 @@ public partial class FlyoutToolbarWindow : Window
                 Top = workArea.Top;
                 break;
         }
+    }
+
+    /// <summary>
+    /// Returns the work area of the monitor the nub is currently on,
+    /// derived from _nubScreenPos and the current anchor edge.
+    /// </summary>
+    private Rect GetWorkAreaForNub()
+    {
+        var nubPoint = _anchorEdge == AnchorEdge.Top
+            ? new Point(_nubScreenPos, Top)
+            : new Point(Left, _nubScreenPos);
+        return MonitorHelper.GetWorkAreaForPoint(nubPoint);
     }
 
     // ── Mouse Events ─────────────────────────────────────────────────
@@ -608,15 +620,18 @@ public partial class FlyoutToolbarWindow : Window
         var relPos = e.GetPosition(this);
         double mouseX = Left + relPos.X;
         double mouseY = Top + relPos.Y;
-        var workArea = SystemParameters.WorkArea;
-        // Use full screen bounds for drag clamping (allows dragging onto taskbar)
-        double screenTop = 0;
-        double screenLeft = 0;
-        double screenBottom = SystemParameters.PrimaryScreenHeight;
-        double screenRight = SystemParameters.PrimaryScreenWidth;
+        var cursorPoint = new Point(mouseX, mouseY);
+
+        // Get the work area and full bounds of the monitor under the cursor
+        var workArea = MonitorHelper.GetWorkAreaForPoint(cursorPoint);
+        var monitorBounds = MonitorHelper.GetMonitorBoundsForPoint(cursorPoint);
+        double screenTop = monitorBounds.Top;
+        double screenLeft = monitorBounds.Left;
+        double screenBottom = monitorBounds.Bottom;
+        double screenRight = monitorBounds.Right;
 
         // Determine which edge the cursor is closest to
-        var nearestEdge = DetectClosestEdge(new Point(mouseX, mouseY), workArea);
+        var nearestEdge = DetectClosestEdge(cursorPoint, workArea);
 
         // If edge changed during drag, reconfigure layout
         if (nearestEdge != _anchorEdge)
@@ -629,7 +644,7 @@ public partial class FlyoutToolbarWindow : Window
         BeginAnimation(Window.LeftProperty, null);
         BeginAnimation(Window.TopProperty, null);
 
-        // Center the nub on the cursor along the edge axis, clamped to screen bounds
+        // Center the nub on the cursor along the edge axis, clamped to monitor bounds
         switch (nearestEdge)
         {
             case AnchorEdge.Left:
@@ -686,7 +701,7 @@ public partial class FlyoutToolbarWindow : Window
             return;
         }
 
-        var workArea = SystemParameters.WorkArea;
+        var workArea = MonitorHelper.GetWorkAreaForPoint(endScreen);
         var newEdge = DetectClosestEdge(endScreen, workArea);
 
         // Note: _anchorEdge may already equal newEdge because NubHandle_MouseMove
@@ -812,7 +827,7 @@ public partial class FlyoutToolbarWindow : Window
     /// </summary>
     private void ComputeNubOffsetForExpand()
     {
-        var workArea = SystemParameters.WorkArea;
+        var workArea = GetWorkAreaForNub();
 
         // Re-measure toolbar to get correct dimensions for current orientation
         var wasVisible = ToolbarPanel.Visibility;
