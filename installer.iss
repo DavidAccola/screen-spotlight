@@ -31,7 +31,7 @@ MinVersion=10.0
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
-Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Additional shortcuts:"; Flags: unchecked
+Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Additional shortcuts:"
 Name: "startupentry"; Description: "Start Screen Spotlight when Windows starts"; GroupDescription: "Windows startup:"; Flags: unchecked
 
 [Files]

@@ -1,41 +1,47 @@
 $ErrorActionPreference = "Stop"
 
-# 1. Get version from installer.iss
+# 1. Get the current version from installer.iss
 $issContent = Get-Content installer.iss
 $versionLine = $issContent | Where-Object { $_ -match '#define MyAppVersion "(.*)"' }
 if (-not $versionLine) { throw "Could not find MyAppVersion in installer.iss" }
-$version = $matches[1]
 
-Write-Host "Building Release v$version..." -ForegroundColor Cyan
+$currentVersion = $matches[1]
 
-# 2. Dotnet publish
-Write-Host "`n[1/3] Publishing .NET project..." -ForegroundColor Yellow
-$existing = Get-Process -Name "Screen Spotlight" -ErrorAction SilentlyContinue
-if ($existing) { Stop-Process -Id $existing.Id -Force; Start-Sleep -Seconds 1 }
-dotnet publish SpotlightOverlay\SpotlightOverlay.csproj -c Release
+# Auto-increment the patch number to suggest
+$parts = $currentVersion.Split('.')
+$suggestedVersion = ""
+if ($parts.Length -eq 3) {
+    $parts[2] = [int]$parts[2] + 1
+    $suggestedVersion = $parts -join "."
+}
 
-# 3. Create ZIP portable release
-Write-Host "`n[2/3] Creating Portable ZIP..." -ForegroundColor Yellow
-$publishDir = "SpotlightOverlay\bin\Release\net8.0-windows\win-x64\publish"
-$zipOutDir = "installer-output"
-if (-not (Test-Path $zipOutDir)) { New-Item -ItemType Directory -Path $zipOutDir | Out-Null }
+# Prompt user for the new version
+$newVersion = Read-Host "Current version is $currentVersion. Enter new version (Press Enter for $suggestedVersion)"
+if ([string]::IsNullOrWhiteSpace($newVersion)) {
+    $newVersion = $suggestedVersion
+}
 
-$tempDir = Join-Path $env:TEMP "Screen Spotlight"
-if (Test-Path $tempDir) { Remove-Item -Recurse -Force $tempDir }
-New-Item -ItemType Directory -Path $tempDir | Out-Null
+$tagName = "v$newVersion"
+Write-Host "`n🚀 Preparing release for: $tagName" -ForegroundColor Cyan
 
-Copy-Item -Path "$publishDir\*" -Destination $tempDir -Recurse
-$zipPath = Join-Path $zipOutDir "Screen Spotlight v$version.zip"
-if (Test-Path $zipPath) { Remove-Item -Force $zipPath }
+# 2. Update installer.iss with the new version
+(Get-Content installer.iss) -replace '#define MyAppVersion ".*"', "#define MyAppVersion ""$newVersion""" | Set-Content installer.iss
 
-Compress-Archive -Path $tempDir -DestinationPath $zipPath
-Remove-Item -Recurse -Force $tempDir
+# 3. Create a git commit for the version bump
+Write-Host "`n[1/4] Committing version bump to installer.iss..." -ForegroundColor Yellow
+git add installer.iss
+git commit -m "Bump version to $tagName"
 
-Write-Host "Created $zipPath" -ForegroundColor Green
+# 4. Push the master branch first
+Write-Host "`n[2/4] Pushing master branch to GitHub..." -ForegroundColor Yellow
+git push origin master
 
-# 4. Compile Inno Setup installer
-Write-Host "`n[3/3] Compiling Inno Setup Installer..." -ForegroundColor Yellow
-& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "installer.iss"
-if ($LASTEXITCODE -ne 0) { throw "Inno Setup compilation failed" }
+# 5. Create the git tag locally
+Write-Host "`n[3/4] Creating local tag: $tagName..." -ForegroundColor Yellow
+git tag $tagName 2>$null
 
-Write-Host "`nDone! Release artifacts are ready in the '$zipOutDir' folder." -ForegroundColor Green
+# 6. Push the tag to GitHub
+Write-Host "`n[4/4] Pushing tag to GitHub to trigger the release workflow..." -ForegroundColor Yellow
+git push origin $tagName
+
+Write-Host "`n✅ Done! Head over to the 'Actions' tab on GitHub to watch it build!" -ForegroundColor Green
