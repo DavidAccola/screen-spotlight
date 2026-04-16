@@ -381,6 +381,12 @@ public partial class App : Application
         }
         try
         {
+            // Force HWND creation before Show() so we can apply WS_EX_TOOLWINDOW
+            // before the compositor ever sees the window.
+            new System.Windows.Interop.WindowInteropHelper(win).EnsureHandle();
+            if (edgeWin != null)
+                new System.Windows.Interop.WindowInteropHelper(edgeWin).EnsureHandle();
+
             win.Show();
             edgeWin?.Show();
         }
