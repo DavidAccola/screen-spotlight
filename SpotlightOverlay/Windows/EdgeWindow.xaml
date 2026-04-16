@@ -1,0 +1,16 @@
+<Window x:Class="SpotlightOverlay.Windows.EdgeWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        AllowsTransparency="True"
+        Background="Transparent"
+        WindowStyle="None"
+        Topmost="True"
+        ShowInTaskbar="False"
+        ShowActivated="False"
+        ResizeMode="NoResize"
+        IsHitTestVisible="False">
+    <Grid>
+        <!-- Dark overlay to ensure the missing 1px is not bright -->
+        <Border x:Name="OverlayBorder" />
+    </Grid>
+</Window>

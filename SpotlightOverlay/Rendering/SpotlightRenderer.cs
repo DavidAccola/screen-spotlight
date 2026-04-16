@@ -58,15 +58,19 @@ public class SpotlightRenderer
 
         // Render at 1/4 resolution for speed — blur hides the lower resolution
         const double scale = 0.25;
-        int w = Math.Max(1, (int)(fullW * scale));
-        int h = Math.Max(1, (int)(fullH * scale));
+
+        // Add overscan padding equal to the feather radius so blur at screen edges
+        // has room to spread without being clipped, preventing soft fades at borders.
+        int overscan = featherRadius;
+        int paddedW = (int)((fullW + overscan * 2) * scale);
+        int paddedH = (int)((fullH + overscan * 2) * scale);
+        int w = Math.Max(1, paddedW);
+        int h = Math.Max(1, paddedH);
         int scaledFeather = Math.Max(1, (int)(featherRadius * scale));
 
         DebugLog.Write($"[Renderer] BuildFeatheredMask: full={fullW}x{fullH}, scaled={w}x{h}, feather={scaledFeather}, cutouts={_cutouts.Count}");
 
-        // Scale cutout rects to match the smaller bitmap
-        // Expand each cutout by half the feather radius so the blur
-        // straddles the original edge (50% into dark, 50% into cutout)
+        // Scale cutout rects to match the padded bitmap (offset by overscan)
         double expand = featherRadius * 0.5;
         var scaledCutouts = new List<Rect>(_cutouts.Count);
         foreach (var c in _cutouts)
@@ -75,8 +79,10 @@ public class SpotlightRenderer
                 c.X - expand, c.Y - expand,
                 c.Width + expand * 2, c.Height + expand * 2);
             scaledCutouts.Add(new Rect(
-                expanded.X * scale, expanded.Y * scale,
-                expanded.Width * scale, expanded.Height * scale));
+                (expanded.X + overscan) * scale,
+                (expanded.Y + overscan) * scale,
+                expanded.Width * scale,
+                expanded.Height * scale));
         }
 
         var element = new MaskElement(scaledCutouts, w, h, _settings.NestedSpotlightMode, scaledFeather)
@@ -102,9 +108,17 @@ public class SpotlightRenderer
             w, h, 96, 96, PixelFormats.Pbgra32);
         rtb.Render(element);
 
+        // Crop the viewport back to the non-padded region so the overscan is hidden
+        double ox = (overscan * scale) / w;
+        double oy = (overscan * scale) / h;
+        double vw = (fullW * scale) / w;
+        double vh = (fullH * scale) / h;
+
         return new ImageBrush(rtb)
         {
-            Stretch = Stretch.Fill
+            Stretch = Stretch.Fill,
+            ViewboxUnits = BrushMappingMode.RelativeToBoundingBox,
+            Viewbox = new Rect(ox, oy, vw, vh)
         };
     }
 

@@ -6,6 +6,7 @@
         WindowStyle="None"
         Topmost="True"
         ShowInTaskbar="False"
+        ShowActivated="False"
         ResizeMode="NoResize">
     <Grid>
         <!-- Frozen screenshot background (only visible when freeze is enabled) -->

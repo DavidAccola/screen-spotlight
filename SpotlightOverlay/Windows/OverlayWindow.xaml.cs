@@ -64,18 +64,20 @@ public partial class OverlayWindow : Window
     /// Uses an ImageBrush with Stretch=Fill so the physical-pixel bitmap maps correctly
     /// to the DIP-sized Border regardless of DPI scaling.
     /// </summary>
-    public void SetFrozenBackground(System.Windows.Media.Imaging.BitmapSource screenshot)
+    public void SetFrozenBackground(System.Windows.Media.Imaging.BitmapSource screenshot, Rect monitorBoundsDip)
     {
-        DebugLog.Write($"[Overlay] SetFrozenBackground: bitmap={screenshot.PixelWidth}x{screenshot.PixelHeight} dpi={screenshot.DpiX}x{screenshot.DpiY}");
-        DebugLog.Write($"[Overlay] Window: Width={Width} Height={Height} ActualWidth={ActualWidth} ActualHeight={ActualHeight}");
+        double physScaleY = screenshot.PixelHeight / monitorBoundsDip.Height;
+        double physW = screenshot.PixelWidth;
+        double physH = screenshot.PixelHeight;
+        double physMissing = 1 * physScaleY;
 
-        // Set the screenshot as the window's own background so that the semi-transparent
-        // OverlayBorder composites against the screenshot rather than the live desktop.
-        // With AllowsTransparency=True, elements composite against the window surface,
-        // not against sibling elements in the z-order.
         Background = new ImageBrush(screenshot)
         {
-            Stretch = Stretch.Fill
+            Stretch = Stretch.Fill,
+            ViewboxUnits = BrushMappingMode.Absolute,
+            Viewbox = new Rect(0, 0, physW, physH - physMissing), 
+            ViewportUnits = BrushMappingMode.RelativeToBoundingBox,
+            Viewport = new Rect(0, 0, 1, 1)
         };
         FrozenBackground.Visibility = Visibility.Collapsed;
     }

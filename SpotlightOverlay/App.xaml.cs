@@ -24,6 +24,7 @@ public partial class App : Application
     private TrayIconService _trayIcon = null!;
     private FlyoutToolbarWindow? _flyoutToolbar;
     private OverlayWindow? _overlayWindow;
+    private EdgeWindow? _edgeWindow;
     private readonly List<System.Windows.Rect> _pendingCutouts = new();
     private bool _isDismissed; // true when overlay is hidden but cutouts are preserved
     private System.Windows.Media.Imaging.BitmapSource? _cachedScreenshot; // pre-captured on Ctrl press
@@ -237,6 +238,8 @@ public partial class App : Application
                 DebugLog.Write("[App] DragCancelled with empty overlay — auto-dismissing");
                 _overlayWindow.Close();
                 _overlayWindow = null;
+                _edgeWindow?.Close();
+                _edgeWindow = null;
                 _pendingCutouts.Clear();
                 _inputHook.CanRestore = false;
             }
@@ -365,6 +368,12 @@ public partial class App : Application
         }
 
         var win = new OverlayWindow(monitorBoundsDip, _settings.OverlayOpacity, _settings.FeatherRadius);
+        EdgeWindow? edgeWin = null;
+        if (monitorBoundsDip.Height > 1) 
+        {
+            edgeWin = new EdgeWindow(monitorBoundsDip, _settings.OverlayOpacity);
+        }
+
         // Tell the overlay to block clicks before Show() so the Loaded handler knows
         if (frozenScreenshot != null)
         {
@@ -373,6 +382,7 @@ public partial class App : Application
         try
         {
             win.Show();
+            edgeWin?.Show();
         }
         catch (System.ComponentModel.Win32Exception w32ex)
         {
@@ -382,15 +392,25 @@ public partial class App : Application
 
         if (frozenScreenshot != null)
         {
-            win.SetFrozenBackground(frozenScreenshot);
-            // Only fade in the dark overlay for spotlight tool — arrows don't darken the screen
-            if (_inputHook.ActiveTool == ToolType.Spotlight && _settings.FadeMode == FadeMode.Immediately)
-                win.FadeInBackground(300);
+            win.SetFrozenBackground(frozenScreenshot, monitorBoundsDip);
+            edgeWin?.SetFrozenBackground(frozenScreenshot, monitorBoundsDip);
+        }
+
+        // Apply dark overlay fade using settings
+        if (_inputHook.ActiveTool == ToolType.Spotlight && _settings.FadeMode == FadeMode.Immediately)
+        {
+            win.FadeInBackground(300);
+            edgeWin?.FadeInBackground(300);
+        }
+        
+        if (frozenScreenshot != null)
+        {
             win.ForceTopmost();
             DismissStartMenu(win);
         }
 
         _overlayWindow = win;
+        _edgeWindow = edgeWin;
         
         // Always re-force toolbar above the overlay after all z-order changes
         ForceToolbarAboveOverlay();
@@ -412,6 +432,8 @@ public partial class App : Application
         _overlayWindow.ClearSteps();
         _overlayWindow.Close();
         _overlayWindow = null;
+        _edgeWindow?.Close();
+        _edgeWindow = null;
         _renderer.ClearCutouts();
         _arrowRenderer.ClearArrows();
         _boxRenderer.ClearBoxes();
@@ -1005,6 +1027,7 @@ public partial class App : Application
             _isDismissed = true;
             _inputHook.CanRestore = true;
             _cachedScreenshot = null;
+            _edgeWindow?.BeginFadeOut();
             _overlayWindow.BeginFadeOut(() =>
             {
                 DebugLog.Write("[App] Fade-out complete, overlay hidden (cutouts and arrows preserved)");
@@ -1072,6 +1095,7 @@ public partial class App : Application
             DebugLog.Write("[App] Restoring overlay");
             _isDismissed = false;
             _inputHook.CanRestore = false;
+            _edgeWindow?.BeginFadeIn();
             _overlayWindow.BeginFadeIn();
             ForceToolbarAboveOverlay();
         });
