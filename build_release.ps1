@@ -32,9 +32,9 @@ Write-Host "`n[1/4] Committing version bump to installer.iss..." -ForegroundColo
 git add installer.iss
 git commit -m "Bump version to $tagName"
 
-# 4. Push the master branch first
-Write-Host "`n[2/4] Pushing master branch to GitHub..." -ForegroundColor Yellow
-git push origin master
+# 4. Push the main branch first
+Write-Host "`n[2/4] Pushing main branch to GitHub..." -ForegroundColor Yellow
+git push origin main
 
 # 5. Create the git tag locally
 Write-Host "`n[3/4] Creating local tag: $tagName..." -ForegroundColor Yellow
