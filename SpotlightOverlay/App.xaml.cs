@@ -269,8 +269,8 @@ public partial class App : Application
         DebugLog.Write($"[App] ActiveTool changed to {tool}");
         if (_inputHook.IsDragInProgress)
             Dispatcher.BeginInvoke(() => { HideAllPreviews(); _inputHook.RefreshDragPreview(); });
-        if (_settings.ShowToolNameOnSwitch)
-            Dispatcher.BeginInvoke(() => FlyoutNotification.ShowToolName(ToolDisplayName(tool)));
+        Dispatcher.BeginInvoke(() => FlyoutNotification.ShowToolSwitch(
+                tool, _settings.ShowToolIconOnSwitch, _settings.ShowToolNameOnSwitch));
     }
 
     /// <summary>
@@ -292,20 +292,12 @@ public partial class App : Application
                 HideAllPreviews();
                 _inputHook.RefreshDragPreview();
             }
-            if (_settings.ShowToolNameOnSwitch)
-                FlyoutNotification.ShowToolName(ToolDisplayName(next));
+            FlyoutNotification.ShowToolSwitch(
+                    next, _settings.ShowToolIconOnSwitch, _settings.ShowToolNameOnSwitch);
         });
     }
 
-    private static string ToolDisplayName(ToolType tool) => tool switch
-    {
-        ToolType.Spotlight => "Spotlight",
-        ToolType.Arrow     => "Arrow",
-        ToolType.Box       => "Box",
-        ToolType.Highlight => "Highlighter",
-        ToolType.Steps     => "Steps",
-        _                  => tool.ToString()
-    };
+
 
     /// <summary>
     /// Pre-captures a screenshot on Ctrl keydown (before any click) so that
@@ -975,6 +967,7 @@ public partial class App : Application
     /// <summary>
     /// Adds the given cutout rects to the renderer, rebuilds the feathered mask,
     /// and animates the new cutouts fading in (unless it's the first batch).
+    /// Nested spotlights use a cross-fade animation instead of a simple patch fade.
     /// </summary>
     private void ApplyCutouts(List<System.Windows.Rect> cutouts)
     {
@@ -982,6 +975,17 @@ public partial class App : Application
 
         // Capture existing cutouts BEFORE adding new ones — used to clip the fade animation
         var existingCutouts = _renderer.Cutouts.ToList();
+
+        // Check if any of the new cutouts will be nested BEFORE adding them
+        bool hasNested = false;
+        foreach (var rect in cutouts)
+        {
+            if (_renderer.IsNestedCutout(rect))
+            {
+                hasNested = true;
+                break;
+            }
+        }
 
         foreach (var rect in cutouts)
         {
@@ -992,13 +996,46 @@ public partial class App : Application
 
         var overlaySize = new System.Windows.Size(_overlayWindow.ActualWidth, _overlayWindow.ActualHeight);
         var featheredMask = _renderer.BuildFeatheredMask(overlaySize);
-        _overlayWindow.ApplyFeatheredMask(featheredMask);
 
         bool isFirstBatch = _overlayWindow.FadeInBackground();
-        if (!isFirstBatch)
+        if (!isFirstBatch && hasNested)
         {
+            // Build the base mask (without donut darkness) and apply immediately
+            var baseMask = _renderer.BuildFeatheredMask(overlaySize, skipNestedEffect: true);
+            _overlayWindow.ApplyFeatheredMask(baseMask);
+
+            // Build a feathered donut brush matching the main mask's blur
             foreach (var rect in cutouts)
-                _overlayWindow.AnimateCutoutFadeIn(rect, existingCutouts);
+            {
+                if (existingCutouts.Count > 0)
+                {
+                    var donutBrush = _renderer.BuildDonutBrush(overlaySize, existingCutouts, rect);
+                    if (donutBrush != null)
+                    {
+                        _overlayWindow.AnimateDonutFadeIn(donutBrush, durationMs: 400,
+                            onComplete: () =>
+                            {
+                                // When animation completes, apply the full mask (with donut baked in)
+                                if (_overlayWindow != null)
+                                {
+                                    var fullMask = _renderer.BuildFeatheredMask(
+                                        new System.Windows.Size(_overlayWindow.ActualWidth, _overlayWindow.ActualHeight));
+                                    _overlayWindow.ApplyFeatheredMask(fullMask);
+                                }
+                            });
+                    }
+                }
+            }
+            DebugLog.Write("[App] Nested spotlight detected — animating feathered donut region");
+        }
+        else
+        {
+            _overlayWindow.ApplyFeatheredMask(featheredMask);
+            if (!isFirstBatch)
+            {
+                foreach (var rect in cutouts)
+                    _overlayWindow.AnimateCutoutFadeIn(rect, existingCutouts);
+            }
         }
 
         _overlayWindow.ClearFinalizedPreviews();
@@ -1054,14 +1091,36 @@ public partial class App : Application
                 if (_renderer.CutoutCount > 0)
                 {
                     var lastCutout = _renderer.Cutouts[_renderer.CutoutCount - 1];
+                    bool wasNested = _renderer.IsLastCutoutNested();
                     _renderer.RemoveLastCutout();
                     var overlaySize = new System.Windows.Size(_overlayWindow.ActualWidth, _overlayWindow.ActualHeight);
-                    var remaining = _renderer.Cutouts.ToList();
-                    _overlayWindow.AnimateCutoutsFadeOut(
-                        new[] { lastCutout },
-                        () => _overlayWindow?.ApplyFeatheredMask(_renderer.BuildFeatheredMask(overlaySize)),
-                        durationMs: 300,
-                        remainingCutouts: remaining);
+
+                    if (wasNested)
+                    {
+                        // Build the donut brush for the region being removed
+                        var remaining = _renderer.Cutouts.ToList();
+                        var donutBrush = _renderer.BuildDonutBrush(overlaySize, remaining, lastCutout);
+
+                        // Apply the final mask (without the nested cutout) immediately
+                        var finalMask = _renderer.BuildFeatheredMask(overlaySize);
+                        _overlayWindow.ApplyFeatheredMask(finalMask);
+
+                        // Animate the donut fading out
+                        if (donutBrush != null)
+                        {
+                            _overlayWindow.AnimateDonutFadeOut(donutBrush, durationMs: 300);
+                        }
+                        DebugLog.Write("[App] Undo nested spotlight — animating feathered donut fade-out");
+                    }
+                    else
+                    {
+                        var remaining = _renderer.Cutouts.ToList();
+                        _overlayWindow.AnimateCutoutsFadeOut(
+                            new[] { lastCutout },
+                            () => _overlayWindow?.ApplyFeatheredMask(_renderer.BuildFeatheredMask(overlaySize)),
+                            durationMs: 300,
+                            remainingCutouts: remaining);
+                    }
                 }
                 break;
             case ToolType.Arrow:

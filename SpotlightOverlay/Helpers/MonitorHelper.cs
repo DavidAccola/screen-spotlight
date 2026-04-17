@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using SpotlightOverlay.Models;
 using WinFormsScreen = System.Windows.Forms.Screen;
 
 namespace SpotlightOverlay.Helpers;
@@ -125,6 +126,88 @@ public static class MonitorHelper
     /// </summary>
     public static string BuildFingerprint(MonitorInfo monitor)
         => BuildFingerprint(monitor.DeviceName, monitor.PhysicalWidth, monitor.PhysicalHeight);
+
+    /// <summary>
+    /// Identifies which monitor the nub is on using 2D point matching.
+    /// For Left/Right edges, the point is (windowLeft, nubScreenPos).
+    /// For Top edge, the point is (nubScreenPos, windowTop).
+    /// Falls back to nearest monitor, then primary monitor.
+    /// Pure method — no WPF window dependencies.
+    /// </summary>
+    public static MonitorInfo GetMonitorForNub(
+        double nubScreenPos,
+        AnchorEdge anchorEdge,
+        double windowLeft,
+        double windowTop,
+        IReadOnlyList<MonitorInfo> monitors)
+    {
+        // Construct a 2D point using the edge-axis coordinate and the perpendicular-axis coordinate
+        var point = anchorEdge == AnchorEdge.Top
+            ? new System.Windows.Point(nubScreenPos, windowTop)
+            : new System.Windows.Point(windowLeft, nubScreenPos);
+
+        // Exact match: find the monitor whose work area contains the 2D point.
+        // WPF Rect.Contains is inclusive on all edges, so a point on a shared boundary
+        // (e.g., X=1920 between Monitor 1 [0,1920] and Monitor 3 [1920,3840]) matches
+        // both monitors. Prefer the monitor whose Left/Top edge matches the point
+        // (the monitor the nub is entering) over one whose Right/Bottom edge matches.
+        MonitorInfo? firstContaining = null;
+        foreach (var m in monitors)
+        {
+            if (m.WorkArea.Contains(point))
+            {
+                // Prefer the monitor where the point is at the left/top edge (entering)
+                // rather than the right/bottom edge (leaving).
+                bool isAtLeftEdge = Math.Abs(point.X - m.WorkArea.Left) < 0.5;
+                bool isAtTopEdge = Math.Abs(point.Y - m.WorkArea.Top) < 0.5;
+                bool isAtRightEdge = Math.Abs(point.X - m.WorkArea.Right) < 0.5;
+                bool isAtBottomEdge = Math.Abs(point.Y - m.WorkArea.Bottom) < 0.5;
+
+                // If the point is strictly inside (not on any boundary), return immediately
+                if (!isAtRightEdge && !isAtBottomEdge && !isAtLeftEdge && !isAtTopEdge)
+                    return m;
+
+                // If the point is on this monitor's left or top edge but NOT on its
+                // right or bottom edge, it's the preferred match (entering this monitor).
+                // A corner point (e.g., top-right) should not be preferred since the
+                // point is also leaving via the right/bottom edge.
+                if ((isAtLeftEdge || isAtTopEdge) && !isAtRightEdge && !isAtBottomEdge)
+                    return m;
+
+                // Otherwise, remember this as a fallback (point is on right/bottom edge)
+                firstContaining ??= m;
+            }
+        }
+
+        if (firstContaining != null)
+            return firstContaining;
+
+        // Fallback: nearest monitor by minimum distance to work area rect
+        MonitorInfo? nearest = null;
+        double bestDist = double.MaxValue;
+        foreach (var m in monitors)
+        {
+            double dist = DistanceToRect(point, m.WorkArea);
+            if (dist < bestDist)
+            {
+                bestDist = dist;
+                nearest = m;
+            }
+        }
+
+        if (nearest != null)
+            return nearest;
+
+        // Last resort: primary monitor
+        foreach (var m in monitors)
+        {
+            if (m.IsPrimary)
+                return m;
+        }
+
+        // Absolute fallback: first monitor in the list
+        return monitors[0];
+    }
 
     /// <summary>
     /// Returns the DIP work area of the monitor containing the given DIP point.

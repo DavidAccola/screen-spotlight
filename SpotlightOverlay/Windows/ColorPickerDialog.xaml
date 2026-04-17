@@ -10,8 +10,8 @@
         <SolidColorBrush x:Key="CardBg" Color="#2D2D2D" />
         <SolidColorBrush x:Key="CardBorder" Color="#3E3E3E" />
         <SolidColorBrush x:Key="TextPrimary" Color="#E0E0E0" />
-        <SolidColorBrush x:Key="TextSecondary" Color="#999999" />
-        <SolidColorBrush x:Key="Accent" Color="#5B9BD5" />
+        <SolidColorBrush x:Key="TextSecondary" Color="#A8A8A8" />
+        <SolidColorBrush x:Key="Accent" Color="#2E6EB5" />
         <SolidColorBrush x:Key="ControlBg" Color="#383838" />
         <SolidColorBrush x:Key="ControlHover" Color="#434343" />
         <Style TargetType="TextBox">

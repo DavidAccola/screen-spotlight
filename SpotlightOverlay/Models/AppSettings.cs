@@ -28,7 +28,7 @@ public record AppSettings(
     string CustomColors = "",
     ModifierKey ToggleToolModifier = ModifierKey.CtrlShift,
     int ToggleToolKey = 0x02, // VK_RBUTTON (right click = non-dominant by default)
-    FadeMode FadeMode = FadeMode.Immediately,
+    FadeMode FadeMode = FadeMode.AfterSpotlight,
     string BoxColor = "00A651",
     double BoxLineThickness = 3.0,
     string HighlightColor = "FFC90E",
@@ -46,6 +46,7 @@ public record AppSettings(
     AnchorEdge NubAnchorEdge = AnchorEdge.Right,
     string NubMonitorFingerprint = "",
     bool ShowToolNameOnSwitch = true,
+    bool ShowToolIconOnSwitch = true,
     StepsTailDirection StepsTailDirection = StepsTailDirection.Free,
     EscBehavior EscBehavior = EscBehavior.UndoThenExit,
     NestedSpotlightMode NestedSpotlightMode = NestedSpotlightMode.Darken,

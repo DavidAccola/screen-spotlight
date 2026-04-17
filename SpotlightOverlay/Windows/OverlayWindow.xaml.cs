@@ -724,6 +724,94 @@ public partial class OverlayWindow : Window
 
     #endregion
 
+    /// <summary>
+    /// Cross-fades from the current opacity mask to a new one over the given duration.
+    /// Used for nested spotlight transitions where the mask changes structurally
+    /// (donut/replace layers appear or disappear) and a simple patch animation won't work.
+    /// 
+    /// Technique: snapshot the current OverlayBorder state into a temporary Border on
+    /// FadeCanvas, apply the new mask immediately to OverlayBorder, then fade out the
+    /// snapshot. This ensures no traces of the old mask remain after the animation.
+    /// </summary>
+
+    /// <summary>
+    /// Animates the donut-shaped darkness region between an outer spotlight and a
+    /// nested inner spotlight. Only the donut area fades in — the rest of the screen
+    /// is unaffected. Uses a feathered bitmap brush that matches the main mask's
+    /// blur/feathering so edges are soft.
+    /// </summary>
+    public void AnimateDonutFadeIn(System.Windows.Media.Brush donutBrush, int durationMs = 400, Action? onComplete = null)
+    {
+        // The donut brush is an ImageBrush rendered with the same blur as the main mask.
+        // It encodes the target darkness in its alpha channel (50% for darken, 100% for replace).
+        // We use it as the OpacityMask of a full-screen black rectangle, then animate that
+        // rectangle's Opacity from 0 to 1.
+        var patch = new System.Windows.Shapes.Rectangle
+        {
+            Width = ActualWidth,
+            Height = ActualHeight,
+            Fill = _overlayBrush,  // same black brush as the overlay
+            OpacityMask = donutBrush,
+            IsHitTestVisible = false,
+            Opacity = 0.0
+        };
+
+        System.Windows.Controls.Canvas.SetLeft(patch, 0);
+        System.Windows.Controls.Canvas.SetTop(patch, 0);
+        FadeCanvas.Children.Add(patch);
+
+        var fadeIn = new DoubleAnimation
+        {
+            From = 0.0,
+            To = 1.0,
+            Duration = new Duration(TimeSpan.FromMilliseconds(durationMs)),
+            EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut }
+        };
+
+        fadeIn.Completed += (_, _) =>
+        {
+            FadeCanvas.Children.Remove(patch);
+            onComplete?.Invoke();
+        };
+        patch.BeginAnimation(OpacityProperty, fadeIn);
+    }
+
+    /// <summary>
+    /// Animates the donut-shaped darkness region fading OUT when a nested spotlight
+    /// is removed (undo). Uses a feathered bitmap brush matching the main mask.
+    /// </summary>
+    public void AnimateDonutFadeOut(System.Windows.Media.Brush donutBrush, int durationMs = 300, Action? onComplete = null)
+    {
+        var patch = new System.Windows.Shapes.Rectangle
+        {
+            Width = ActualWidth,
+            Height = ActualHeight,
+            Fill = _overlayBrush,
+            OpacityMask = donutBrush,
+            IsHitTestVisible = false,
+            Opacity = 1.0
+        };
+
+        System.Windows.Controls.Canvas.SetLeft(patch, 0);
+        System.Windows.Controls.Canvas.SetTop(patch, 0);
+        FadeCanvas.Children.Add(patch);
+
+        var fadeOut = new DoubleAnimation
+        {
+            From = 1.0,
+            To = 0.0,
+            Duration = new Duration(TimeSpan.FromMilliseconds(durationMs)),
+            EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut }
+        };
+
+        fadeOut.Completed += (_, _) =>
+        {
+            FadeCanvas.Children.Remove(patch);
+            onComplete?.Invoke();
+        };
+        patch.BeginAnimation(OpacityProperty, fadeOut);
+    }
+
     public void AnimateCutoutFadeIn(Rect cutoutRect, IReadOnlyList<Rect>? existingCutouts = null)
     {
         var patch = new System.Windows.Shapes.Path

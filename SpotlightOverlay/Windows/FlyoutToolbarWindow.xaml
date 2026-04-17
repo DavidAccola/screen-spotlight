@@ -111,7 +111,7 @@
                         Style="{StaticResource ToolbarButton}">
                     <StackPanel HorizontalAlignment="Center">
                         <!-- Sharp-cornered rectangle, matching the actual box tool -->
-                        <Viewbox Width="18" Height="18" HorizontalAlignment="Center">
+                        <Viewbox Width="15" Height="15" HorizontalAlignment="Center">
                             <Rectangle Width="16" Height="13" Stroke="White" StrokeThickness="1.5" Fill="Transparent"/>
                         </Viewbox>
                         <TextBlock Text="Box" FontSize="10" HorizontalAlignment="Center" Margin="0,2,0,0" />
@@ -122,7 +122,7 @@
                         AutomationProperties.Name="Highlight"
                         Style="{StaticResource ToolbarButton}">
                     <StackPanel HorizontalAlignment="Center">
-                        <TextBlock Text="&#x1F58D;" FontSize="18" HorizontalAlignment="Center" />
+                        <TextBlock Text="&#x1F58D;" FontSize="15" HorizontalAlignment="Center" />
                         <TextBlock Text="Highlighter" FontSize="10" HorizontalAlignment="Center" Margin="0,2,0,0" />
                     </StackPanel>
                 </Button>

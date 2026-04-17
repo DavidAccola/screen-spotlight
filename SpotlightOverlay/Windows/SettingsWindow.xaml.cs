@@ -597,6 +597,13 @@ public partial class SettingsWindow : Window
         _settings.Save();
     }
 
+    private void ShowToolIconCheck_Changed(object sender, System.Windows.RoutedEventArgs e)
+    {
+        if (_isInitializing) return;
+        _settings.ShowToolIconOnSwitch = ShowToolIconCheck.IsChecked == true;
+        _settings.Save();
+    }
+
     private void EscBehaviorCombo_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
     {
         if (_isInitializing) return;
@@ -2288,7 +2295,8 @@ public partial class SettingsWindow : Window
     private static readonly HashSet<string> _excludedFonts = new(StringComparer.OrdinalIgnoreCase)
     {
         // Symbol-only fonts
-        "Bookshelf Symbol 7", "Marlett", "MS Outlook", "MS Reference Specialty",
+        "Bookshelf Symbol 7", "HoloLens MDL2 Assets", "Marlett", "MS Outlook",
+        "MS Reference Specialty",
         "MT Extra", "Segoe Fluent Icons", "Segoe MDL2 Assets", "Webdings",
         "Wingdings", "Wingdings 2", "Wingdings 3",
         // Duplicates / variants
@@ -2312,11 +2320,15 @@ public partial class SettingsWindow : Window
             .OrderBy(n => n)
             .ToList();
 
+        // The setting may be a comma-separated fallback list like "MS Reference Sans Serif, Roboto, MS UI Gothic".
+        // Extract the primary (first) font name for matching against the dropdown items.
+        var primaryFont = _settings.StepsFontFamily?.Split(',')[0].Trim() ?? "";
+
         int selectedIndex = 0;
         for (int i = 0; i < fonts.Count; i++)
         {
             var fontName = fonts[i];
-            if (string.Equals(fontName, _settings.StepsFontFamily, StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(fontName, primaryFont, StringComparison.OrdinalIgnoreCase))
                 selectedIndex = i;
 
             // Each item: "1234567890 - FontName" rendered in that font
@@ -2816,6 +2828,7 @@ public partial class SettingsWindow : Window
     {
         ShowToolbarCheck.IsChecked = _settings.FlyoutToolbarVisible;
         ShowToolNameCheck.IsChecked = _settings.ShowToolNameOnSwitch;
+        ShowToolIconCheck.IsChecked = _settings.ShowToolIconOnSwitch;
         RebuildToolLists();
     }
 
@@ -2855,7 +2868,7 @@ public partial class SettingsWindow : Window
                 };
             case ToolType.Box:
             {
-                var vb = new System.Windows.Controls.Viewbox { Width = size, Height = size };
+                var vb = new System.Windows.Controls.Viewbox { Width = 15, Height = 15 };
                 var rect = new System.Windows.Shapes.Rectangle
                 {
                     Width = 16, Height = 13,
@@ -2869,7 +2882,7 @@ public partial class SettingsWindow : Window
             case ToolType.Highlight:
                 return new TextBlock
                 {
-                    Text = "\U0001F58D", FontSize = size,
+                    Text = "\U0001F58D", FontSize = 15,
                     Foreground = System.Windows.Media.Brushes.White,
                     VerticalAlignment = VerticalAlignment.Center
                 };
@@ -3124,7 +3137,7 @@ public partial class SettingsWindow : Window
             FontWeight = FontWeights.Bold,
             Foreground = isRemove
                 ? new SolidColorBrush(Color.FromRgb(0xAA, 0xAA, 0xAA))
-                : new SolidColorBrush(Color.FromRgb(0x5B, 0x9B, 0xD5)),
+                : new SolidColorBrush(Color.FromRgb(0x2E, 0x6E, 0xB5)),
             HorizontalAlignment = System.Windows.HorizontalAlignment.Center,
             VerticalAlignment = System.Windows.VerticalAlignment.Center,
             IsHitTestVisible = false,
@@ -3141,7 +3154,7 @@ public partial class SettingsWindow : Window
             border.Background = transparentBg;
             icon.Foreground = isRemove
                 ? new SolidColorBrush(Color.FromRgb(0xAA, 0xAA, 0xAA))
-                : new SolidColorBrush(Color.FromRgb(0x5B, 0x9B, 0xD5));
+                : new SolidColorBrush(Color.FromRgb(0x2E, 0x6E, 0xB5));
         };
 
         // Use PreviewMouseLeftButtonDown to intercept before the row's drag handler
@@ -3346,6 +3359,7 @@ public partial class SettingsWindow : Window
         _isInitializing = true;
         ShowToolbarCheck.IsChecked = _settings.FlyoutToolbarVisible;
         ShowToolNameCheck.IsChecked = _settings.ShowToolNameOnSwitch;
+        ShowToolIconCheck.IsChecked = _settings.ShowToolIconOnSwitch;
         _isInitializing = false;
         RebuildToolLists();
     }

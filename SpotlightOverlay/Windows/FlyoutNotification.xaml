@@ -10,7 +10,12 @@
         <Border.Effect>
             <DropShadowEffect Color="Black" BlurRadius="12" ShadowDepth="2" Opacity="0.5" Direction="270" />
         </Border.Effect>
-        <TextBlock x:Name="MessageText" Foreground="#E0E0E0" FontSize="13"
-                   VerticalAlignment="Center" HorizontalAlignment="Left" />
+        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+            <Border x:Name="IconContainer" Width="18" Height="18"
+                    VerticalAlignment="Center"
+                    Margin="0,0,6,0" Visibility="Collapsed" />
+            <TextBlock x:Name="MessageText" Foreground="#E0E0E0" FontSize="13"
+                       VerticalAlignment="Center" HorizontalAlignment="Left" />
+        </StackPanel>
     </Border>
 </Window>

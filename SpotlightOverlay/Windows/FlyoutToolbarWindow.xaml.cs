@@ -33,7 +33,7 @@ public partial class FlyoutToolbarWindow : Window
     private const int CollapseDelayMs = 300;
 
     // Accent color for the active tool button highlight
-    private static readonly SolidColorBrush ActiveToolBrush = new(Color.FromRgb(0x5B, 0x9B, 0xD5));
+    private static readonly SolidColorBrush ActiveToolBrush = new(Color.FromRgb(0x2E, 0x6E, 0xB5));
 
     private readonly SettingsService _settings;
     private AnchorEdge _anchorEdge;
@@ -537,14 +537,14 @@ public partial class FlyoutToolbarWindow : Window
 
     /// <summary>
     /// Returns the work area of the monitor the nub is currently on,
-    /// derived from _nubScreenPos and the current anchor edge.
+    /// using 2D point matching via MonitorHelper.GetMonitorForNub to
+    /// correctly disambiguate monitors with overlapping edge-axis ranges.
     /// </summary>
     private Rect GetWorkAreaForNub()
     {
-        var nubPoint = _anchorEdge == AnchorEdge.Top
-            ? new Point(_nubScreenPos, Top)
-            : new Point(Left, _nubScreenPos);
-        return MonitorHelper.GetWorkAreaForPoint(nubPoint);
+        var monitors = MonitorHelper.GetAllMonitors();
+        var monitor = MonitorHelper.GetMonitorForNub(_nubScreenPos, _anchorEdge, Left, Top, monitors);
+        return monitor.WorkArea;
     }
 
     // ── Mouse Events ─────────────────────────────────────────────────
@@ -783,20 +783,9 @@ public partial class FlyoutToolbarWindow : Window
     {
         var monitors = MonitorHelper.GetAllMonitors();
 
-        // Find the monitor whose work area contains the nub position.
-        // _nubScreenPos is Y for Left/Right edges, X for Top edge.
-        MonitorInfo? monitor;
-        if (_anchorEdge == AnchorEdge.Top)
-        {
-            monitor = monitors.FirstOrDefault(m =>
-                m.WorkArea.Left <= _nubScreenPos && _nubScreenPos <= m.WorkArea.Right);
-        }
-        else
-        {
-            monitor = monitors.FirstOrDefault(m =>
-                m.WorkArea.Top <= _nubScreenPos && _nubScreenPos <= m.WorkArea.Bottom);
-        }
-        monitor ??= monitors.FirstOrDefault(m => m.IsPrimary) ?? monitors.First();
+        // Find the monitor whose work area contains the nub position using 2D point matching
+        // to correctly disambiguate monitors with overlapping edge-axis ranges.
+        var monitor = MonitorHelper.GetMonitorForNub(_nubScreenPos, _anchorEdge, Left, Top, monitors);
 
         double edgeStart, edgeLength;
         if (_anchorEdge == AnchorEdge.Top)
@@ -1130,23 +1119,7 @@ public partial class FlyoutToolbarWindow : Window
     private MonitorInfo? GetNubMonitor()
     {
         var monitors = MonitorHelper.GetAllMonitors();
-        foreach (var monitor in monitors)
-        {
-            var workArea = monitor.WorkArea;
-            switch (_anchorEdge)
-            {
-                case AnchorEdge.Left:
-                case AnchorEdge.Right:
-                    if (_nubScreenPos >= workArea.Top && _nubScreenPos <= workArea.Bottom)
-                        return monitor;
-                    break;
-                case AnchorEdge.Top:
-                    if (_nubScreenPos >= workArea.Left && _nubScreenPos <= workArea.Right)
-                        return monitor;
-                    break;
-            }
-        }
-        return null;
+        return MonitorHelper.GetMonitorForNub(_nubScreenPos, _anchorEdge, Left, Top, monitors);
     }
 
     private void HideForFullscreen()

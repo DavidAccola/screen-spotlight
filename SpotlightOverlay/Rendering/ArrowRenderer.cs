@@ -72,15 +72,28 @@ public class ArrowRenderer
         double angle = ComputeAngle(start, end);
         var brush = new SolidColorBrush(color);
 
-        // Pull back line endpoints so the shaft stops at the arrowhead base
+        // Pull the entire arrow inward by the cap extension so arrowhead tips
+        // land exactly at the click points (start/end). The cap extension that
+        // previously pushed tips outward now pulls the logical endpoints inward,
+        // and the shaft pullback is measured from those inward points.
+        double leftCapExt = GetCapExtension(leftEnd, lineThickness);
+        double rightCapExt = GetCapExtension(rightEnd, lineThickness);
+        var adjustedStart = new Point(
+            start.X + leftCapExt * Math.Cos(angle),
+            start.Y + leftCapExt * Math.Sin(angle));
+        var adjustedEnd = new Point(
+            end.X - rightCapExt * Math.Cos(angle),
+            end.Y - rightCapExt * Math.Sin(angle));
+
+        // Pull back line endpoints from the adjusted points so the shaft stops at the arrowhead base
         double leftPull = GetPullback(leftEnd, leftSize, lineThickness, lineStyle);
         double rightPull = GetPullback(rightEnd, rightSize, lineThickness, lineStyle);
         var lineStart = new Point(
-            start.X + leftPull * Math.Cos(angle),
-            start.Y + leftPull * Math.Sin(angle));
+            adjustedStart.X + leftPull * Math.Cos(angle),
+            adjustedStart.Y + leftPull * Math.Sin(angle));
         var lineEnd = new Point(
-            end.X - rightPull * Math.Cos(angle),
-            end.Y - rightPull * Math.Sin(angle));
+            adjustedEnd.X - rightPull * Math.Cos(angle),
+            adjustedEnd.Y - rightPull * Math.Sin(angle));
 
         // Shaft line (dashed/dotted applies here only)
         var shaftPath = new Path
@@ -125,15 +138,10 @@ public class ArrowRenderer
             shaftPath.StrokeEndLineCap = PenLineCap.Flat;
         }
 
-        // Offset arrowhead tips outward to compensate for line thickness (per-style)
-        double leftCapExt = GetCapExtension(leftEnd, lineThickness);
-        double rightCapExt = GetCapExtension(rightEnd, lineThickness);
-        var leftTip = new Point(
-            start.X - leftCapExt * Math.Cos(angle),
-            start.Y - leftCapExt * Math.Sin(angle));
-        var rightTip = new Point(
-            end.X + rightCapExt * Math.Cos(angle),
-            end.Y + rightCapExt * Math.Sin(angle));
+        // Arrowhead tips sit at the original click points (start/end).
+        // The cap extension has already been absorbed by pulling the arrow inward.
+        var leftTip = start;
+        var rightTip = end;
 
         // Arrowhead geometries — separate groups for filled vs chevron (different stroke)
         var headGroup = new GeometryGroup();    // filled arrowheads (fixed thin stroke)

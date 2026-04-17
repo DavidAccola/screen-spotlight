@@ -29,6 +29,45 @@ public class SpotlightRenderer
     public IReadOnlyList<Rect> Cutouts => _cutouts.AsReadOnly();
 
     /// <summary>
+    /// Returns true if the given rect would be a nested spotlight (fully contained
+    /// within the union of all existing cutouts).
+    /// </summary>
+    public bool IsNestedCutout(Rect rect)
+    {
+        if (_cutouts.Count == 0) return false;
+        Geometry union = Geometry.Empty;
+        foreach (var c in _cutouts)
+            union = new CombinedGeometry(GeometryCombineMode.Union, union, new RectangleGeometry(c));
+        return !union.IsEmpty() && IsFullyContainedInGeometry(union, rect);
+    }
+
+    /// <summary>
+    /// Returns true if the last cutout is a nested spotlight (fully contained
+    /// within the union of all earlier cutouts). Used to decide whether undo
+    /// needs a cross-fade animation.
+    /// </summary>
+    public bool IsLastCutoutNested()
+    {
+        if (_cutouts.Count < 2) return false;
+        Geometry union = Geometry.Empty;
+        for (int i = 0; i < _cutouts.Count - 1; i++)
+            union = new CombinedGeometry(GeometryCombineMode.Union, union, new RectangleGeometry(_cutouts[i]));
+        return !union.IsEmpty() && IsFullyContainedInGeometry(union, _cutouts[^1]);
+    }
+
+    private static bool IsFullyContainedInGeometry(Geometry geometry, Rect rect)
+    {
+        var topLeft = new Point(rect.Left, rect.Top);
+        var topRight = new Point(rect.Right, rect.Top);
+        var bottomLeft = new Point(rect.Left, rect.Bottom);
+        var bottomRight = new Point(rect.Right, rect.Bottom);
+        return geometry.FillContains(topLeft) &&
+               geometry.FillContains(topRight) &&
+               geometry.FillContains(bottomLeft) &&
+               geometry.FillContains(bottomRight);
+    }
+
+    /// <summary>
     /// Builds a clip geometry using CombinedGeometry.Exclude to cut rectangular holes
     /// out of the full overlay rectangle. Used as fallback when feather radius is 0.
     /// </summary>
@@ -50,7 +89,7 @@ public class SpotlightRenderer
     /// a BlurEffect. Uses a FrameworkElement wrapper so the GPU-accelerated blur
     /// is captured by RenderTargetBitmap (DrawingVisual.Effect alone is not rendered).
     /// </summary>
-    public System.Windows.Media.Brush BuildFeatheredMask(Size overlaySize)
+    public System.Windows.Media.Brush BuildFeatheredMask(Size overlaySize, bool skipNestedEffect = false)
     {
         int featherRadius = _settings.FeatherRadius;
         int fullW = (int)overlaySize.Width;
@@ -85,7 +124,13 @@ public class SpotlightRenderer
                 expanded.Height * scale));
         }
 
-        var element = new MaskElement(scaledCutouts, w, h, _settings.NestedSpotlightMode, scaledFeather)
+        // When skipNestedEffect is true, use Replace mode with no nested detection
+        // to produce a base mask with just the cutouts (no donut darkness)
+        var nestedMode = skipNestedEffect
+            ? Models.NestedSpotlightMode.Replace  // Replace with all cutouts = just base cutouts
+            : _settings.NestedSpotlightMode;
+
+        var element = new MaskElement(scaledCutouts, w, h, nestedMode, scaledFeather, skipNestedEffect)
         {
             Width = w,
             Height = h
@@ -123,6 +168,122 @@ public class SpotlightRenderer
     }
 
     /// <summary>
+    /// Builds a feathered donut brush for animating the nested spotlight transition.
+    /// The donut is the region between the outer cutouts and the inner cutout,
+    /// rendered with the same feathering as the main mask.
+    /// Returns an ImageBrush that can be used as the Fill of a full-screen rectangle.
+    /// The alpha encodes the target darkness (50% for darken mode).
+    /// </summary>
+    public System.Windows.Media.Brush? BuildDonutBrush(Size overlaySize, IReadOnlyList<Rect> outerCutouts, Rect innerCutout)
+    {
+        int featherRadius = _settings.FeatherRadius;
+        int fullW = (int)overlaySize.Width;
+        int fullH = (int)overlaySize.Height;
+
+        const double scale = 0.25;
+        int overscan = featherRadius;
+        int paddedW = (int)((fullW + overscan * 2) * scale);
+        int paddedH = (int)((fullH + overscan * 2) * scale);
+        int w = Math.Max(1, paddedW);
+        int h = Math.Max(1, paddedH);
+        int scaledFeather = Math.Max(1, (int)(featherRadius * scale));
+
+        double expand = featherRadius * 0.5;
+
+        // Scale the outer cutouts
+        var scaledOuter = new List<Rect>(outerCutouts.Count);
+        foreach (var c in outerCutouts)
+        {
+            var expanded = new Rect(c.X - expand, c.Y - expand, c.Width + expand * 2, c.Height + expand * 2);
+            scaledOuter.Add(new Rect(
+                (expanded.X + overscan) * scale, (expanded.Y + overscan) * scale,
+                expanded.Width * scale, expanded.Height * scale));
+        }
+
+        // Scale the inner cutout
+        var innerExpanded = new Rect(
+            innerCutout.X - expand, innerCutout.Y - expand,
+            innerCutout.Width + expand * 2, innerCutout.Height + expand * 2);
+        var scaledInner = new Rect(
+            (innerExpanded.X + overscan) * scale, (innerExpanded.Y + overscan) * scale,
+            innerExpanded.Width * scale, innerExpanded.Height * scale);
+
+        var element = new DonutElement(scaledOuter, scaledInner, w, h, _settings.NestedSpotlightMode)
+        {
+            Width = w,
+            Height = h
+        };
+
+        if (scaledFeather > 0)
+        {
+            element.Effect = new System.Windows.Media.Effects.BlurEffect
+            {
+                Radius = scaledFeather,
+                KernelType = System.Windows.Media.Effects.KernelType.Gaussian,
+                RenderingBias = System.Windows.Media.Effects.RenderingBias.Performance
+            };
+        }
+
+        element.Measure(new Size(w, h));
+        element.Arrange(new Rect(0, 0, w, h));
+
+        var rtb = new System.Windows.Media.Imaging.RenderTargetBitmap(w, h, 96, 96, PixelFormats.Pbgra32);
+        rtb.Render(element);
+
+        double ox = (overscan * scale) / w;
+        double oy = (overscan * scale) / h;
+        double vw = (fullW * scale) / w;
+        double vh = (fullH * scale) / h;
+
+        return new ImageBrush(rtb)
+        {
+            Stretch = Stretch.Fill,
+            ViewboxUnits = BrushMappingMode.RelativeToBoundingBox,
+            Viewbox = new Rect(ox, oy, vw, vh)
+        };
+    }
+
+    /// <summary>
+    /// Renders just the donut region (outer cutouts minus inner cutout) with the
+    /// appropriate darkness level. Used for animating nested spotlight transitions.
+    /// </summary>
+    private class DonutElement : FrameworkElement
+    {
+        private readonly IReadOnlyList<Rect> _outerCutouts;
+        private readonly Rect _innerCutout;
+        private readonly int _w, _h;
+        private readonly Models.NestedSpotlightMode _mode;
+
+        public DonutElement(IReadOnlyList<Rect> outerCutouts, Rect innerCutout, int w, int h, Models.NestedSpotlightMode mode)
+        {
+            _outerCutouts = outerCutouts;
+            _innerCutout = innerCutout;
+            _w = w;
+            _h = h;
+            _mode = mode;
+        }
+
+        protected override void OnRender(DrawingContext dc)
+        {
+            // Build the donut: union of outer cutouts minus the inner cutout
+            Geometry donutGeom = Geometry.Empty;
+            foreach (var outer in _outerCutouts)
+                donutGeom = new CombinedGeometry(GeometryCombineMode.Union, donutGeom, new RectangleGeometry(outer));
+            donutGeom = new CombinedGeometry(GeometryCombineMode.Exclude, donutGeom, new RectangleGeometry(_innerCutout));
+
+            if (donutGeom.IsEmpty()) return;
+
+            // Darken mode: 50% white (semi-transparent darkness in the opacity mask)
+            // Replace mode: full white (complete darkness)
+            var brush = _mode == Models.NestedSpotlightMode.Darken
+                ? new SolidColorBrush(System.Windows.Media.Color.FromArgb(128, 0xFF, 0xFF, 0xFF))
+                : Brushes.White;
+
+            dc.DrawGeometry(brush, null, donutGeom);
+        }
+    }
+
+    /// <summary>
     /// Lightweight FrameworkElement that draws the opacity mask.
     /// Uses CombinedGeometry.Exclude to create a white shape with transparent holes,
     /// so the alpha channel carries the cutout information for OpacityMask.
@@ -134,14 +295,16 @@ public class SpotlightRenderer
         private readonly int _w, _h;
         private readonly Models.NestedSpotlightMode _nestedMode;
         private readonly int _featherRadius;
+        private readonly bool _skipNestedEffect;
 
-        public MaskElement(IReadOnlyList<Rect> cutouts, int w, int h, Models.NestedSpotlightMode nestedMode, int featherRadius)
+        public MaskElement(IReadOnlyList<Rect> cutouts, int w, int h, Models.NestedSpotlightMode nestedMode, int featherRadius, bool skipNestedEffect = false)
         {
             _cutouts = cutouts;
             _w = w;
             _h = h;
             _nestedMode = nestedMode;
             _featherRadius = featherRadius;
+            _skipNestedEffect = skipNestedEffect;
         }
 
         protected override void OnRender(DrawingContext dc)
@@ -160,11 +323,11 @@ public class SpotlightRenderer
             DebugLog.Write($"[MaskElement] Step 1: Drew base mask with {_cutouts.Count} cutouts excluded");
 
             // Step 2: Handle nested spotlights based on mode
-            if (_nestedMode == Models.NestedSpotlightMode.Darken)
+            if (!_skipNestedEffect && _nestedMode == Models.NestedSpotlightMode.Darken)
             {
                 RenderDarkenMode(dc);
             }
-            else // Replace mode
+            else if (!_skipNestedEffect) // Replace mode
             {
                 RenderReplaceMode(dc);
             }
