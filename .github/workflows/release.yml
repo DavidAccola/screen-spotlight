@@ -37,7 +37,7 @@ jobs:
           (Get-Content installer.iss) -replace '#define MyAppVersion ".*"', "#define MyAppVersion ""$version""" | Set-Content installer.iss
 
       - name: Publish .NET Project
-        run: dotnet publish SpotlightOverlay\SpotlightOverlay.csproj -c Release
+        run: dotnet publish SpotlightOverlay\SpotlightOverlay.csproj -c Release -p:Version=${{ steps.get_version.outputs.version }}
 
       - name: Create Portable ZIP
         shell: powershell

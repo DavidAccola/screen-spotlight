@@ -67,21 +67,6 @@ public partial class FlyoutNotification : Window
         return MonitorHelper.GetDpiScale(new System.Windows.Point(pt.x, pt.y));
     }
 
-    /// <summary>
-    /// Applies a clip rectangle so the flyout is never visible outside its target monitor.
-    /// The clip is in window-local coordinates.
-    /// </summary>
-    private void ApplyMonitorClip()
-    {
-        // Clip region in window-local coordinates: the intersection of the flyout
-        // with the monitor work area, translated to (0,0)-based window coords.
-        double clipLeft = Math.Max(0, _monitorWorkArea.Left - Left);
-        double clipTop = 0;
-        double clipRight = Math.Min(ActualWidth, _monitorWorkArea.Right - Left);
-        double clipBottom = ActualHeight;
-        Clip = new RectangleGeometry(new Rect(clipLeft, clipTop, Math.Max(0, clipRight - clipLeft), clipBottom));
-    }
-
     public static void Show(string message, int displayMs = 2500)
     {
         // Dismiss any existing flyout immediately
@@ -95,37 +80,27 @@ public partial class FlyoutNotification : Window
         var flyout = new FlyoutNotification();
         flyout.MessageText.Text = message;
         flyout.Width = MeasureText(message);
+        flyout.Opacity = 0;
         _current = flyout;
 
         // Use the monitor the cursor is on
         var workArea = GetCursorMonitorWorkArea();
         flyout._monitorWorkArea = workArea;
         flyout.Top = workArea.Top + 16;
-        flyout.Left = workArea.Right; // start off-screen right of this monitor
+        flyout.Left = workArea.Right - flyout.Width;
 
         flyout.Show();
-        flyout.UpdateLayout();
-        flyout.ApplyMonitorClip();
 
-        // Slide in from the right edge of the current monitor
-        var slideIn = new DoubleAnimation
+        // Fade in (avoids cross-monitor bleed that slide animations cause)
+        var fadeIn = new DoubleAnimation
         {
-            From = workArea.Right,
-            To = workArea.Right - flyout.ActualWidth,
-            Duration = new Duration(TimeSpan.FromMilliseconds(250)),
+            From = 0, To = 1,
+            Duration = new Duration(TimeSpan.FromMilliseconds(200)),
             EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut }
         };
 
-        // Update clip as the window slides so it stays hidden outside the monitor
-        EventHandler renderHandler = null!;
-        renderHandler = (_, _) => flyout.ApplyMonitorClip();
-        CompositionTarget.Rendering += renderHandler;
-
-        slideIn.Completed += (_, _) =>
+        fadeIn.Completed += (_, _) =>
         {
-            CompositionTarget.Rendering -= renderHandler;
-            flyout.Clip = null; // fully visible now, no clip needed
-
             // Auto-dismiss after delay
             flyout._dismissTimer = new DispatcherTimer
             {
@@ -139,33 +114,28 @@ public partial class FlyoutNotification : Window
             flyout._dismissTimer.Start();
         };
 
-        flyout.BeginAnimation(LeftProperty, slideIn);
+        flyout.BeginAnimation(OpacityProperty, fadeIn);
     }
 
     private void SlideOut()
     {
         var workArea = _monitorWorkArea;
 
-        // Re-apply clip during slide-out so the flyout doesn't bleed onto adjacent monitors
-        EventHandler renderHandler = null!;
-        renderHandler = (_, _) => ApplyMonitorClip();
-        CompositionTarget.Rendering += renderHandler;
-
-        var slideOut = new DoubleAnimation
+        // Fade out instead of sliding to avoid bleeding onto adjacent monitors
+        var fadeOut = new DoubleAnimation
         {
-            To = workArea.Right,
+            To = 0,
             Duration = new Duration(TimeSpan.FromMilliseconds(200)),
             EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseIn }
         };
 
-        slideOut.Completed += (_, _) =>
+        fadeOut.Completed += (_, _) =>
         {
-            CompositionTarget.Rendering -= renderHandler;
             if (_current == this) _current = null;
             Close();
         };
 
-        BeginAnimation(LeftProperty, slideOut);
+        BeginAnimation(OpacityProperty, fadeOut);
     }
 
     /// <summary>
