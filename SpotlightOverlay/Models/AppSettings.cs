@@ -28,6 +28,8 @@ public record AppSettings(
     string CustomColors = "",
     ModifierKey ToggleToolModifier = ModifierKey.CtrlShift,
     int ToggleToolKey = 0x02, // VK_RBUTTON (right click = non-dominant by default)
+    ModifierKey PrevToolModifier = ModifierKey.None,
+    int PrevToolKey = 0x00,
     FadeMode FadeMode = FadeMode.AfterSpotlight,
     string BoxColor = "00A651",
     double BoxLineThickness = 3.0,

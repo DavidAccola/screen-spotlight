@@ -91,6 +91,7 @@ public class GlobalInputHook : IDisposable
     public event EventHandler? DismissRequested;
     public event EventHandler? ToggleRequested;
     public event EventHandler? ToggleToolRequested;
+    public event EventHandler? PrevToolRequested;
     #endregion
 
     public bool IsEnabled { get; set; }
@@ -116,6 +117,8 @@ public class GlobalInputHook : IDisposable
     public int ToggleKey { get; set; } = 0x51; // VK_Q
     public ModifierKey ToggleToolModifier { get; set; } = ModifierKey.CtrlShift;
     public int ToggleToolKey { get; set; } = 0x02; // VK_RBUTTON
+    public ModifierKey PrevToolModifier { get; set; } = ModifierKey.None;
+    public int PrevToolKey { get; set; } = 0x00;
     public bool IsRecordingHotkey { get; set; }
     public Action<string>? OnError { get; set; }
 
@@ -239,6 +242,32 @@ public class GlobalInputHook : IDisposable
         int expectedDown = MouseVkToDownMsg(ToggleToolKey);
         if (msg != expectedDown) return false;
         return IsXButtonMatch(ToggleToolKey, mouseData);
+    }
+
+    /// <summary>Checks if the prev-tool modifier key(s) are currently held.</summary>
+    private bool IsPrevToolModifierHeld()
+    {
+        return PrevToolModifier switch
+        {
+            ModifierKey.Ctrl => (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0,
+            ModifierKey.Alt => (GetAsyncKeyState(VK_MENU) & 0x8000) != 0,
+            ModifierKey.Shift => (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0,
+            ModifierKey.CtrlShift => (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0
+                                  && (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0,
+            ModifierKey.CtrlAlt => (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0
+                                 && (GetAsyncKeyState(VK_MENU) & 0x8000) != 0,
+            ModifierKey.None => true,
+            _ => (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0
+        };
+    }
+
+    /// <summary>Checks if the given WM message + mouseData matches the configured prev-tool mouse button.</summary>
+    private bool IsPrevToolMouseButtonMsg(int msg, uint mouseData)
+    {
+        if (!IsMouseButtonVk(PrevToolKey)) return false;
+        int expectedDown = MouseVkToDownMsg(PrevToolKey);
+        if (msg != expectedDown) return false;
+        return IsXButtonMatch(PrevToolKey, mouseData);
     }
 
     /// <summary>Returns true if the VK code is a configurable mouse button (middle, X1, X2). Left/right are not configurable.</summary>
@@ -381,6 +410,20 @@ public class GlobalInputHook : IDisposable
                 if (wasInProgress)
                     DragCancelled?.Invoke(this, EventArgs.Empty);
                 ToggleToolRequested?.Invoke(this, EventArgs.Empty);
+                return (IntPtr)1;
+            }
+
+            // Prev tool via mouse button (skip if not configured)
+            if (!IsRecordingHotkey && PrevToolKey != 0 && IsMouseButtonVk(PrevToolKey)
+                && IsPrevToolMouseButtonMsg(msg, hs.mouseData) && IsPrevToolModifierHeld())
+            {
+                bool wasInProgress = _isDragging || _isClickClickActive;
+                _isDragging = false;
+                _isClickClickActive = false;
+                _hasPendingDrags = false;
+                if (wasInProgress)
+                    DragCancelled?.Invoke(this, EventArgs.Empty);
+                PrevToolRequested?.Invoke(this, EventArgs.Empty);
                 return (IntPtr)1;
             }
         }
@@ -675,6 +718,14 @@ public class GlobalInputHook : IDisposable
                 && hs.vkCode == (uint)ToggleToolKey && IsToggleToolModifierHeld())
             {
                 ToggleToolRequested?.Invoke(this, EventArgs.Empty);
+                return (IntPtr)1;
+            }
+
+            // Prev tool hotkey — skip if not configured (PrevToolKey == 0) or is a mouse button
+            if (isKeyDown && !IsRecordingHotkey && PrevToolKey != 0 && !IsMouseButtonVk(PrevToolKey)
+                && hs.vkCode == (uint)PrevToolKey && IsPrevToolModifierHeld())
+            {
+                PrevToolRequested?.Invoke(this, EventArgs.Empty);
                 return (IntPtr)1;
             }
         }

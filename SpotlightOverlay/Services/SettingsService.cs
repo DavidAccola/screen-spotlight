@@ -17,6 +17,8 @@ public class SettingsService
     private const int DefaultToggleKey = 0x51; // VK_Q
     private const ModifierKey DefaultToggleToolModifier = ModifierKey.CtrlShift;
     private const int DefaultToggleToolKey = 0x20; // VK_SPACE
+    private const ModifierKey DefaultPrevToolModifier = ModifierKey.None;
+    private const int DefaultPrevToolKey = 0x00;
     private const FadeMode DefaultFadeMode = FadeMode.AfterSpotlight;
 
     [System.Runtime.InteropServices.DllImport("user32.dll")]
@@ -75,6 +77,8 @@ public class SettingsService
     public int ToggleKey { get; set; } = DefaultToggleKey;
     public ModifierKey ToggleToolModifier { get; set; } = DefaultToggleToolModifier;
     public int ToggleToolKey { get; set; } = DefaultToggleToolKey;
+    public ModifierKey PrevToolModifier { get; set; } = DefaultPrevToolModifier;
+    public int PrevToolKey { get; set; } = DefaultPrevToolKey;
     public FadeMode FadeMode { get; set; } = DefaultFadeMode;
     public bool CumulativeSpotlights { get; set; } = DefaultCumulativeSpotlights;    public AnchorEdge ToolbarAnchorEdge { get; set; } = DefaultToolbarAnchorEdge;
     public bool FlyoutToolbarVisible { get; set; } = DefaultFlyoutToolbarVisible;
@@ -139,6 +143,8 @@ public class SettingsService
         ToggleKey = DefaultToggleKey;
         ToggleToolModifier = DefaultToggleToolModifier;
         ToggleToolKey = DefaultToggleToolKey;
+        PrevToolModifier = DefaultPrevToolModifier;
+        PrevToolKey = DefaultPrevToolKey;
         Save();
     }
 
@@ -208,6 +214,8 @@ public class SettingsService
         ToggleKey = DefaultToggleKey;
         ToggleToolModifier = DefaultToggleToolModifier;
         ToggleToolKey = DefaultToggleToolKey;
+        PrevToolModifier = DefaultPrevToolModifier;
+        PrevToolKey = DefaultPrevToolKey;
         FadeMode = DefaultFadeMode;
         CumulativeSpotlights = DefaultCumulativeSpotlights;
         ToolbarAnchorEdge = DefaultToolbarAnchorEdge;
@@ -271,6 +279,8 @@ public class SettingsService
         ToggleKey = v.ToggleKey;
         ToggleToolModifier = v.ToggleToolModifier;
         ToggleToolKey = v.ToggleToolKey;
+        PrevToolModifier = v.PrevToolModifier;
+        PrevToolKey = v.PrevToolKey;
         FadeMode = v.FadeMode;
         CumulativeSpotlights = v.CumulativeSpotlights;
         ToolbarAnchorEdge = v.ToolbarAnchorEdge;
@@ -312,14 +322,14 @@ public class SettingsService
 
     public void Save()
     {
-        var json = Serialize(new AppSettings(OverlayOpacity, FeatherRadius, PreviewStyle, DragStyle, FreezeScreen, ActivationModifier, ActivationKey, ToggleModifier, ToggleKey, CumulativeSpotlights, ToolbarAnchorEdge, FlyoutToolbarVisible, ArrowheadStyle, ArrowEndStyle, ArrowLineStyle, ArrowColor, ArrowLeftEndSize, ArrowLineThickness, ArrowRightEndSize, SyncArrowEndStyle, SyncArrowEndSize, CustomColors, ToggleToolModifier, ToggleToolKey, FadeMode, BoxColor, BoxLineThickness, HighlightColor, HighlightOpacity, StepsFontFamily, StepsFontSize, StepsShape, StepsOutlineEnabled, StepsSize, StepsFillColor, StepsOutlineColor, StepsFontBold, StepsFontColor, NubFraction, NubAnchorEdge, NubMonitorFingerprint, ShowToolNameOnSwitch, ShowToolIconOnSwitch, StepsTailDirection, EscBehavior, NestedSpotlightMode, ToolOrder));
+        var json = Serialize(new AppSettings(OverlayOpacity, FeatherRadius, PreviewStyle, DragStyle, FreezeScreen, ActivationModifier, ActivationKey, ToggleModifier, ToggleKey, CumulativeSpotlights, ToolbarAnchorEdge, FlyoutToolbarVisible, ArrowheadStyle, ArrowEndStyle, ArrowLineStyle, ArrowColor, ArrowLeftEndSize, ArrowLineThickness, ArrowRightEndSize, SyncArrowEndStyle, SyncArrowEndSize, CustomColors, ToggleToolModifier, ToggleToolKey, PrevToolModifier, PrevToolKey, FadeMode, BoxColor, BoxLineThickness, HighlightColor, HighlightOpacity, StepsFontFamily, StepsFontSize, StepsShape, StepsOutlineEnabled, StepsSize, StepsFillColor, StepsOutlineColor, StepsFontBold, StepsFontColor, NubFraction, NubAnchorEdge, NubMonitorFingerprint, ShowToolNameOnSwitch, ShowToolIconOnSwitch, StepsTailDirection, EscBehavior, NestedSpotlightMode, ToolOrder));
         File.WriteAllText(_settingsFilePath, json);
         SettingsChanged?.Invoke(this, EventArgs.Empty);
     }
 
     public static AppSettings Deserialize(string json) =>
         JsonSerializer.Deserialize<AppSettings>(json)
-        ?? new AppSettings(DefaultOverlayOpacity, DefaultFeatherRadius, DefaultPreviewStyle, DefaultDragStyle, DefaultFreezeScreen, DefaultActivationModifier, DefaultActivationKey, DefaultToggleModifier, DefaultToggleKey, DefaultCumulativeSpotlights, DefaultToolbarAnchorEdge, DefaultFlyoutToolbarVisible, DefaultArrowheadStyle, DefaultArrowEndStyle, DefaultArrowLineStyle, DefaultArrowColor, DefaultArrowLeftEndSize, DefaultArrowLineThickness, DefaultArrowRightEndSize, DefaultSyncArrowEndStyle, DefaultSyncArrowEndSize, DefaultCustomColors, DefaultToggleToolModifier, DefaultToggleToolKey, DefaultFadeMode, DefaultBoxColor, DefaultBoxLineThickness, DefaultHighlightColor, DefaultHighlightOpacity, DefaultStepsFontFamily, DefaultStepsFontSize, DefaultStepsShape, DefaultStepsOutlineEnabled, DefaultStepsSize, DefaultStepsFillColor, DefaultStepsOutlineColor, DefaultStepsFontBold, DefaultStepsFontColor, null, DefaultNubAnchorEdge, DefaultNubMonitorFingerprint, DefaultShowToolNameOnSwitch, DefaultShowToolIconOnSwitch, DefaultStepsTailDirection, DefaultEscBehavior, DefaultNestedSpotlightMode, DefaultToolOrder);
+        ?? new AppSettings(DefaultOverlayOpacity, DefaultFeatherRadius, DefaultPreviewStyle, DefaultDragStyle, DefaultFreezeScreen, DefaultActivationModifier, DefaultActivationKey, DefaultToggleModifier, DefaultToggleKey, DefaultCumulativeSpotlights, DefaultToolbarAnchorEdge, DefaultFlyoutToolbarVisible, DefaultArrowheadStyle, DefaultArrowEndStyle, DefaultArrowLineStyle, DefaultArrowColor, DefaultArrowLeftEndSize, DefaultArrowLineThickness, DefaultArrowRightEndSize, DefaultSyncArrowEndStyle, DefaultSyncArrowEndSize, DefaultCustomColors, DefaultToggleToolModifier, DefaultToggleToolKey, DefaultPrevToolModifier, DefaultPrevToolKey, DefaultFadeMode, DefaultBoxColor, DefaultBoxLineThickness, DefaultHighlightColor, DefaultHighlightOpacity, DefaultStepsFontFamily, DefaultStepsFontSize, DefaultStepsShape, DefaultStepsOutlineEnabled, DefaultStepsSize, DefaultStepsFillColor, DefaultStepsOutlineColor, DefaultStepsFontBold, DefaultStepsFontColor, null, DefaultNubAnchorEdge, DefaultNubMonitorFingerprint, DefaultShowToolNameOnSwitch, DefaultShowToolIconOnSwitch, DefaultStepsTailDirection, DefaultEscBehavior, DefaultNestedSpotlightMode, DefaultToolOrder);
 
     public static string Serialize(AppSettings settings) =>
         JsonSerializer.Serialize(settings);
@@ -345,6 +355,8 @@ public class SettingsService
         var rightSize = Math.Clamp(s.ArrowRightEndSize, 8, 60);
         var toggleToolMod = Enum.IsDefined(s.ToggleToolModifier) ? s.ToggleToolModifier : DefaultToggleToolModifier;
         var toggleToolKey = s.ToggleToolKey is >= 0x01 and <= 0xFE ? s.ToggleToolKey : DefaultToggleToolKey;
+        var prevToolMod = Enum.IsDefined(s.PrevToolModifier) ? s.PrevToolModifier : DefaultPrevToolModifier;
+        var prevToolKey = s.PrevToolKey is >= 0x00 and <= 0xFE ? s.PrevToolKey : DefaultPrevToolKey;
         var fadeMode = Enum.IsDefined(s.FadeMode) ? s.FadeMode : DefaultFadeMode;
         var boxColor = IsValidHexColor(s.BoxColor) ? s.BoxColor.ToUpperInvariant() : DefaultBoxColor;
         var boxLineThick = (double.IsNaN(s.BoxLineThickness) || double.IsInfinity(s.BoxLineThickness))
@@ -367,7 +379,7 @@ public class SettingsService
         var stepsTailDirection = Enum.IsDefined(s.StepsTailDirection) ? s.StepsTailDirection : DefaultStepsTailDirection;
         var escBehavior = Enum.IsDefined(s.EscBehavior) ? s.EscBehavior : DefaultEscBehavior;
         var toolOrder = ValidateToolOrder(s.ToolOrder);
-        return new AppSettings(opacity, radius, preview, drag, s.FreezeScreen, modifier, activationKey, toggleMod, toggleKey, s.CumulativeSpotlights, anchorEdge, s.FlyoutToolbarVisible, arrowheadStyle, arrowEndStyle, arrowLineStyle, arrowColor, leftSize, lineThick, rightSize, s.SyncArrowEndStyle, s.SyncArrowEndSize, s.CustomColors ?? DefaultCustomColors, toggleToolMod, toggleToolKey, fadeMode, boxColor, boxLineThick, highlightColor, highlightOpacity, stepsFontFamily, stepsFontSize, stepsShape, s.StepsOutlineEnabled, stepsSize, stepsFillColor, stepsOutlineColor, s.StepsFontBold, stepsFontColor, nubFraction, nubAnchorEdge, nubMonitorFingerprint, s.ShowToolNameOnSwitch, s.ShowToolIconOnSwitch, stepsTailDirection, escBehavior, s.NestedSpotlightMode, toolOrder);
+        return new AppSettings(opacity, radius, preview, drag, s.FreezeScreen, modifier, activationKey, toggleMod, toggleKey, s.CumulativeSpotlights, anchorEdge, s.FlyoutToolbarVisible, arrowheadStyle, arrowEndStyle, arrowLineStyle, arrowColor, leftSize, lineThick, rightSize, s.SyncArrowEndStyle, s.SyncArrowEndSize, s.CustomColors ?? DefaultCustomColors, toggleToolMod, toggleToolKey, prevToolMod, prevToolKey, fadeMode, boxColor, boxLineThick, highlightColor, highlightOpacity, stepsFontFamily, stepsFontSize, stepsShape, s.StepsOutlineEnabled, stepsSize, stepsFillColor, stepsOutlineColor, s.StepsFontBold, stepsFontColor, nubFraction, nubAnchorEdge, nubMonitorFingerprint, s.ShowToolNameOnSwitch, s.ShowToolIconOnSwitch, stepsTailDirection, escBehavior, s.NestedSpotlightMode, toolOrder);
     }
 
     public void ResetToolbarSettings()

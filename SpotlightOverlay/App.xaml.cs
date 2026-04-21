@@ -90,6 +90,8 @@ public partial class App : Application
         _inputHook.ToggleKey = _settings.ToggleKey;
         _inputHook.ToggleToolModifier = _settings.ToggleToolModifier;
         _inputHook.ToggleToolKey = _settings.ToggleToolKey;
+        _inputHook.PrevToolModifier = _settings.PrevToolModifier;
+        _inputHook.PrevToolKey = _settings.PrevToolKey;
         _trayIcon.SetEnabled(true);
         DebugLog.Write($"[App] Startup complete. Hook IsEnabled: {_inputHook.IsEnabled}");
 
@@ -109,6 +111,7 @@ public partial class App : Application
         _inputHook.CtrlPressed += OnCtrlPressed;
         _inputHook.ToggleRequested += OnToggleSpotlight;
         _inputHook.ToggleToolRequested += OnToggleTool;
+        _inputHook.PrevToolRequested += OnPrevTool;
         _inputHook.ArrowDragUpdated += OnArrowDragUpdated;
         _inputHook.ArrowDragCompleted += OnArrowDragCompleted;
         _inputHook.BoxDragUpdated += OnBoxDragUpdated;
@@ -130,6 +133,8 @@ public partial class App : Application
             _inputHook.ToggleKey = _settings.ToggleKey;
             _inputHook.ToggleToolModifier = _settings.ToggleToolModifier;
             _inputHook.ToggleToolKey = _settings.ToggleToolKey;
+            _inputHook.PrevToolModifier = _settings.PrevToolModifier;
+            _inputHook.PrevToolKey = _settings.PrevToolKey;
             _inputHook.StepsShape = _settings.StepsShape;
             _trayIcon.SetToolbarVisible(_settings.FlyoutToolbarVisible);
         };
@@ -178,6 +183,13 @@ public partial class App : Application
     {
         _inputHook.IsEnabled = !_inputHook.IsEnabled;
         _trayIcon.SetEnabled(_inputHook.IsEnabled);
+
+        // Hide toolbar when disabled, restore when re-enabled (if setting is on)
+        if (!_inputHook.IsEnabled)
+            _flyoutToolbar?.HideToolbar();
+        else if (_settings.FlyoutToolbarVisible)
+            _flyoutToolbar?.ShowToolbar();
+
         FlyoutNotification.Show(_inputHook.IsEnabled
             ? "Screen Spotlight enabled"
             : "Screen Spotlight disabled");
@@ -288,6 +300,30 @@ public partial class App : Application
             _flyoutToolbar.SetActiveToolExternal(next);
             _inputHook.ActiveTool = next;
             DebugLog.Write($"[App] ToggleTool: switched to {next}");
+            if (_inputHook.IsDragInProgress)
+            {
+                HideAllPreviews();
+                _inputHook.RefreshDragPreview();
+            }
+            FlyoutNotification.ShowToolSwitch(
+                    next, _settings.ShowToolIconOnSwitch, _settings.ShowToolNameOnSwitch);
+        });
+    }
+
+    /// <summary>
+    /// Cycle to the previous tool in toolbar order (... ← Arrow ← Spotlight).
+    /// </summary>
+    private void OnPrevTool(object? sender, EventArgs e)
+    {
+        Dispatcher.BeginInvoke(() =>
+        {
+            if (_flyoutToolbar == null) return;
+            var allTools = SettingsService.ParseToolOrder(_settings.ToolOrder).ToArray();
+            int current = Array.IndexOf(allTools, _flyoutToolbar.ActiveTool);
+            var next = allTools[(current - 1 + allTools.Length) % allTools.Length];
+            _flyoutToolbar.SetActiveToolExternal(next);
+            _inputHook.ActiveTool = next;
+            DebugLog.Write($"[App] PrevTool: switched to {next}");
             if (_inputHook.IsDragInProgress)
             {
                 HideAllPreviews();

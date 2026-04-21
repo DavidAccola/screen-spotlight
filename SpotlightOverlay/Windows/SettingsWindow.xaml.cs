@@ -110,6 +110,7 @@ public partial class SettingsWindow : Window
         UpdateHotkeyDisplay();
         UpdateToggleHotkeyDisplay();
         UpdateToggleToolHotkeyDisplay();
+        UpdatePrevToolHotkeyDisplay();
         UpdateDragStyleLabels();
 
         BoxSizeSlider.Value = _settings.BoxLineThickness;
@@ -457,12 +458,12 @@ public partial class SettingsWindow : Window
 
         if (isMouseBtn)
         {
-            DragStyleHold.Content = $"{prefix} + Hold and Drag";
+            DragStyleHold.Content = $"{prefix} + Click and Drag";
             DragStyleClick.Content = $"{prefix} & Click Again";
         }
         else
         {
-            DragStyleHold.Content = $"{prefix} + Hold and Drag";
+            DragStyleHold.Content = $"{prefix} + Click and Drag";
             DragStyleClick.Content = $"{prefix} + Click & Click Again";
         }
     }
@@ -1058,6 +1059,7 @@ public partial class SettingsWindow : Window
         UpdateHotkeyDisplay();
         UpdateToggleHotkeyDisplay();
         UpdateToggleToolHotkeyDisplay();
+        UpdatePrevToolHotkeyDisplay();
         UpdateDragStyleLabels();
     }
 
@@ -1470,6 +1472,13 @@ public partial class SettingsWindow : Window
             ToggleToolHotkeyHint.Visibility = System.Windows.Visibility.Visible;
             return;
         }
+        if (mod == _settings.PrevToolModifier && vk == _settings.PrevToolKey && _settings.PrevToolKey != 0)
+        {
+            ToggleToolHotkeyHint.Text = "⚠ Same as Previous tool hotkey — pick a different combo";
+            ToggleToolHotkeyHint.Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xA8, 0x38));
+            ToggleToolHotkeyHint.Visibility = System.Windows.Visibility.Visible;
+            return;
+        }
 
         StopRecordingToggleTool();
         _settings.ToggleToolModifier = mod;
@@ -1530,12 +1539,185 @@ public partial class SettingsWindow : Window
             ToggleToolHotkeyHint.Visibility = System.Windows.Visibility.Visible;
             return;
         }
+        if (mod.Value == _settings.PrevToolModifier && vk == _settings.PrevToolKey && _settings.PrevToolKey != 0)
+        {
+            ToggleToolHotkeyHint.Text = "⚠ Same as Previous tool hotkey — pick a different combo";
+            ToggleToolHotkeyHint.Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xA8, 0x38));
+            ToggleToolHotkeyHint.Visibility = System.Windows.Visibility.Visible;
+            return;
+        }
 
         StopRecordingToggleTool();
         _settings.ToggleToolModifier = mod.Value;
         _settings.ToggleToolKey = vk;
         _settings.Save();
         UpdateToggleToolHotkeyDisplay();
+    }
+
+    // ── Previous Tool hotkey recorder ──────────────────────────────
+
+    private bool _isRecordingPrevToolHotkey;
+    private Models.ModifierKey? _pendingPrevToolMod;
+
+    private void UpdatePrevToolHotkeyDisplay()
+    {
+        if (_settings.PrevToolKey == 0)
+        {
+            PrevToolHotkeyDisplay.Text = "Not set";
+            PrevToolHotkeyHint.Text = "Cycle to the previous tool";
+            PrevToolHotkeyHint.Foreground = (System.Windows.Media.Brush)FindResource("TextSecondary");
+            PrevToolHotkeyHint.Visibility = System.Windows.Visibility.Visible;
+            PrevToolHotkeyBorder.BorderBrush = (System.Windows.Media.Brush)FindResource("CardBorder");
+            return;
+        }
+        var parts = new System.Collections.Generic.List<string>();
+        var modDisplay = ModifierDisplayName(_settings.PrevToolModifier);
+        if (!string.IsNullOrEmpty(modDisplay)) parts.Add(modDisplay);
+        parts.Add(VkDisplayName(_settings.PrevToolKey));
+        PrevToolHotkeyDisplay.Text = string.Join(" + ", parts);
+        PrevToolHotkeyHint.Text = "Cycle to the previous tool";
+        PrevToolHotkeyHint.Foreground = (System.Windows.Media.Brush)FindResource("TextSecondary");
+        PrevToolHotkeyHint.Visibility = System.Windows.Visibility.Visible;
+        PrevToolHotkeyBorder.BorderBrush = (System.Windows.Media.Brush)FindResource("CardBorder");
+    }
+
+    private void PrevToolHotkeyRecorder_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        if (_isRecordingPrevToolHotkey) return;
+        _isRecordingPrevToolHotkey = true;
+        _pendingPrevToolMod = null;
+        if (_inputHook != null) _inputHook.IsRecordingHotkey = true;
+        PrevToolHotkeyDisplay.Text = "Press modifier(s) + key, or a mouse button...";
+        PrevToolHotkeyHint.Text = "e.g. Ctrl+Shift+Right Click, or Mouse 4";
+        PrevToolHotkeyHint.Foreground = (System.Windows.Media.Brush)FindResource("TextSecondary");
+        PrevToolHotkeyHint.Visibility = System.Windows.Visibility.Visible;
+        PrevToolHotkeyBorder.BorderBrush = (System.Windows.Media.Brush)FindResource("Accent");
+        PreviewKeyDown += PrevToolHotkeyRecorder_PreviewKeyDown;
+        PreviewMouseDown += PrevToolHotkeyRecorder_PreviewMouseDown;
+        PrevToolHotkeyBorder.Focusable = true;
+        System.Windows.Input.Keyboard.Focus(PrevToolHotkeyBorder);
+    }
+
+    private void StopRecordingPrevTool()
+    {
+        _isRecordingPrevToolHotkey = false;
+        _pendingPrevToolMod = null;
+        if (_inputHook != null) _inputHook.IsRecordingHotkey = false;
+        PreviewKeyDown -= PrevToolHotkeyRecorder_PreviewKeyDown;
+        PreviewMouseDown -= PrevToolHotkeyRecorder_PreviewMouseDown;
+    }
+
+    private void PrevToolHotkeyRecorder_PreviewMouseDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        int vk = e.ChangedButton switch
+        {
+            System.Windows.Input.MouseButton.Left => 0x01,
+            System.Windows.Input.MouseButton.Right => 0x02,
+            System.Windows.Input.MouseButton.Middle => 0x04,
+            System.Windows.Input.MouseButton.XButton1 => 0x05,
+            System.Windows.Input.MouseButton.XButton2 => 0x06,
+            _ => 0
+        };
+        if (vk == 0) return;
+
+        e.Handled = true;
+        var mod = ReadPhysicalModifiers() ?? _pendingPrevToolMod ?? Models.ModifierKey.None;
+
+        // Check conflict with activation, toggle, and toggle-tool
+        if (mod == _settings.ActivationModifier && vk == _settings.ActivationKey)
+        {
+            PrevToolHotkeyHint.Text = "⚠ Same as Activation hotkey — pick a different combo";
+            PrevToolHotkeyHint.Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xA8, 0x38));
+            PrevToolHotkeyHint.Visibility = System.Windows.Visibility.Visible;
+            return;
+        }
+        if (mod == _settings.ToggleModifier && vk == _settings.ToggleKey)
+        {
+            PrevToolHotkeyHint.Text = "⚠ Same as Pause app hotkey — pick a different combo";
+            PrevToolHotkeyHint.Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xA8, 0x38));
+            PrevToolHotkeyHint.Visibility = System.Windows.Visibility.Visible;
+            return;
+        }
+        if (mod == _settings.ToggleToolModifier && vk == _settings.ToggleToolKey)
+        {
+            PrevToolHotkeyHint.Text = "⚠ Same as Next tool hotkey — pick a different combo";
+            PrevToolHotkeyHint.Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xA8, 0x38));
+            PrevToolHotkeyHint.Visibility = System.Windows.Visibility.Visible;
+            return;
+        }
+
+        StopRecordingPrevTool();
+        _settings.PrevToolModifier = mod;
+        _settings.PrevToolKey = vk;
+        _settings.Save();
+        UpdatePrevToolHotkeyDisplay();
+    }
+
+    private void PrevToolHotkeyRecorder_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        var key = e.Key == System.Windows.Input.Key.System ? e.SystemKey : e.Key;
+        e.Handled = true;
+
+        if (key == System.Windows.Input.Key.Escape)
+        {
+            StopRecordingPrevTool();
+            UpdatePrevToolHotkeyDisplay();
+            return;
+        }
+
+        bool isModifier = key is System.Windows.Input.Key.LeftCtrl or System.Windows.Input.Key.RightCtrl
+            or System.Windows.Input.Key.LeftAlt or System.Windows.Input.Key.RightAlt
+            or System.Windows.Input.Key.LeftShift or System.Windows.Input.Key.RightShift;
+
+        Models.ModifierKey? currentMod = ReadPhysicalModifiers();
+
+        if (isModifier)
+        {
+            _pendingPrevToolMod = currentMod;
+            if (currentMod != null)
+                PrevToolHotkeyDisplay.Text = ModifierDisplayName(currentMod.Value) + " + ...";
+            return;
+        }
+
+        var mod = currentMod ?? _pendingPrevToolMod;
+        if (mod == null)
+        {
+            PrevToolHotkeyHint.Text = "⚠ Must include at least one modifier (Ctrl, Alt, Shift)";
+            PrevToolHotkeyHint.Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xA8, 0x38));
+            PrevToolHotkeyHint.Visibility = System.Windows.Visibility.Visible;
+            return;
+        }
+
+        int vk = System.Windows.Input.KeyInterop.VirtualKeyFromKey(key);
+        if (vk == 0) return;
+
+        if (mod.Value == _settings.ActivationModifier && vk == _settings.ActivationKey)
+        {
+            PrevToolHotkeyHint.Text = "⚠ Same as Activation hotkey — pick a different combo";
+            PrevToolHotkeyHint.Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xA8, 0x38));
+            PrevToolHotkeyHint.Visibility = System.Windows.Visibility.Visible;
+            return;
+        }
+        if (mod.Value == _settings.ToggleModifier && vk == _settings.ToggleKey)
+        {
+            PrevToolHotkeyHint.Text = "⚠ Same as Pause app hotkey — pick a different combo";
+            PrevToolHotkeyHint.Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xA8, 0x38));
+            PrevToolHotkeyHint.Visibility = System.Windows.Visibility.Visible;
+            return;
+        }
+        if (mod.Value == _settings.ToggleToolModifier && vk == _settings.ToggleToolKey)
+        {
+            PrevToolHotkeyHint.Text = "⚠ Same as Next tool hotkey — pick a different combo";
+            PrevToolHotkeyHint.Foreground = new SolidColorBrush(Color.FromRgb(0xE8, 0xA8, 0x38));
+            PrevToolHotkeyHint.Visibility = System.Windows.Visibility.Visible;
+            return;
+        }
+
+        StopRecordingPrevTool();
+        _settings.PrevToolModifier = mod.Value;
+        _settings.PrevToolKey = vk;
+        _settings.Save();
+        UpdatePrevToolHotkeyDisplay();
     }
 
     private void ToggleHotkeyRecorder_PreviewMouseDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
@@ -2966,7 +3148,7 @@ public partial class SettingsWindow : Window
         {
             AvailableToolsList.Children.Add(new TextBlock
             {
-                Text = "All tools are currently included in the toolbar",
+                Text = "Click the X next to a tool to remove it from the toolbar.",
                 Foreground = new SolidColorBrush(Color.FromRgb(0x99, 0x99, 0x99)),
                 FontSize = 11,
                 Margin = new Thickness(4, 6, 4, 6),

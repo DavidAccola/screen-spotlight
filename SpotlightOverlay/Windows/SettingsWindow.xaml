@@ -356,7 +356,7 @@
                                 <TextBlock Grid.Column="0" Text="Drag Mode" Style="{StaticResource RowLabel}" />
                                 <ComboBox Grid.Column="1" x:Name="DragStyleCombo"
                                           SelectionChanged="DragStyleCombo_SelectionChanged">
-                                    <ComboBoxItem x:Name="DragStyleHold" Content="Hold and Drag" />
+                                    <ComboBoxItem x:Name="DragStyleHold" Content="Click and Drag" />
                                     <ComboBoxItem x:Name="DragStyleClick" Content="Click &amp; Click Again" />
                                 </ComboBox>
                             </Grid>
@@ -441,7 +441,7 @@
                                     <ColumnDefinition Width="130" />
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Grid.Column="0" Text="Toggle tool" Style="{StaticResource RowLabel}" />
+                                <TextBlock Grid.Column="0" Text="Next tool" Style="{StaticResource RowLabel}" />
                                 <StackPanel Grid.Column="1">
                                     <Border x:Name="ToggleToolHotkeyBorder"
                                             Background="{StaticResource ControlBg}"
@@ -456,6 +456,30 @@
                                     <TextBlock x:Name="ToggleToolHotkeyHint" Margin="0,3,0,0"
                                                Style="{StaticResource HintText}"
                                                Text="Cycle to the next tool" />
+                                </StackPanel>
+                            </Grid>
+                            <Border Style="{StaticResource CardSep}" />
+                            <!-- Previous Tool Hotkey -->
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="130" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Previous tool" Style="{StaticResource RowLabel}" />
+                                <StackPanel Grid.Column="1">
+                                    <Border x:Name="PrevToolHotkeyBorder"
+                                            Background="{StaticResource ControlBg}"
+                                            BorderBrush="{StaticResource CardBorder}" BorderThickness="1"
+                                            CornerRadius="4" Padding="10,6" Cursor="Hand"
+                                            MouseLeftButtonDown="PrevToolHotkeyRecorder_Click"
+                                            ToolTip="Click to change. Press keys or mouse buttons.">
+                                        <TextBlock x:Name="PrevToolHotkeyDisplay"
+                                                   Foreground="{StaticResource TextPrimary}"
+                                                   FontSize="13" Text="Not set" />
+                                    </Border>
+                                    <TextBlock x:Name="PrevToolHotkeyHint" Margin="0,3,0,0"
+                                               Style="{StaticResource HintText}"
+                                               Text="Cycle to the previous tool" />
                                 </StackPanel>
                             </Grid>
                             <Border Style="{StaticResource CardSep}" />
@@ -1407,6 +1431,8 @@
                                           Checked="ShowToolNameCheck_Changed"
                                           Unchecked="ShowToolNameCheck_Changed" />
                             </Grid>
+                            <TextBlock Text="Show name of tool in corner of screen on tool change"
+                                       Style="{StaticResource HintText}" Margin="130,4,0,0" />
                             <Border Style="{StaticResource CardSep}" />
                             <Grid>
                                 <Grid.ColumnDefinitions>
@@ -1420,6 +1446,8 @@
                                           Checked="ShowToolIconCheck_Changed"
                                           Unchecked="ShowToolIconCheck_Changed" />
                             </Grid>
+                            <TextBlock Text="Show icon of tool in corner of screen on tool change"
+                                       Style="{StaticResource HintText}" Margin="130,4,0,0" />
                         </StackPanel>
                     </Border>
 
