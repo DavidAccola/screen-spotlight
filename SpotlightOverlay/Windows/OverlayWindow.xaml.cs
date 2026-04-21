@@ -861,6 +861,45 @@ public partial class OverlayWindow : Window
     }
 
     /// <summary>
+    /// Animates a donut-shaped region fading to a target darkness level.
+    /// Uses a Path with the donut geometry filled with solid black at the correct opacity.
+    /// No multiplicative compositing issues — the patch directly controls darkness.
+    /// </summary>
+    public void AnimateDonutDarkness(Geometry donutGeometry, double fromOpacity, double toOpacity, int durationMs = 300, Action? onComplete = null)
+    {
+        // Target opacity = overlayOpacity * darkenFactor (0.5 for 50% darken)
+        var patch = new System.Windows.Shapes.Path
+        {
+            Data = donutGeometry,
+            Fill = System.Windows.Media.Brushes.Black,
+            IsHitTestVisible = false,
+            Opacity = fromOpacity
+        };
+
+        FadeCanvas.Children.Add(patch);
+
+        var anim = new DoubleAnimation
+        {
+            From = fromOpacity,
+            To = toOpacity,
+            Duration = new Duration(TimeSpan.FromMilliseconds(durationMs)),
+            EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut }
+        };
+
+        anim.Completed += (_, _) =>
+        {
+            FadeCanvas.Children.Remove(patch);
+            onComplete?.Invoke();
+        };
+        patch.BeginAnimation(OpacityProperty, anim);
+    }
+
+    /// <summary>
+    /// Returns the overlay opacity value for external callers to compute donut darkness.
+    /// </summary>
+    public double OverlayOpacityValue => _overlayOpacity;
+
+    /// <summary>
     /// Animates the donut-shaped darkness region fading OUT when a nested spotlight
     /// is removed (undo). Uses a feathered bitmap brush matching the main mask.
     /// </summary>

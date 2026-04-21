@@ -1002,15 +1002,17 @@ public partial class App : Application
         bool isFirstBatch = _overlayWindow.FadeInBackground();
         if (!isFirstBatch && hasNested)
         {
-            // Apply the final mask immediately — this has the correct donut darkness baked in.
-            // The donut darkness appears instantly (subtle change).
-            // Only animate the cutout opening (the visually important part).
-            _overlayWindow.ApplyFeatheredMask(featheredMask);
-
+            // Cross-fade from "before" mask to "after" mask.
+            // Both masks are complete renderings with correct darkness levels at every pixel
+            // and feathered edges. The CrossFadeMask interpolates per-pixel.
             foreach (var rect in cutouts)
-                _overlayWindow.AnimateCutoutFadeIn(rect, existingCutouts);
+                _renderer.RemoveLastCutout();
+            var beforeMask = _renderer.BuildFeatheredMask(overlaySize);
+            foreach (var rect in cutouts)
+                _renderer.AddCutout(rect, batchId);
 
-            DebugLog.Write("[App] Nested spotlight — applied final mask + animate cutout opening");
+            _overlayWindow.CrossFadeMask(beforeMask, featheredMask, durationMs: 300);
+            DebugLog.Write("[App] Nested spotlight — cross-fade masks");
         }
         else
         {
@@ -1081,23 +1083,23 @@ public partial class App : Application
 
         DebugLog.Write($"[App] UndoLastBatch: batchId={batchId}, count={count}");
 
-        // For spotlight batches with multiple items, remove all at once and rebuild mask
+        // For spotlight batches with multiple items, remove all at once with cross-fade
         if (count > 1 && _undoStack.Peek().tool == ToolType.Spotlight)
         {
+            var overlaySize = new System.Windows.Size(_overlayWindow.ActualWidth, _overlayWindow.ActualHeight);
+            var beforeMask = _renderer.BuildFeatheredMask(overlaySize);
+
             for (int i = 0; i < count; i++)
                 _undoStack.Pop();
             
-            // Remove the cutouts from the renderer
             for (int i = 0; i < count; i++)
             {
                 if (_renderer.CutoutCount > 0)
                     _renderer.RemoveLastCutout();
             }
 
-            // Rebuild and apply the mask
-            var overlaySize = new System.Windows.Size(_overlayWindow.ActualWidth, _overlayWindow.ActualHeight);
-            var mask = _renderer.BuildFeatheredMask(overlaySize);
-            _overlayWindow.ApplyFeatheredMask(mask);
+            var afterMask = _renderer.BuildFeatheredMask(overlaySize);
+            _overlayWindow.CrossFadeMask(beforeMask, afterMask, durationMs: 300);
         }
         else
         {
@@ -1124,25 +1126,12 @@ public partial class App : Application
 
                     if (wasNested)
                     {
-                        // Build the donut brush BEFORE removing the cutout
-                        var remaining = _renderer.Cutouts.Take(_renderer.CutoutCount - 1).ToList();
-                        var donutBrush = _renderer.BuildDonutBrush(overlaySize, remaining, lastCutout);
-                        DebugLog.Write($"[App] Undo nested: remaining={remaining.Count}, donutBrush={donutBrush != null}");
-
-                        // Remove the cutout and build the "after" mask (without donut darkness for this level)
+                        // Cross-fade from "before" mask (current) to "after" mask (without this cutout)
+                        var beforeMask = _renderer.BuildFeatheredMask(overlaySize);
                         _renderer.RemoveLastCutout();
                         var afterMask = _renderer.BuildFeatheredMask(overlaySize);
-
-                        // Apply the "after" mask immediately — this removes the donut darkness from the mask
-                        _overlayWindow.ApplyFeatheredMask(afterMask);
-
-                        // Overlay the donut patch and fade it out — this provides the smooth transition
-                        if (donutBrush != null)
-                        {
-                            DebugLog.Write("[App] Starting donut fade-out animation");
-                            _overlayWindow.AnimateDonutFadeOut(donutBrush, durationMs: 300);
-                        }
-                        DebugLog.Write("[App] Undo nested spotlight — animating donut fade-out");
+                        _overlayWindow.CrossFadeMask(beforeMask, afterMask, durationMs: 300);
+                        DebugLog.Write("[App] Undo nested spotlight — cross-fade masks");
                     }
                     else
                     {
@@ -1398,3 +1387,4 @@ public partial class App : Application
         }
     }
 }
+

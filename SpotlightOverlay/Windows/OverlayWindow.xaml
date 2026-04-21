@@ -13,6 +13,8 @@
         <Border x:Name="FrozenBackground" Visibility="Collapsed" />
         <!-- Dark overlay with clip geometry + blur for feathered cutouts -->
         <Border x:Name="OverlayBorder" />
+        <!-- Fade animation canvas: above overlay, below annotations -->
+        <Canvas x:Name="FadeCanvas" IsHitTestVisible="False" />
         <!-- Arrow annotations layer: above spotlight overlay, below drag preview indicators -->
         <Canvas x:Name="ArrowCanvas" IsHitTestVisible="False" />
         <!-- Highlight annotations layer: composited as a group via Opacity for non-overlap behavior -->
@@ -44,6 +46,5 @@
             <Line x:Name="BR_H" Stroke="#FFFFFFFF" StrokeThickness="1" Visibility="Collapsed" />
             <Line x:Name="BR_V" Stroke="#FFFFFFFF" StrokeThickness="1" Visibility="Collapsed" />
         </Canvas>
-        <Canvas x:Name="FadeCanvas" IsHitTestVisible="False" />
     </Grid>
 </Window>
