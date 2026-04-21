@@ -28,8 +28,9 @@ public partial class App : Application
     private readonly List<System.Windows.Rect> _pendingCutouts = new();
     private bool _isDismissed; // true when overlay is hidden but cutouts are preserved
     private System.Windows.Media.Imaging.BitmapSource? _cachedScreenshot; // pre-captured on Ctrl press
-    // Undo stack for EscBehavior.UndoThenExit — tracks tool type of each finalized shape in order
-    private readonly Stack<ToolType> _undoStack = new();
+    // Undo stack for EscBehavior.UndoThenExit — tracks tool type and batch ID of each finalized shape
+    private readonly Stack<(ToolType tool, int batchId)> _undoStack = new();
+    private int _undoBatchCounter; // incremented for each user action (drag, click, etc.)
     private bool _undoConsumedLastEsc; // true after an undo Esc; next Esc exits
 
     protected override void OnStartup(StartupEventArgs e)
@@ -512,7 +513,7 @@ public partial class App : Application
                     if (shadowPath != null) _overlayWindow.AddArrowVisualGrouped(shadowPath);
                     _overlayWindow.AddArrowVisualGrouped(mainPath);
                     _arrowRenderer.AddArrow(dipStart, dipEnd);
-                    _undoStack.Push(ToolType.Arrow);
+                    _undoStack.Push((ToolType.Arrow, ++_undoBatchCounter));
                     _undoConsumedLastEsc = false;
                 }
 
@@ -585,7 +586,7 @@ public partial class App : Application
                 {
                     _overlayWindow.AddBoxVisual(mainPath);
                     _boxRenderer.AddBox(dipRect);
-                    _undoStack.Push(ToolType.Box);
+                    _undoStack.Push((ToolType.Box, ++_undoBatchCounter));
                     _undoConsumedLastEsc = false;
                 }
 
@@ -756,7 +757,7 @@ public partial class App : Application
                 {
                     _overlayWindow.AddHighlightVisual(mainPath);
                     _highlightRenderer.AddHighlight(dipRect);
-                    _undoStack.Push(ToolType.Highlight);
+                    _undoStack.Push((ToolType.Highlight, ++_undoBatchCounter));
                     _undoConsumedLastEsc = false;
                 }
             }
@@ -836,7 +837,7 @@ public partial class App : Application
                 var visual = _stepsRenderer.BuildStepVisual(circleCenterDip, tailAngleRad, stepNumber, options);
                 _overlayWindow.AddStepVisual(visual);
                 _stepsRenderer.AddStep(circleCenterDip, tailAngleRad, stepNumber, options);
-                _undoStack.Push(ToolType.Steps);
+                _undoStack.Push((ToolType.Steps, ++_undoBatchCounter));
                 _undoConsumedLastEsc = false;
             }
             catch (Exception ex)
@@ -987,10 +988,11 @@ public partial class App : Application
             }
         }
 
+        int batchId = ++_undoBatchCounter;
         foreach (var rect in cutouts)
         {
-            _renderer.AddCutout(rect);
-            _undoStack.Push(ToolType.Spotlight);
+            _renderer.AddCutout(rect, batchId);
+            _undoStack.Push((ToolType.Spotlight, batchId));
             _undoConsumedLastEsc = false;
         }
 
@@ -1000,33 +1002,15 @@ public partial class App : Application
         bool isFirstBatch = _overlayWindow.FadeInBackground();
         if (!isFirstBatch && hasNested)
         {
-            // Build the base mask (without donut darkness) and apply immediately
-            var baseMask = _renderer.BuildFeatheredMask(overlaySize, skipNestedEffect: true);
-            _overlayWindow.ApplyFeatheredMask(baseMask);
+            // Apply the final mask immediately — this has the correct donut darkness baked in.
+            // The donut darkness appears instantly (subtle change).
+            // Only animate the cutout opening (the visually important part).
+            _overlayWindow.ApplyFeatheredMask(featheredMask);
 
-            // Build a feathered donut brush matching the main mask's blur
             foreach (var rect in cutouts)
-            {
-                if (existingCutouts.Count > 0)
-                {
-                    var donutBrush = _renderer.BuildDonutBrush(overlaySize, existingCutouts, rect);
-                    if (donutBrush != null)
-                    {
-                        _overlayWindow.AnimateDonutFadeIn(donutBrush, durationMs: 400,
-                            onComplete: () =>
-                            {
-                                // When animation completes, apply the full mask (with donut baked in)
-                                if (_overlayWindow != null)
-                                {
-                                    var fullMask = _renderer.BuildFeatheredMask(
-                                        new System.Windows.Size(_overlayWindow.ActualWidth, _overlayWindow.ActualHeight));
-                                    _overlayWindow.ApplyFeatheredMask(fullMask);
-                                }
-                            });
-                    }
-                }
-            }
-            DebugLog.Write("[App] Nested spotlight detected — animating feathered donut region");
+                _overlayWindow.AnimateCutoutFadeIn(rect, existingCutouts);
+
+            DebugLog.Write("[App] Nested spotlight — applied final mask + animate cutout opening");
         }
         else
         {
@@ -1060,8 +1044,8 @@ public partial class App : Application
             // UndoThenExit: first Esc undos last shape; second Esc (with nothing new created) exits
             if (_settings.EscBehavior == EscBehavior.UndoThenExit && _undoStack.Count > 1 && !_undoConsumedLastEsc)
             {
-                DebugLog.Write($"[App] Esc undo: removing last shape ({_undoStack.Peek()})");
-                UndoLastShape();
+                DebugLog.Write($"[App] Esc undo: removing last shape ({_undoStack.Peek().tool})");
+                UndoLastBatch();
                 _undoConsumedLastEsc = true;
                 return;
             }
@@ -1079,12 +1063,56 @@ public partial class App : Application
     }
 
     /// <summary>
+    /// Removes all shapes from the most recent batch (group undo).
+    /// Shapes created in a single drag session share the same batchId.
+    /// </summary>
+    private void UndoLastBatch()
+    {
+        if (_overlayWindow == null || _undoStack.Count == 0) return;
+        int batchId = _undoStack.Peek().batchId;
+        
+        // Count how many items are in this batch
+        int count = 0;
+        foreach (var entry in _undoStack)
+        {
+            if (entry.batchId == batchId) count++;
+            else break;
+        }
+
+        DebugLog.Write($"[App] UndoLastBatch: batchId={batchId}, count={count}");
+
+        // For spotlight batches with multiple items, remove all at once and rebuild mask
+        if (count > 1 && _undoStack.Peek().tool == ToolType.Spotlight)
+        {
+            for (int i = 0; i < count; i++)
+                _undoStack.Pop();
+            
+            // Remove the cutouts from the renderer
+            for (int i = 0; i < count; i++)
+            {
+                if (_renderer.CutoutCount > 0)
+                    _renderer.RemoveLastCutout();
+            }
+
+            // Rebuild and apply the mask
+            var overlaySize = new System.Windows.Size(_overlayWindow.ActualWidth, _overlayWindow.ActualHeight);
+            var mask = _renderer.BuildFeatheredMask(overlaySize);
+            _overlayWindow.ApplyFeatheredMask(mask);
+        }
+        else
+        {
+            // Single item or non-spotlight: just undo one shape
+            UndoLastShape();
+        }
+    }
+
+    /// <summary>
     /// Removes the most recently created shape from the overlay and its renderer.
     /// </summary>
     private void UndoLastShape()
     {
         if (_overlayWindow == null || _undoStack.Count == 0) return;
-        var tool = _undoStack.Pop();
+        var (tool, _) = _undoStack.Pop();
         switch (tool)
         {
             case ToolType.Spotlight:
@@ -1092,28 +1120,33 @@ public partial class App : Application
                 {
                     var lastCutout = _renderer.Cutouts[_renderer.CutoutCount - 1];
                     bool wasNested = _renderer.IsLastCutoutNested();
-                    _renderer.RemoveLastCutout();
                     var overlaySize = new System.Windows.Size(_overlayWindow.ActualWidth, _overlayWindow.ActualHeight);
 
                     if (wasNested)
                     {
-                        // Build the donut brush for the region being removed
-                        var remaining = _renderer.Cutouts.ToList();
+                        // Build the donut brush BEFORE removing the cutout
+                        var remaining = _renderer.Cutouts.Take(_renderer.CutoutCount - 1).ToList();
                         var donutBrush = _renderer.BuildDonutBrush(overlaySize, remaining, lastCutout);
+                        DebugLog.Write($"[App] Undo nested: remaining={remaining.Count}, donutBrush={donutBrush != null}");
 
-                        // Apply the final mask (without the nested cutout) immediately
-                        var finalMask = _renderer.BuildFeatheredMask(overlaySize);
-                        _overlayWindow.ApplyFeatheredMask(finalMask);
+                        // Remove the cutout and build the "after" mask (without donut darkness for this level)
+                        _renderer.RemoveLastCutout();
+                        var afterMask = _renderer.BuildFeatheredMask(overlaySize);
 
-                        // Animate the donut fading out
+                        // Apply the "after" mask immediately — this removes the donut darkness from the mask
+                        _overlayWindow.ApplyFeatheredMask(afterMask);
+
+                        // Overlay the donut patch and fade it out — this provides the smooth transition
                         if (donutBrush != null)
                         {
+                            DebugLog.Write("[App] Starting donut fade-out animation");
                             _overlayWindow.AnimateDonutFadeOut(donutBrush, durationMs: 300);
                         }
-                        DebugLog.Write("[App] Undo nested spotlight — animating feathered donut fade-out");
+                        DebugLog.Write("[App] Undo nested spotlight — animating donut fade-out");
                     }
                     else
                     {
+                        _renderer.RemoveLastCutout();
                         var remaining = _renderer.Cutouts.ToList();
                         _overlayWindow.AnimateCutoutsFadeOut(
                             new[] { lastCutout },

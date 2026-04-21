@@ -15,6 +15,7 @@ namespace SpotlightOverlay.Rendering;
 public class SpotlightRenderer
 {
     private readonly List<Rect> _cutouts = new();
+    private readonly List<int> _batchIds = new();
     private readonly SettingsService _settings;
 
     public SpotlightRenderer(SettingsService settings)
@@ -22,37 +23,89 @@ public class SpotlightRenderer
         _settings = settings ?? throw new ArgumentNullException(nameof(settings));
     }
 
-    public void AddCutout(Rect rect) => _cutouts.Add(rect);
-    public void ClearCutouts() => _cutouts.Clear();
-    public void RemoveLastCutout() { if (_cutouts.Count > 0) _cutouts.RemoveAt(_cutouts.Count - 1); }
+    public void AddCutout(Rect rect, int batchId = -1) { _cutouts.Add(rect); _batchIds.Add(batchId); }
+    public void ClearCutouts() { _cutouts.Clear(); _batchIds.Clear(); }
+    public void RemoveLastCutout() { if (_cutouts.Count > 0) { _cutouts.RemoveAt(_cutouts.Count - 1); _batchIds.RemoveAt(_batchIds.Count - 1); } }
     public int CutoutCount => _cutouts.Count;
     public IReadOnlyList<Rect> Cutouts => _cutouts.AsReadOnly();
+    public IReadOnlyList<int> BatchIds => _batchIds.AsReadOnly();
 
     /// <summary>
     /// Returns true if the given rect would be a nested spotlight (fully contained
-    /// within the union of all existing cutouts).
+    /// within a connected component of existing cutouts).
     /// </summary>
     public bool IsNestedCutout(Rect rect)
     {
         if (_cutouts.Count == 0) return false;
-        Geometry union = Geometry.Empty;
+        // Check single cutout first (fast path)
         foreach (var c in _cutouts)
-            union = new CombinedGeometry(GeometryCombineMode.Union, union, new RectangleGeometry(c));
-        return !union.IsEmpty() && IsFullyContainedInGeometry(union, rect);
+        {
+            if (IsFullyContainedInGeometry(new RectangleGeometry(c), rect))
+                return true;
+        }
+        // Check connected components (for bridged cutouts)
+        return IsContainedInConnectedComponent(_cutouts, rect);
     }
 
     /// <summary>
     /// Returns true if the last cutout is a nested spotlight (fully contained
-    /// within the union of all earlier cutouts). Used to decide whether undo
+    /// within a connected component of earlier cutouts). Used to decide whether undo
     /// needs a cross-fade animation.
     /// </summary>
     public bool IsLastCutoutNested()
     {
         if (_cutouts.Count < 2) return false;
-        Geometry union = Geometry.Empty;
-        for (int i = 0; i < _cutouts.Count - 1; i++)
-            union = new CombinedGeometry(GeometryCombineMode.Union, union, new RectangleGeometry(_cutouts[i]));
-        return !union.IsEmpty() && IsFullyContainedInGeometry(union, _cutouts[^1]);
+        var last = _cutouts[^1];
+        var earlier = _cutouts.Take(_cutouts.Count - 1).ToList();
+        // Check single cutout first (fast path)
+        foreach (var c in earlier)
+        {
+            if (IsFullyContainedInGeometry(new RectangleGeometry(c), last))
+                return true;
+        }
+        // Check connected components
+        return IsContainedInConnectedComponent(earlier, last);
+    }
+
+    /// <summary>
+    /// Checks if rect is fully contained within the union of any connected component
+    /// of the given cutouts. Connected = overlapping directly or transitively.
+    /// </summary>
+    private static bool IsContainedInConnectedComponent(IReadOnlyList<Rect> cutouts, Rect rect)
+    {
+        // Find connected components using union-find
+        var visited = new bool[cutouts.Count];
+        for (int seed = 0; seed < cutouts.Count; seed++)
+        {
+            if (visited[seed]) continue;
+            // BFS to find all cutouts connected to seed
+            var component = new List<int> { seed };
+            visited[seed] = true;
+            int head = 0;
+            while (head < component.Count)
+            {
+                int current = component[head++];
+                for (int j = 0; j < cutouts.Count; j++)
+                {
+                    if (visited[j]) continue;
+                    if (!Rect.Intersect(cutouts[current], cutouts[j]).IsEmpty)
+                    {
+                        component.Add(j);
+                        visited[j] = true;
+                    }
+                }
+            }
+            // Build union of this component and check containment
+            if (component.Count > 1)
+            {
+                Geometry union = Geometry.Empty;
+                foreach (var idx in component)
+                    union = new CombinedGeometry(GeometryCombineMode.Union, union, new RectangleGeometry(cutouts[idx]));
+                if (!union.IsEmpty() && IsFullyContainedInGeometry(union, rect))
+                    return true;
+            }
+        }
+        return false;
     }
 
     private static bool IsFullyContainedInGeometry(Geometry geometry, Rect rect)
@@ -130,7 +183,7 @@ public class SpotlightRenderer
             ? Models.NestedSpotlightMode.Replace  // Replace with all cutouts = just base cutouts
             : _settings.NestedSpotlightMode;
 
-        var element = new MaskElement(scaledCutouts, w, h, nestedMode, scaledFeather, skipNestedEffect)
+        var element = new MaskElement(scaledCutouts, _batchIds, w, h, nestedMode, scaledFeather, skipNestedEffect)
         {
             Width = w,
             Height = h
@@ -292,14 +345,16 @@ public class SpotlightRenderer
     private class MaskElement : FrameworkElement
     {
         private readonly IReadOnlyList<Rect> _cutouts;
+        private readonly IReadOnlyList<int> _batchIds;
         private readonly int _w, _h;
         private readonly Models.NestedSpotlightMode _nestedMode;
         private readonly int _featherRadius;
         private readonly bool _skipNestedEffect;
 
-        public MaskElement(IReadOnlyList<Rect> cutouts, int w, int h, Models.NestedSpotlightMode nestedMode, int featherRadius, bool skipNestedEffect = false)
+        public MaskElement(IReadOnlyList<Rect> cutouts, IReadOnlyList<int> batchIds, int w, int h, Models.NestedSpotlightMode nestedMode, int featherRadius, bool skipNestedEffect = false)
         {
             _cutouts = cutouts;
+            _batchIds = batchIds;
             _w = w;
             _h = h;
             _nestedMode = nestedMode;
@@ -339,41 +394,54 @@ public class SpotlightRenderer
         private void RenderDarkenMode(DrawingContext dc)
         {
             // Add darkness layers for nested overlays
-            // A cutout is "nested" if it's fully contained within the UNION of all earlier cutouts
-            // This treats overlapping cutouts as one combined spotlight region
+            // Cutouts in the same batch are peers, not nested within each other
             int donutCount = 0;
             for (int i = 0; i < _cutouts.Count; i++)
             {
-                // Build the union of all cutouts created before this one
-                Geometry unionOfEarlier = Geometry.Empty;
+                // Build "earlier" list excluding same-batch cutouts
+                var earlier = new List<Rect>();
                 for (int j = 0; j < i; j++)
                 {
-                    unionOfEarlier = new CombinedGeometry(GeometryCombineMode.Union, unionOfEarlier, new RectangleGeometry(_cutouts[j]));
+                    if (_batchIds.Count > j && _batchIds.Count > i && _batchIds[j] == _batchIds[i] && _batchIds[i] >= 0)
+                        continue; // same batch = peer, skip
+                    earlier.Add(_cutouts[j]);
                 }
-                
-                // Check if this cutout is fully contained within the union
-                if (!unionOfEarlier.IsEmpty() && IsFullyContainedInGeometry(unionOfEarlier, _cutouts[i]))
+
+                if (earlier.Count == 0) continue;
+
+                bool isNested = false;
+                foreach (var e in earlier)
                 {
-                    // This cutout is nested within the combined earlier spotlight region
-                    // Create darkness layer: union of earlier cutouts minus this cutout
-                    Geometry donutGeom = unionOfEarlier;
-                    donutGeom = new CombinedGeometry(GeometryCombineMode.Exclude, donutGeom, new RectangleGeometry(_cutouts[i]));
-                    
-                    // Exclude cutouts that come AFTER this one (they should cut through the darkness)
-                    for (int k = i + 1; k < _cutouts.Count; k++)
-                    {
-                        donutGeom = new CombinedGeometry(GeometryCombineMode.Exclude, donutGeom, new RectangleGeometry(_cutouts[k]));
-                        DebugLog.Write($"[MaskElement] Excluding later cutout {k} from donut (nested cutout={i})");
-                    }
-                    
-                    // Draw semi-transparent white to add darkness layer
-                    // Alpha 128 = 50% additional darkness
-                    dc.DrawGeometry(new SolidColorBrush(
-                        System.Windows.Media.Color.FromArgb(128, 0xFF, 0xFF, 0xFF)),
-                        null, donutGeom);
-                    donutCount++;
-                    DebugLog.Write($"[MaskElement] Darken mode: Drew donut layer {donutCount} for nested cutout {i} (within union of 0-{i-1})");
+                    if (IsFullyContainedInGeometry(new RectangleGeometry(e), _cutouts[i]))
+                    { isNested = true; break; }
                 }
+                if (!isNested && earlier.Count > 1)
+                    isNested = IsContainedInConnectedComponent(earlier, _cutouts[i]);
+
+                if (!isNested) continue;
+
+                // Use the union of ALL earlier (non-same-batch) cutouts as the donut outer
+                Geometry donutOuter = Geometry.Empty;
+                foreach (var e in earlier)
+                    donutOuter = new CombinedGeometry(GeometryCombineMode.Union, donutOuter, new RectangleGeometry(e));
+
+                // Create darkness layer: earlier cutouts minus this cutout, same-batch peers, and later cutouts
+                Geometry donutGeom = donutOuter;
+                donutGeom = new CombinedGeometry(GeometryCombineMode.Exclude, donutGeom, new RectangleGeometry(_cutouts[i]));
+
+                // Exclude same-batch peers and later cutouts
+                for (int k = 0; k < _cutouts.Count; k++)
+                {
+                    if (k == i) continue;
+                    if (k > i || (_batchIds.Count > k && _batchIds.Count > i && _batchIds[k] == _batchIds[i] && _batchIds[i] >= 0))
+                        donutGeom = new CombinedGeometry(GeometryCombineMode.Exclude, donutGeom, new RectangleGeometry(_cutouts[k]));
+                }
+
+                dc.DrawGeometry(new SolidColorBrush(
+                    System.Windows.Media.Color.FromArgb(128, 0xFF, 0xFF, 0xFF)),
+                    null, donutGeom);
+                donutCount++;
+                DebugLog.Write($"[MaskElement] Darken mode: Drew donut layer {donutCount} for nested cutout {i}");
             }
             DebugLog.Write($"[MaskElement] Darken mode complete: {donutCount} donut layers");
         }

@@ -777,6 +777,90 @@ public partial class OverlayWindow : Window
     }
 
     /// <summary>
+    /// Cross-fades from one full mask to another using a single patch element.
+    /// Hides the real overlay and uses a timer to step through the transition,
+    /// avoiding the double-darkness flash that two overlapping patches cause.
+    /// </summary>
+    public void CrossFadeMask(System.Windows.Media.Brush beforeMask, System.Windows.Media.Brush afterMask, int durationMs = 300, Action? onComplete = null)
+    {
+        // Single patch element — no overlapping compositing issues
+        var patch = new System.Windows.Shapes.Rectangle
+        {
+            Width = ActualWidth,
+            Height = ActualHeight,
+            Fill = _overlayBrush,
+            OpacityMask = beforeMask,
+            IsHitTestVisible = false,
+            Opacity = 1.0
+        };
+
+        System.Windows.Controls.Canvas.SetLeft(patch, 0);
+        System.Windows.Controls.Canvas.SetTop(patch, 0);
+
+        // Hide the real overlay, show the patch instead
+        OverlayBorder.Opacity = 0;
+        FadeCanvas.Children.Add(patch);
+
+        // Step through the transition using a timer
+        const int steps = 8;
+        var stepInterval = TimeSpan.FromMilliseconds((double)durationMs / steps);
+
+        // Render at 1/4 resolution for speed (matches the mask renderer's scale)
+        int w = Math.Max(1, (int)(ActualWidth * 0.25));
+        int h = Math.Max(1, (int)(ActualHeight * 0.25));
+
+        // Render masks to bitmaps at reduced resolution
+        var beforeRect = new System.Windows.Shapes.Rectangle { Width = w, Height = h, Fill = System.Windows.Media.Brushes.White, OpacityMask = beforeMask };
+        beforeRect.Measure(new System.Windows.Size(w, h));
+        beforeRect.Arrange(new Rect(0, 0, w, h));
+        var beforeRtb = new System.Windows.Media.Imaging.RenderTargetBitmap(w, h, 96, 96, PixelFormats.Pbgra32);
+        beforeRtb.Render(beforeRect);
+        var beforePixels = new byte[w * h * 4];
+        beforeRtb.CopyPixels(beforePixels, w * 4, 0);
+
+        var afterRect = new System.Windows.Shapes.Rectangle { Width = w, Height = h, Fill = System.Windows.Media.Brushes.White, OpacityMask = afterMask };
+        afterRect.Measure(new System.Windows.Size(w, h));
+        afterRect.Arrange(new Rect(0, 0, w, h));
+        var afterRtb = new System.Windows.Media.Imaging.RenderTargetBitmap(w, h, 96, 96, PixelFormats.Pbgra32);
+        afterRtb.Render(afterRect);
+        var afterPixels = new byte[w * h * 4];
+        afterRtb.CopyPixels(afterPixels, w * 4, 0);
+
+        // Pre-compute all blended frames upfront to avoid per-frame allocation
+        var frames = new ImageBrush[steps - 1];
+        for (int s = 1; s < steps; s++)
+        {
+            double t = (double)s / steps;
+            var blended = new byte[beforePixels.Length];
+            for (int i = 0; i < blended.Length; i++)
+                blended[i] = (byte)(beforePixels[i] + (afterPixels[i] - beforePixels[i]) * t);
+
+            var bmp = System.Windows.Media.Imaging.BitmapSource.Create(
+                w, h, 96, 96, PixelFormats.Pbgra32, null, blended, w * 4);
+            bmp.Freeze();
+            frames[s - 1] = new ImageBrush(bmp) { Stretch = Stretch.Fill };
+        }
+
+        int currentStep = 0;
+        var timer = new System.Windows.Threading.DispatcherTimer { Interval = stepInterval };
+        timer.Tick += (_, _) =>
+        {
+            currentStep++;
+            if (currentStep >= steps)
+            {
+                timer.Stop();
+                FadeCanvas.Children.Remove(patch);
+                OverlayBorder.Opacity = 1;
+                ApplyFeatheredMask(afterMask);
+                onComplete?.Invoke();
+                return;
+            }
+            patch.OpacityMask = frames[currentStep - 1];
+        };
+        timer.Start();
+    }
+
+    /// <summary>
     /// Animates the donut-shaped darkness region fading OUT when a nested spotlight
     /// is removed (undo). Uses a feathered bitmap brush matching the main mask.
     /// </summary>
