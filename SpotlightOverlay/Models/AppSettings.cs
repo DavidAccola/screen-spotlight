@@ -14,7 +14,7 @@ public record AppSettings(
     ModifierKey ToggleModifier,
     int ToggleKey,
     bool CumulativeSpotlights = true,
-    AnchorEdge ToolbarAnchorEdge = AnchorEdge.Right,
+    AnchorEdge ToolbarAnchorEdge = AnchorEdge.Left,
     bool FlyoutToolbarVisible = true,
     ArrowheadStyle ArrowheadStyle = ArrowheadStyle.None,
     ArrowheadStyle ArrowEndStyle = ArrowheadStyle.FilledTriangle,
@@ -45,14 +45,15 @@ public record AppSettings(
     bool StepsFontBold = true,
     string StepsFontColor = "FFFFFF",
     double? NubFraction = null,
-    AnchorEdge NubAnchorEdge = AnchorEdge.Right,
+    AnchorEdge NubAnchorEdge = AnchorEdge.Left,
     string NubMonitorFingerprint = "",
     bool ShowToolNameOnSwitch = true,
     bool ShowToolIconOnSwitch = true,
     StepsTailDirection StepsTailDirection = StepsTailDirection.Free,
     EscBehavior EscBehavior = EscBehavior.UndoThenExit,
     NestedSpotlightMode NestedSpotlightMode = NestedSpotlightMode.Darken,
-    string ToolOrder = "Spotlight,Arrow,Box,Highlight,Steps,Settings");
+    string ToolOrder = "Spotlight,Arrow,Box,Highlight,Steps,Settings,DismissToolbar",
+    int DismissToolbarDuration = 60);
 
 public enum StepsTailDirection
 {

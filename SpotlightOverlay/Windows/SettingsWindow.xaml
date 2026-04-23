@@ -338,7 +338,7 @@
         <!-- GENERAL TAB                                            -->
         <!-- ═══════════════════════════════════════════════════════ -->
         <TabItem Header="General" IsSelected="True">
-            <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0">
+            <ScrollViewer VerticalScrollBarVisibility="Hidden" Padding="0">
                 <StackPanel Margin="16,14,16,16">
 
                     <!-- ═══ BEHAVIOR section ═══ -->
@@ -557,7 +557,7 @@
         <!-- SPOTLIGHT TAB                                          -->
         <!-- ═══════════════════════════════════════════════════════ -->
         <TabItem Header="Spotlight">
-            <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0">
+            <ScrollViewer VerticalScrollBarVisibility="Hidden" Padding="0">
                 <StackPanel Margin="16,14,16,16">
 
                     <!-- ═══ APPEARANCE section — preview is inside this card ═══ -->
@@ -741,7 +741,7 @@
         <!-- ARROW TAB                                              -->
         <!-- ═══════════════════════════════════════════════════════ -->
         <TabItem Header="Arrow">
-            <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0">
+            <ScrollViewer VerticalScrollBarVisibility="Hidden" Padding="0">
                 <StackPanel Margin="16,14,16,16">
 
                     <!-- ═══ APPEARANCE section ═══ -->
@@ -901,7 +901,7 @@
         <!-- BOX TAB                                                -->
         <!-- ═══════════════════════════════════════════════════════ -->
         <TabItem Header="Box">
-            <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0">
+            <ScrollViewer VerticalScrollBarVisibility="Hidden" Padding="0">
                 <StackPanel Margin="16,14,16,16">
 
                     <!-- ═══ APPEARANCE section ═══ -->
@@ -1006,7 +1006,7 @@
         <!-- HIGHLIGHT TAB                                          -->
         <!-- ═══════════════════════════════════════════════════════ -->
         <TabItem Header="Highlight">
-            <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0">
+            <ScrollViewer VerticalScrollBarVisibility="Hidden" Padding="0">
                 <StackPanel Margin="16,14,16,16">
 
                     <!-- ═══ APPEARANCE section ═══ -->
@@ -1111,7 +1111,7 @@
         <!-- STEPS TAB                                              -->
         <!-- ═══════════════════════════════════════════════════════ -->
         <TabItem Header="Steps">
-            <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0">
+            <ScrollViewer VerticalScrollBarVisibility="Hidden" Padding="0">
                 <StackPanel Margin="16,14,16,16">
 
                     <!-- ═══ APPEARANCE section ═══ -->
@@ -1397,7 +1397,7 @@
         <!-- TOOLBAR TAB                                            -->
         <!-- ═══════════════════════════════════════════════════════ -->
         <TabItem Header="Toolbar">
-            <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0">
+            <ScrollViewer VerticalScrollBarVisibility="Hidden" Padding="0">
                 <StackPanel Margin="16,14,16,16">
 
                     <!-- ═══ VISIBILITY section ═══ -->
@@ -1409,6 +1409,7 @@
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="130" />
+                                    <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Grid.Column="0" Text="Show toolbar" Style="{StaticResource RowLabel}" />
@@ -1417,37 +1418,41 @@
                                           Foreground="{StaticResource TextPrimary}" FontSize="13"
                                           Checked="ShowToolbarCheck_Changed"
                                           Unchecked="ShowToolbarCheck_Changed" />
+                                <TextBlock Grid.Column="2" Text="Show toolbar/nub on edge of screen"
+                                           Style="{StaticResource HintText}" VerticalAlignment="Center" Margin="12,0,0,0" />
                             </Grid>
                             <Border Style="{StaticResource CardSep}" />
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="130" />
+                                    <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Grid.Column="0" Text="Show tool name" Style="{StaticResource RowLabel}" />
+                                <TextBlock Grid.Column="0" Text="Name popup" Style="{StaticResource RowLabel}" />
                                 <CheckBox Grid.Column="1" x:Name="ShowToolNameCheck"
                                           Style="{StaticResource DarkToggle}"
                                           Foreground="{StaticResource TextPrimary}" FontSize="13"
                                           Checked="ShowToolNameCheck_Changed"
                                           Unchecked="ShowToolNameCheck_Changed" />
+                                <TextBlock Grid.Column="2" Text="Show tool name on switch"
+                                           Style="{StaticResource HintText}" VerticalAlignment="Center" Margin="12,0,0,0" />
                             </Grid>
-                            <TextBlock Text="Show name of tool in corner of screen on tool change"
-                                       Style="{StaticResource HintText}" Margin="130,4,0,0" />
                             <Border Style="{StaticResource CardSep}" />
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="130" />
+                                    <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Grid.Column="0" Text="Show tool icon" Style="{StaticResource RowLabel}" />
+                                <TextBlock Grid.Column="0" Text="Icon popup" Style="{StaticResource RowLabel}" />
                                 <CheckBox Grid.Column="1" x:Name="ShowToolIconCheck"
                                           Style="{StaticResource DarkToggle}"
                                           Foreground="{StaticResource TextPrimary}" FontSize="13"
                                           Checked="ShowToolIconCheck_Changed"
                                           Unchecked="ShowToolIconCheck_Changed" />
+                                <TextBlock Grid.Column="2" Text="Show tool icon on switch"
+                                           Style="{StaticResource HintText}" VerticalAlignment="Center" Margin="12,0,0,0" />
                             </Grid>
-                            <TextBlock Text="Show icon of tool in corner of screen on tool change"
-                                       Style="{StaticResource HintText}" Margin="130,4,0,0" />
                         </StackPanel>
                     </Border>
 

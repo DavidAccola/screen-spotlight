@@ -25,7 +25,7 @@ public record ResolvedNubState(
 /// </summary>
 public static class NubPositionValidator
 {
-    public const AnchorEdge DefaultAnchorEdge = AnchorEdge.Right;
+    public const AnchorEdge DefaultAnchorEdge = AnchorEdge.Left;
 
     /// <summary>
     /// Resolves a saved nub state against the current monitor list.

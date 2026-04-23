@@ -179,6 +179,15 @@
                     </StackPanel>
                 </Button>
 
+                <Button x:Name="DismissToolbarButton"
+                        AutomationProperties.Name="Dismiss toolbar"
+                        Style="{StaticResource ToolbarButton}"
+                        Visibility="Collapsed">
+                    <TextBlock Text="×" FontSize="18" FontWeight="Bold"
+                               Foreground="#808080"
+                               HorizontalAlignment="Center" />
+                </Button>
+
                 <!-- Bottom/Right drag zone -->
                 <Border x:Name="DragZoneEnd" Background="Transparent"
                         Cursor="SizeAll" />

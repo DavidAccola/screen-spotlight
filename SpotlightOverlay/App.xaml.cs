@@ -33,6 +33,10 @@ public partial class App : Application
     private int _undoBatchCounter; // incremented for each user action (drag, click, etc.)
     private bool _undoConsumedLastEsc; // true after an undo Esc; next Esc exits
 
+    // Dismiss toolbar state (non-persisted)
+    private System.Windows.Threading.DispatcherTimer? _dismissTimer;
+    private bool _dismissedUntilSettings;
+
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
@@ -144,6 +148,7 @@ public partial class App : Application
         {
             _flyoutToolbar = new FlyoutToolbarWindow(_settings);
             _flyoutToolbar.ActiveToolChanged += OnActiveToolChanged;
+            _flyoutToolbar.DismissToolbarRequested += OnDismissToolbarRequested;
             _flyoutToolbar.SetInputHook(_inputHook);
             if (_settings.FlyoutToolbarVisible)
                 _flyoutToolbar.ShowToolbar();
@@ -187,8 +192,17 @@ public partial class App : Application
         // Hide toolbar when disabled, restore when re-enabled (if setting is on)
         if (!_inputHook.IsEnabled)
             _flyoutToolbar?.HideToolbar();
-        else if (_settings.FlyoutToolbarVisible)
+        else if (_settings.FlyoutToolbarVisible && !_dismissedUntilSettings)
+        {
+            // Cancel any timed dismiss (but not "until Settings" which uses duration -1)
+            if (_dismissTimer != null)
+            {
+                _dismissTimer.Stop();
+                _dismissTimer = null;
+                DebugLog.Write("[App] Dismiss timer cancelled by re-enable");
+            }
             _flyoutToolbar?.ShowToolbar();
+        }
 
         FlyoutNotification.Show(_inputHook.IsEnabled
             ? "Screen Spotlight enabled"
@@ -200,6 +214,15 @@ public partial class App : Application
     /// </summary>
     private void OnSettingsRequested(object? sender, EventArgs e)
     {
+        // Opening Settings always cancels any active toolbar dismiss (timed or "until Settings")
+        _dismissTimer?.Stop();
+        _dismissTimer = null;
+        _dismissedUntilSettings = false;
+        if (_settings.FlyoutToolbarVisible && _inputHook.IsEnabled)
+        {
+            _flyoutToolbar?.ShowToolbar();
+            DebugLog.Write("[App] Toolbar restored because Settings was opened");
+        }
         SettingsWindow.ShowSingleton(_settings, _inputHook);
     }
 
@@ -228,6 +251,59 @@ public partial class App : Application
             _flyoutToolbar?.HideToolbar();
         _trayIcon.SetToolbarVisible(_settings.FlyoutToolbarVisible);
     }
+
+    /// <summary>
+    /// Handles the DismissToolbar button click from the flyout toolbar.
+    /// Hides the toolbar for the configured duration, or until Settings is opened.
+    /// </summary>
+    private void OnDismissToolbarRequested(object? sender, EventArgs e)
+    {
+        _dismissTimer?.Stop();
+        _dismissTimer = null;
+
+        _flyoutToolbar?.HideToolbar();
+
+        int duration = _settings.DismissToolbarDuration;
+        if (duration == -1)
+        {
+            // Dismiss until Settings is opened (no timer needed — Settings always cancels)
+            _dismissedUntilSettings = true;
+            FlyoutNotification.Show("Toolbar dismissed until Settings is opened");
+            DebugLog.Write("[App] Toolbar dismissed until Settings is opened");
+        }
+        else
+        {
+            FlyoutNotification.Show($"Toolbar dismissed {DismissDurationLabel(duration)}");
+
+            // Dismiss for a timed duration
+            _dismissTimer = new System.Windows.Threading.DispatcherTimer
+            {
+                Interval = TimeSpan.FromSeconds(duration)
+            };
+            _dismissTimer.Tick += (_, _) =>
+            {
+                _dismissTimer.Stop();
+                _dismissTimer = null;
+                _flyoutToolbar?.ShowToolbar();
+                DebugLog.Write("[App] Toolbar restored after dismiss timer expired");
+            };
+            _dismissTimer.Start();
+            DebugLog.Write($"[App] Toolbar dismissed for {duration} seconds");
+        }
+    }
+
+    private static string DismissDurationLabel(int seconds) => seconds switch
+    {
+        60 => "for 1 minute",
+        120 => "for 2 minutes",
+        300 => "for 5 minutes",
+        600 => "for 10 minutes",
+        1800 => "for 30 minutes",
+        3600 => "for 1 hour",
+        7200 => "for 2 hours",
+        10800 => "for 3 hours",
+        _ => $"for {seconds} seconds",
+    };
 
     /// <summary>
     /// Handles drag cancellation (e.g., right-click during drag) — hides the preview.

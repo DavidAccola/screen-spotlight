@@ -3025,6 +3025,20 @@ public partial class SettingsWindow : Window
     };
 
     private const string SettingsTag = "Settings";
+    private const string DismissToolbarTag = "DismissToolbar";
+
+    private static readonly (int Seconds, string Label)[] DismissDurations =
+    {
+        (60,    "for 1 minute"),
+        (120,   "for 2 minutes"),
+        (300,   "for 5 minutes"),
+        (600,   "for 10 minutes"),
+        (1800,  "for 30 minutes"),
+        (3600,  "for 1 hour"),
+        (7200,  "for 2 hours"),
+        (10800, "for 3 hours"),
+        (-1,    "until Settings is opened"),
+    };
 
     private static UIElement BuildToolIcon(ToolType tool)
     {
@@ -3129,21 +3143,40 @@ public partial class SettingsWindow : Window
         var available = allTools.Where(t => !active.Contains(t)).ToList();
         bool settingsPresent = _settings.ToolOrder.Contains("Settings", StringComparison.OrdinalIgnoreCase);
         bool settingsAtTop = _settings.ToolOrder.StartsWith("Settings", StringComparison.OrdinalIgnoreCase);
+        bool dismissPresent = _settings.ToolOrder.Contains("DismissToolbar", StringComparison.OrdinalIgnoreCase);
+        bool dismissAtTop = false;
+        if (dismissPresent)
+        {
+            var parts = _settings.ToolOrder.Split(',');
+            foreach (var p in parts)
+            {
+                var trimmed = p.Trim();
+                if (trimmed.Equals("DismissToolbar", StringComparison.OrdinalIgnoreCase)) { dismissAtTop = true; break; }
+                if (trimmed.Equals("Settings", StringComparison.OrdinalIgnoreCase)) continue;
+                break;
+            }
+        }
 
         ActiveToolsList.Children.Clear();
         AvailableToolsList.Children.Clear();
 
+        // Add top pseudo-tools
+        if (dismissPresent && dismissAtTop)
+            ActiveToolsList.Children.Add(BuildDismissToolbarRow());
         if (settingsPresent && settingsAtTop)
             ActiveToolsList.Children.Add(BuildSettingsRow());
 
         foreach (var tool in active)
             ActiveToolsList.Children.Add(BuildToolRow(tool, isActive: true));
 
+        // Add bottom pseudo-tools
         if (settingsPresent && !settingsAtTop)
             ActiveToolsList.Children.Add(BuildSettingsRow());
+        if (dismissPresent && !dismissAtTop)
+            ActiveToolsList.Children.Add(BuildDismissToolbarRow());
 
         // Available section
-        bool anyAvailable = available.Count > 0 || !settingsPresent;
+        bool anyAvailable = available.Count > 0 || !settingsPresent || !dismissPresent;
         if (!anyAvailable)
         {
             AvailableToolsList.Children.Add(new TextBlock
@@ -3162,6 +3195,9 @@ public partial class SettingsWindow : Window
 
             if (!settingsPresent)
                 AvailableToolsList.Children.Add(BuildAvailableSettingsRow());
+
+            if (!dismissPresent)
+                AvailableToolsList.Children.Add(BuildAvailableDismissToolbarRow());
         }
     }
 
@@ -3181,7 +3217,7 @@ public partial class SettingsWindow : Window
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-        var iconContainer = new Border { Width = 24, Child = BuildSettingsIcon(), VerticalAlignment = VerticalAlignment.Center };
+        var iconContainer = new Border { Width = 24, Child = BuildSettingsIcon(), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 6, 0) };
         Grid.SetColumn(iconContainer, 0);
         grid.Children.Add(iconContainer);
 
@@ -3220,7 +3256,7 @@ public partial class SettingsWindow : Window
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-        var iconContainer = new Border { Width = 24, Child = BuildSettingsIcon(), VerticalAlignment = VerticalAlignment.Center };
+        var iconContainer = new Border { Width = 24, Child = BuildSettingsIcon(), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 6, 0) };
         Grid.SetColumn(iconContainer, 0);
         grid.Children.Add(iconContainer);
 
@@ -3246,6 +3282,152 @@ public partial class SettingsWindow : Window
         return row;
     }
 
+    private static UIElement BuildDismissToolbarIcon()
+    {
+        return new TextBlock
+        {
+            Text = "×",
+            FontSize = 17,
+            FontWeight = FontWeights.Bold,
+            Foreground = System.Windows.Media.Brushes.White,
+            HorizontalAlignment = System.Windows.HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+    }
+
+    private UIElement BuildDismissToolbarRow()
+    {
+        var row = new Border
+        {
+            Background = new SolidColorBrush(Color.FromRgb(0x38, 0x38, 0x38)),
+            CornerRadius = new CornerRadius(4),
+            Margin = new Thickness(0, 2, 0, 2),
+            Padding = new Thickness(8, 5, 6, 5),
+            Cursor = System.Windows.Input.Cursors.SizeAll,
+            Tag = DismissToolbarTag
+        };
+
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); // icon
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); // label
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) }); // combo
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); // remove btn
+
+        var iconContainer = new Border { Width = 24, Child = BuildDismissToolbarIcon(), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 6, 0) };
+        Grid.SetColumn(iconContainer, 0);
+        grid.Children.Add(iconContainer);
+
+        var label = new TextBlock
+        {
+            Text = "Dismiss toolbar",
+            Foreground = new SolidColorBrush(Color.FromRgb(0xE0, 0xE0, 0xE0)),
+            FontSize = 13,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 6, 0)
+        };
+        Grid.SetColumn(label, 1);
+        grid.Children.Add(label);
+
+        var combo = BuildDismissDurationCombo();
+        Grid.SetColumn(combo, 2);
+        grid.Children.Add(combo);
+
+        var removeBtn = BuildIconButton(isRemove: true, tag: DismissToolbarTag);
+        Grid.SetColumn(removeBtn, 3);
+        grid.Children.Add(removeBtn);
+
+        row.Child = grid;
+        row.MouseLeftButtonDown += ToolRow_MouseLeftButtonDown;
+        row.MouseMove += ToolRow_MouseMove;
+        row.MouseLeftButtonUp += ToolRow_MouseLeftButtonUp;
+        row.MouseEnter += ToolRow_MouseEnter;
+        return row;
+    }
+
+    private UIElement BuildAvailableDismissToolbarRow()
+    {
+        var row = new Border
+        {
+            Background = new SolidColorBrush(Color.FromRgb(0x38, 0x38, 0x38)),
+            CornerRadius = new CornerRadius(4),
+            Margin = new Thickness(0, 2, 0, 2),
+            Padding = new Thickness(8, 5, 6, 5),
+            Tag = DismissToolbarTag
+        };
+
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var iconContainer = new Border { Width = 24, Child = BuildDismissToolbarIcon(), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 6, 0) };
+        Grid.SetColumn(iconContainer, 0);
+        grid.Children.Add(iconContainer);
+
+        var label = new TextBlock
+        {
+            Text = "Dismiss toolbar",
+            Foreground = new SolidColorBrush(Color.FromRgb(0xE0, 0xE0, 0xE0)),
+            FontSize = 13,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        Grid.SetColumn(label, 1);
+        grid.Children.Add(label);
+
+        var addBtn = BuildIconButton(isRemove: false, tag: DismissToolbarTag);
+        Grid.SetColumn(addBtn, 2);
+        grid.Children.Add(addBtn);
+
+        row.Child = grid;
+        return row;
+    }
+
+    private System.Windows.Controls.ComboBox BuildDismissDurationCombo()
+    {
+        var combo = new System.Windows.Controls.ComboBox
+        {
+            FontSize = 11,
+            MinWidth = 80,
+            MaxWidth = 160,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 6, 0),
+            Background = new SolidColorBrush(Color.FromRgb(0x2D, 0x2D, 0x2D)),
+            Foreground = new SolidColorBrush(Color.FromRgb(0xE0, 0xE0, 0xE0)),
+            BorderBrush = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)),
+            BorderThickness = new Thickness(1),
+            Padding = new Thickness(4, 2, 4, 2),
+            IsHitTestVisible = true
+        };
+
+        int selectedIndex = 1; // default "for 1 minute"
+        for (int i = 0; i < DismissDurations.Length; i++)
+        {
+            combo.Items.Add(new System.Windows.Controls.ComboBoxItem
+            {
+                Content = DismissDurations[i].Label,
+                Tag = DismissDurations[i].Seconds,
+                Foreground = new SolidColorBrush(Color.FromRgb(0xE0, 0xE0, 0xE0))
+            });
+            if (DismissDurations[i].Seconds == _settings.DismissToolbarDuration)
+                selectedIndex = i;
+        }
+        combo.SelectedIndex = selectedIndex;
+
+        // Set cursor to arrow over the combo (not drag cursor)
+        combo.Cursor = System.Windows.Input.Cursors.Arrow;
+
+        combo.SelectionChanged += (s, e) =>
+        {
+            if (combo.SelectedItem is System.Windows.Controls.ComboBoxItem item && item.Tag is int seconds)
+            {
+                _settings.DismissToolbarDuration = seconds;
+                _settings.Save();
+            }
+        };
+
+        return combo;
+    }
+
     private UIElement BuildToolRow(ToolType tool, bool isActive)
     {
         var row = new Border
@@ -3264,7 +3446,7 @@ public partial class SettingsWindow : Window
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); // button
 
         var icon = BuildToolIcon(tool);
-        var iconContainer = new Border { Width = 24, Child = icon, VerticalAlignment = VerticalAlignment.Center };
+        var iconContainer = new Border { Width = 24, Child = icon, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 6, 0) };
         Grid.SetColumn(iconContainer, 0);
         grid.Children.Add(iconContainer);
 
@@ -3366,6 +3548,18 @@ public partial class SettingsWindow : Window
             return;
         }
 
+        if (tag is string d && d == DismissToolbarTag)
+        {
+            // Remove DismissToolbar button from toolbar
+            _settings.ToolOrder = _settings.ToolOrder
+                .Replace("DismissToolbar,", "", StringComparison.OrdinalIgnoreCase)
+                .Replace(",DismissToolbar", "", StringComparison.OrdinalIgnoreCase)
+                .Replace("DismissToolbar", "", StringComparison.OrdinalIgnoreCase);
+            _settings.Save();
+            RebuildToolLists();
+            return;
+        }
+
         if (tag is ToolType tool)
         {
             var order = SettingsService.ParseActiveToolOrder(_settings.ToolOrder);
@@ -3373,8 +3567,14 @@ public partial class SettingsWindow : Window
             order.Remove(tool);
             bool settingsAtTop = _settings.ToolOrder.StartsWith("Settings", StringComparison.OrdinalIgnoreCase);
             bool settingsPresent = _settings.ToolOrder.Contains("Settings", StringComparison.OrdinalIgnoreCase);
-            string prefix = settingsPresent && settingsAtTop ? "Settings," : "";
-            string suffix = settingsPresent && !settingsAtTop ? ",Settings" : "";
+            bool dismissPresent = _settings.ToolOrder.Contains("DismissToolbar", StringComparison.OrdinalIgnoreCase);
+            bool dismissAtTop = _settings.ToolOrder.TrimStart().StartsWith("DismissToolbar", StringComparison.OrdinalIgnoreCase);
+            string prefix = "";
+            string suffix = "";
+            if (dismissPresent && dismissAtTop) prefix += "DismissToolbar,";
+            if (settingsPresent && settingsAtTop) prefix += "Settings,";
+            if (settingsPresent && !settingsAtTop) suffix += ",Settings";
+            if (dismissPresent && !dismissAtTop) suffix += ",DismissToolbar";
             _settings.ToolOrder = prefix + SettingsService.SerializeToolOrder(order) + suffix;
             _settings.Save();
             RebuildToolLists();
@@ -3389,7 +3589,20 @@ public partial class SettingsWindow : Window
         {
             // Add Settings back at bottom
             var toolPart = SettingsService.SerializeToolOrder(SettingsService.ParseActiveToolOrder(_settings.ToolOrder));
-            _settings.ToolOrder = toolPart + ",Settings";
+            bool dismissPresent = _settings.ToolOrder.Contains("DismissToolbar", StringComparison.OrdinalIgnoreCase);
+            bool dismissAtTop = _settings.ToolOrder.TrimStart().StartsWith("DismissToolbar", StringComparison.OrdinalIgnoreCase);
+            string dismissPrefix = dismissPresent && dismissAtTop ? "DismissToolbar," : "";
+            string dismissSuffix = dismissPresent && !dismissAtTop ? ",DismissToolbar" : "";
+            _settings.ToolOrder = dismissPrefix + toolPart + ",Settings" + dismissSuffix;
+            _settings.Save();
+            RebuildToolLists();
+            return;
+        }
+
+        if (tag is string d && d == DismissToolbarTag)
+        {
+            // Add DismissToolbar at bottom
+            _settings.ToolOrder = _settings.ToolOrder.TrimEnd(',') + ",DismissToolbar";
             _settings.Save();
             RebuildToolLists();
             return;
@@ -3401,8 +3614,14 @@ public partial class SettingsWindow : Window
             if (!order.Contains(tool)) order.Add(tool);
             bool settingsAtTop = _settings.ToolOrder.StartsWith("Settings", StringComparison.OrdinalIgnoreCase);
             bool settingsPresent = _settings.ToolOrder.Contains("Settings", StringComparison.OrdinalIgnoreCase);
-            string prefix = settingsPresent && settingsAtTop ? "Settings," : "";
-            string suffix = settingsPresent && !settingsAtTop ? ",Settings" : "";
+            bool dismissPresent = _settings.ToolOrder.Contains("DismissToolbar", StringComparison.OrdinalIgnoreCase);
+            bool dismissAtTop = _settings.ToolOrder.TrimStart().StartsWith("DismissToolbar", StringComparison.OrdinalIgnoreCase);
+            string prefix = "";
+            string suffix = "";
+            if (dismissPresent && dismissAtTop) prefix += "DismissToolbar,";
+            if (settingsPresent && settingsAtTop) prefix += "Settings,";
+            if (settingsPresent && !settingsAtTop) suffix += ",Settings";
+            if (dismissPresent && !dismissAtTop) suffix += ",DismissToolbar";
             _settings.ToolOrder = prefix + SettingsService.SerializeToolOrder(order) + suffix;
             _settings.Save();
             RebuildToolLists();
@@ -3418,6 +3637,17 @@ public partial class SettingsWindow : Window
 
     private void ToolRow_MouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
+        // Don't start drag if the click is on a ComboBox or its children
+        if (e.OriginalSource is DependencyObject source)
+        {
+            var parent = source;
+            while (parent != null)
+            {
+                if (parent is System.Windows.Controls.ComboBox) return;
+                parent = System.Windows.Media.VisualTreeHelper.GetParent(parent);
+            }
+        }
+
         if (sender is Border row)
         {
             _dragRow = row;
@@ -3441,10 +3671,11 @@ public partial class SettingsWindow : Window
         }
 
         bool isSettingsRow = _dragRow.Tag is string st && st == SettingsTag;
+        bool isDismissRow = _dragRow.Tag is string dt && dt == DismissToolbarTag;
 
-        if (isSettingsRow)
+        if (isSettingsRow || isDismissRow)
         {
-            // Settings snaps only to first or last — determine by which half cursor is in
+            // Pseudo-tools snap only to first or last — determine by which half cursor is in
             double totalHeight = ActiveToolsList.ActualHeight;
             bool goTop = pos.Y < totalHeight / 2;
             int currentIndex = ActiveToolsList.Children.IndexOf(_dragRow);
@@ -3457,15 +3688,21 @@ public partial class SettingsWindow : Window
         }
         else
         {
-            // Normal reorder — but don't allow dropping into the Settings row's slot
+            // Normal reorder — but don't allow dropping into pseudo-tool row slots
             int targetIndex = GetDropIndex(pos.Y);
             int currentIndex = ActiveToolsList.Children.IndexOf(_dragRow);
 
-            // Clamp so we never land on the Settings row's position
+            // Clamp so we never land on a pseudo-tool row's position
             var rows = ActiveToolsList.Children.OfType<Border>().ToList();
             int settingsIdx = rows.FindIndex(b => b.Tag is string s && s == SettingsTag);
+            int dismissIdx = rows.FindIndex(b => b.Tag is string dd && dd == DismissToolbarTag);
             if (settingsIdx == 0 && targetIndex == 0) targetIndex = 1;
             else if (settingsIdx == rows.Count - 1 && targetIndex == rows.Count - 1) targetIndex = rows.Count - 2;
+            if (dismissIdx == 0 && targetIndex == 0) targetIndex = Math.Max(targetIndex, 1);
+            else if (dismissIdx == rows.Count - 1 && targetIndex == rows.Count - 1) targetIndex = Math.Min(targetIndex, rows.Count - 2);
+            // If both pseudo-tools are at top, clamp to after both
+            if (settingsIdx == 0 && dismissIdx == 1 && targetIndex <= 1) targetIndex = 2;
+            else if (dismissIdx == 0 && settingsIdx == 1 && targetIndex <= 1) targetIndex = 2;
 
             if (targetIndex != currentIndex && targetIndex >= 0 && targetIndex < ActiveToolsList.Children.Count)
             {
@@ -3484,6 +3721,7 @@ public partial class SettingsWindow : Window
         {
             var rows = ActiveToolsList.Children.OfType<Border>().ToList();
             var settingsRow = rows.FirstOrDefault(b => b.Tag is string st && st == SettingsTag);
+            var dismissRow = rows.FirstOrDefault(b => b.Tag is string dt && dt == DismissToolbarTag);
             var toolRows = rows.Where(b => b.Tag is ToolType).ToList();
 
             bool settingsAtTop = false;
@@ -3497,15 +3735,32 @@ public partial class SettingsWindow : Window
                 rows.Remove(settingsRow);
                 if (settingsAtTop) rows.Insert(0, settingsRow);
                 else rows.Add(settingsRow);
-                ActiveToolsList.Children.Clear();
-                foreach (var r in rows) ActiveToolsList.Children.Add(r);
             }
 
+            bool dismissAtTop = false;
+            if (dismissRow != null)
+            {
+                int dismissIdx = rows.IndexOf(dismissRow);
+                int midpoint = rows.Count / 2;
+                dismissAtTop = dismissIdx < midpoint;
+
+                // Clamp DismissToolbar to top or bottom in UI
+                rows.Remove(dismissRow);
+                if (dismissAtTop) rows.Insert(0, dismissRow);
+                else rows.Add(dismissRow);
+            }
+
+            ActiveToolsList.Children.Clear();
+            foreach (var r in rows) ActiveToolsList.Children.Add(r);
+
             var toolPart = SettingsService.SerializeToolOrder(toolRows.Select(b => (ToolType)b.Tag!).ToList());
-            bool settingsPresent = settingsRow != null;
-            _settings.ToolOrder = settingsPresent
-                ? (settingsAtTop ? "Settings," + toolPart : toolPart + ",Settings")
-                : toolPart;
+            string prefix = "";
+            string suffix = "";
+            if (dismissRow != null && dismissAtTop) prefix += "DismissToolbar,";
+            if (settingsRow != null && settingsAtTop) prefix += "Settings,";
+            if (settingsRow != null && !settingsAtTop) suffix += ",Settings";
+            if (dismissRow != null && !dismissAtTop) suffix += ",DismissToolbar";
+            _settings.ToolOrder = prefix + toolPart + suffix;
             _settings.Save();
         }
 
@@ -3547,3 +3802,4 @@ public partial class SettingsWindow : Window
     }
 
 }
+

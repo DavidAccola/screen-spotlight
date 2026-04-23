@@ -51,6 +51,11 @@ public partial class FlyoutToolbarWindow : Window
     /// </summary>
     public event EventHandler<ToolType>? ActiveToolChanged;
 
+    /// <summary>
+    /// Raised when the user clicks the Dismiss toolbar button.
+    /// </summary>
+    public event EventHandler? DismissToolbarRequested;
+
     // Nub offset along the toolbar face (set by NubOffsetCalculator during drag).
     // This is the distance from the toolbar's start edge to the nub, used when expanded.
     private double _nubOffset;
@@ -112,6 +117,16 @@ public partial class FlyoutToolbarWindow : Window
         HighlightButton.Click += HighlightButton_Click;
         BoxButton.Click += BoxButton_Click;
         SettingsButton.Click += SettingsButton_Click;
+        DismissToolbarButton.Click += DismissToolbarButton_Click;
+        DismissToolbarButton.MouseEnter += (_, _) =>
+        {
+            if (DismissToolbarButton.Content is TextBlock tb) tb.Foreground = new SolidColorBrush(Color.FromRgb(0xC4, 0x2B, 0x1C));
+        };
+        DismissToolbarButton.MouseLeave += (_, _) =>
+        {
+            if (DismissToolbarButton.Content is TextBlock tb) tb.Foreground = new SolidColorBrush(Color.FromRgb(0x80, 0x80, 0x80));
+        };
+        UpdateDismissTooltip();
 
         _settings.SettingsChanged += OnSettingsChanged;
 
@@ -923,6 +938,35 @@ public partial class FlyoutToolbarWindow : Window
         SettingsWindow.ShowSingleton(_settings);
     }
 
+    private void DismissToolbarButton_Click(object sender, RoutedEventArgs e)
+    {
+        DismissToolbarRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    private static readonly (int Seconds, string Label)[] DismissDurations =
+    {
+        (60,    "for 1 minute"),
+        (120,   "for 2 minutes"),
+        (300,   "for 5 minutes"),
+        (600,   "for 10 minutes"),
+        (1800,  "for 30 minutes"),
+        (3600,  "for 1 hour"),
+        (7200,  "for 2 hours"),
+        (10800, "for 3 hours"),
+        (-1,    "until Settings is opened"),
+    };
+
+    private void UpdateDismissTooltip()
+    {
+        int duration = _settings.DismissToolbarDuration;
+        string label = "Dismiss toolbar";
+        foreach (var (seconds, text) in DismissDurations)
+        {
+            if (seconds == duration) { label = $"Dismiss toolbar {text}"; break; }
+        }
+        DismissToolbarButton.ToolTip = label;
+    }
+
     // ── Settings Changed ─────────────────────────────────────────────
 
     private void OnSettingsChanged(object? sender, EventArgs e)
@@ -944,18 +988,32 @@ public partial class FlyoutToolbarWindow : Window
             }
 
             ApplyToolOrder();
+            UpdateDismissTooltip();
         });
     }
 
     /// <summary>
     /// Reorders and shows/hides tool buttons in ButtonPanel to match ToolOrder setting.
-    /// Settings button always stays at the bottom.
+    /// Settings and DismissToolbar pseudo-buttons snap to top or bottom.
     /// </summary>
     private void ApplyToolOrder()
     {
         var activeTools = SettingsService.ParseActiveToolOrder(_settings.ToolOrder);
         bool settingsPresent = _settings.ToolOrder.Contains("Settings", StringComparison.OrdinalIgnoreCase);
         bool settingsAtTop = _settings.ToolOrder.StartsWith("Settings", StringComparison.OrdinalIgnoreCase);
+        bool dismissPresent = _settings.ToolOrder.Contains("DismissToolbar", StringComparison.OrdinalIgnoreCase);
+        bool dismissAtTop = false;
+        if (dismissPresent)
+        {
+            var parts = _settings.ToolOrder.Split(',');
+            foreach (var p in parts)
+            {
+                var trimmed = p.Trim();
+                if (trimmed.Equals("DismissToolbar", StringComparison.OrdinalIgnoreCase)) { dismissAtTop = true; break; }
+                if (trimmed.Equals("Settings", StringComparison.OrdinalIgnoreCase)) continue;
+                break;
+            }
+        }
 
         var buttonMap = new System.Collections.Generic.Dictionary<ToolType, Button>
         {
@@ -966,36 +1024,82 @@ public partial class FlyoutToolbarWindow : Window
             { ToolType.Steps,     StepsButton },
         };
 
-        // Remove all tool buttons, separator, and settings button from panel
+        // Remove all tool buttons, separators, and pseudo-tool buttons from panel
         foreach (var btn in buttonMap.Values)
             ButtonPanel.Children.Remove(btn);
         ButtonPanel.Children.Remove(Separator);
         ButtonPanel.Children.Remove(SettingsButton);
+        ButtonPanel.Children.Remove(DismissToolbarButton);
+        // Remove any dynamically-added dismiss separator
+        if (_dismissSeparator != null)
+        {
+            ButtonPanel.Children.Remove(_dismissSeparator);
+            _dismissSeparator = null;
+        }
 
+        // Determine which pseudo-tools go at top vs bottom
+        bool anyPseudoAtTop = (settingsPresent && settingsAtTop) || (dismissPresent && dismissAtTop);
+        bool anyPseudoAtBottom = (settingsPresent && !settingsAtTop) || (dismissPresent && !dismissAtTop);
+
+        // Insert top pseudo-tools after DragZoneStart (index 1)
+        int insertAt = 1;
+        if (dismissPresent && dismissAtTop)
+        {
+            DismissToolbarButton.Visibility = Visibility.Visible;
+            ButtonPanel.Children.Insert(insertAt++, DismissToolbarButton);
+        }
         if (settingsPresent && settingsAtTop)
         {
-            ButtonPanel.Children.Insert(1, Separator);
-            ButtonPanel.Children.Insert(1, SettingsButton);
-            int insertAt = 3;
-            foreach (var tool in activeTools)
-            {
-                buttonMap[tool].Visibility = Visibility.Visible;
-                ButtonPanel.Children.Insert(insertAt++, buttonMap[tool]);
-            }
+            SettingsButton.Visibility = Visibility.Visible;
+            ButtonPanel.Children.Insert(insertAt++, SettingsButton);
         }
-        else
+        if (anyPseudoAtTop)
         {
-            int insertAt = 1;
-            foreach (var tool in activeTools)
+            Separator.Visibility = Visibility.Visible;
+            ButtonPanel.Children.Insert(insertAt++, Separator);
+        }
+
+        // Insert tool buttons
+        foreach (var tool in activeTools)
+        {
+            buttonMap[tool].Visibility = Visibility.Visible;
+            ButtonPanel.Children.Insert(insertAt++, buttonMap[tool]);
+        }
+
+        // Insert bottom pseudo-tools before DragZoneEnd
+        if (anyPseudoAtBottom)
+        {
+            if (anyPseudoAtTop)
             {
-                buttonMap[tool].Visibility = Visibility.Visible;
-                ButtonPanel.Children.Insert(insertAt++, buttonMap[tool]);
+                // Need a second separator for bottom
+                _dismissSeparator = new System.Windows.Controls.Border
+                {
+                    Height = 1,
+                    Background = new SolidColorBrush(Color.FromArgb(0x40, 0xFF, 0xFF, 0xFF)),
+                    Margin = new Thickness(8, 4, 8, 4),
+                    HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch
+                };
+                int endIdx = ButtonPanel.Children.Count - 1; // before DragZoneEnd
+                ButtonPanel.Children.Insert(endIdx, _dismissSeparator);
             }
-            if (settingsPresent)
+            else
             {
+                Separator.Visibility = Visibility.Visible;
                 int endIdx = ButtonPanel.Children.Count - 1;
                 ButtonPanel.Children.Insert(endIdx, Separator);
-                ButtonPanel.Children.Insert(endIdx + 1, SettingsButton);
+            }
+
+            int bottomIdx = ButtonPanel.Children.Count - 1; // before DragZoneEnd
+            if (settingsPresent && !settingsAtTop)
+            {
+                SettingsButton.Visibility = Visibility.Visible;
+                ButtonPanel.Children.Insert(bottomIdx, SettingsButton);
+                bottomIdx++;
+            }
+            if (dismissPresent && !dismissAtTop)
+            {
+                DismissToolbarButton.Visibility = Visibility.Visible;
+                ButtonPanel.Children.Insert(bottomIdx, DismissToolbarButton);
             }
         }
 
@@ -1004,9 +1108,12 @@ public partial class FlyoutToolbarWindow : Window
             if (!activeTools.Contains(tool))
                 buttonMap[tool].Visibility = Visibility.Collapsed;
 
-        Separator.Visibility = settingsPresent ? Visibility.Visible : Visibility.Collapsed;
-        SettingsButton.Visibility = settingsPresent ? Visibility.Visible : Visibility.Collapsed;
+        if (!settingsPresent) SettingsButton.Visibility = Visibility.Collapsed;
+        if (!dismissPresent) DismissToolbarButton.Visibility = Visibility.Collapsed;
+        if (!anyPseudoAtTop && !anyPseudoAtBottom) Separator.Visibility = Visibility.Collapsed;
     }
+
+    private System.Windows.Controls.Border? _dismissSeparator;
 
     // ── Fullscreen Detection ─────────────────────────────────────────
 
