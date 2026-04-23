@@ -1,5 +1,5 @@
 #define MyAppName "Screen Spotlight"
-#define MyAppVersion "1.0.2"
+#define MyAppVersion "1.0.3"
 #define MyAppPublisher "David Accola"
 #define MyAppURL "https://github.com/DavidAccola/screen-spotlight"
 #define MyAppExeName "Screen Spotlight.exe"
